@@ -1,0 +1,1 @@
+C:\Users\gamve\Projects\BitChord\native\target\aarch64-linux-android\release\libsonora_core.so: C:\Users\gamve\Projects\BitChord\native\sonora-android\src\lib.rs C:\Users\gamve\Projects\BitChord\native\sonora-core\src\chords\mod.rs C:\Users\gamve\Projects\BitChord\native\sonora-core\src\dsp\mod.rs C:\Users\gamve\Projects\BitChord\native\sonora-core\src\lib.rs

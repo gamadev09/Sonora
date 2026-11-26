@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allow cleartext HTTP on the local network so DLNA/UPnP device descriptions,
+  SOAP AVTransport/RenderingControl requests, local WAV/artwork streaming, and
+  user-hosted LAN media servers work on Android 9+. Keep HTTPS pinned for
+  BitChord's GitHub update/assets endpoints.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">api.github.com</domain>
+        <domain includeSubdomains="false">raw.githubusercontent.com</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

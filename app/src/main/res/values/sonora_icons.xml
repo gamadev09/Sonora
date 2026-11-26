@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="sonora_icon_light_background">#F5F6FA</color>
+    <color name="sonora_icon_dark_background">#000000</color>
+    <color name="sonora_icon_monochrome_background">#FFFFFF</color>
+</resources>

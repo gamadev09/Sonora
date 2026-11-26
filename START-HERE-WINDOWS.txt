@@ -1,0 +1,9 @@
+COMPLETE BITCHORD PROJECT WITH CHORDS MVP
+
+Extract ALL files to a new folder, then open that folder in Android Studio.
+gradlew.bat and settings.gradle.kts are directly inside that folder.
+
+In PowerShell inside the extracted folder, run:
+.\gradlew.bat :app:assembleProdDebug "-Pbitchord.bundleWear=false"
+
+Android compilation remains unverified. See BUILD_CHORDS_MVP.md for details.

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Official Sonora geometry, unchanged from ic_launcher_foreground. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="1024" android:viewportHeight="1024">
+    <path android:fillColor="#FF171B25" android:pathData="M288,448A38,38 0,0 1,326 486V618A38,38 0,0 1,288 656A38,38 0,0 1,250 618V486A38,38 0,0 1,288 448Z" />
+    <path android:fillColor="#FF171B25" android:pathData="M400,304A38,38 0,0 1,438 342V598A38,38 0,0 1,400 636A38,38 0,0 1,362 598V342A38,38 0,0 1,400 304Z" />
+    <path android:fillColor="#FF171B25" android:pathData="M512,264A38,38 0,0 1,550 302V722A38,38 0,0 1,512 760A38,38 0,0 1,474 722V302A38,38 0,0 1,512 264Z" />
+    <path android:fillColor="#FF171B25" android:pathData="M624,388A38,38 0,0 1,662 426V682A38,38 0,0 1,624 720A38,38 0,0 1,586 682V426A38,38 0,0 1,624 388Z" />
+    <path android:fillColor="#FF171B25" android:pathData="M736,368A38,38 0,0 1,774 406V538A38,38 0,0 1,736 576A38,38 0,0 1,698 538V406A38,38 0,0 1,736 368Z" />
+</vector>

@@ -1,0 +1,1171 @@
+diff --git a/BUILD_CHORDS_MVP.md b/BUILD_CHORDS_MVP.md
+new file mode 100644
+index 00000000..79bc2b17
+--- /dev/null
++++ b/BUILD_CHORDS_MVP.md
+@@ -0,0 +1,81 @@
++# Build BitChord Chords MVP on macOS
++
++This is the complete source tree with the chords changes already applied.
++You do not need to apply the earlier patch.
++
++## App identity
++
++| Variant | Installed package | Launcher name |
++| --- | --- | --- |
++| prodDebug (recommended) | `com.music.bitchord.chordsmvp` | BitChord Chords MVP |
++| devDebug | `com.music.bitchord.chordsmvp.dev` | BitChord Chords MVP Dev |
++
++These install separately from official BitChord and BitChord Dev. The Kotlin
++namespace stays unchanged so native JNI bindings and class names keep working.
++Provider authorities already use `${applicationId}`. The optional watch build
++has matching IDs. Existing official-app data is not imported into this prototype.
++
++## Requirements
++
++- Android Studio, using its bundled JDK 21 (or another JDK 21).
++- Android SDK Platform 37, as required by `app/build.gradle.kts`.
++- CMake 3.22.1 and the NDK selected by the existing Android Gradle plugin.
++- Internet for Gradle, SDK components and Maven dependencies on the first build.
++
++The repository's older CONTRIBUTING setup section mentions SDK 36. Use the
++current Gradle configuration (37 for the phone), which is authoritative.
++
++## Build
++
++1. Extract this archive into a normal folder.
++2. Open the extracted BitChord-chords-mvp folder in Android Studio. Let Gradle
++   sync and install the requested SDK/NDK tools. Do not upgrade dependencies.
++3. In Terminal, inside that folder:
++
++```sh
++chmod +x gradlew build-chords-mvp.sh
++./build-chords-mvp.sh
++```
++
++The script runs:
++
++```sh
++./gradlew :app:assembleProdDebug -Pbitchord.bundleWear=false
++```
++
++This skips the optional embedded watch APK and uses standard local debug
++signing. No release keystore is required. APKs appear under:
++
++```text
++app/build/outputs/apk/prod/debug/
++```
++
++Choose the **arm64-v8a** APK for the Moto G Stylus 5G (2023), or the universal
++APK. Install it over wireless debugging or transfer it to the phone and open it.
++
++If Gradle says the Android SDK is missing, Android Studio should create a
++`local.properties` file containing your actual SDK location. The typical macOS
++location is:
++
++```properties
++sdk.dir=/Users/YOUR_USERNAME/Library/Android/sdk
++```
++
++Do not copy another person's absolute SDK path. If Terminal cannot locate Java,
++select Android Studio's JDK for Gradle or set JAVA_HOME to your installed JDK 21.
++
++## Use and validation
++
++Play a downloaded/local or fully cached song, open lyrics and tap **Find chords**.
++Chords appear above each timed lyric line and highlight when the audio reaches
++each chord change. Show chords hides them; Simplify reduces sevenths to their
++major/minor forms (Cmaj7 → C, Am7 → Am, G7 → G) without changing cached analysis.
++The detector estimates major, minor, dominant seventh, major seventh and minor
++seventh chords offline. Unsynchronised lyrics use a current-chord fallback rather
++than invented line alignment. It is a basic chroma-based detector, not Moises-quality AI.
++
++Twelve detector/display tests passed in the cloud. Android/Compose compilation, APK
++installation and real-song accuracy have not been verified there. This ZIP is
++source for you to compile, not a prebuilt or verified APK.
++
++More details and on-device checks: `docs/CHORDS_MVP.md`.
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 00fc2bee..8cf3aac3 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -82,7 +82,7 @@ android {
+     }
+ 
+     defaultConfig {
+-        applicationId = "com.music.bitchord"
++        applicationId = "com.music.bitchord.chordsmvp"
+         // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
+         // Haze falls back to a translucent scrim below that.
+         minSdk = 26
+@@ -140,12 +140,13 @@ android {
+     productFlavors {
+         create("dev") {
+             dimension = "env"
+-            applicationId = "com.dev.bitchord"
+-            resValue("string", "app_name", "BitChord Dev")
++            applicationId = "com.music.bitchord.chordsmvp.dev"
++            resValue("string", "app_name", "BitChord Chords MVP Dev")
+         }
+         create("prod") {
+             dimension = "env"
+-            // Matches defaultConfig — this is the package already shipped/installed.
++            // Separate package for this prototype; does not replace official BitChord.
++            resValue("string", "app_name", "BitChord Chords MVP")
+         }
+     }
+ 
+@@ -509,10 +510,10 @@ val verifyDevInstall = tasks.register("verifyDevInstall") {
+             .drop(1)
+             .mapNotNull { line -> line.split('\t').takeIf { it.size == 2 && it[1] == "device" }?.get(0) }
+         serials.forEach { serial ->
+-            logger.lifecycle("verifyDevInstall: compiling com.dev.bitchord on $serial")
++            logger.lifecycle("verifyDevInstall: compiling com.music.bitchord.chordsmvp.dev on $serial")
+             ProcessBuilder(
+                 adbPath, "-s", serial, "shell", "cmd", "package", "compile",
+-                "-m", "verify", "-f", "com.dev.bitchord",
++                "-m", "verify", "-f", "com.music.bitchord.chordsmvp.dev",
+             ).inheritIO().start().waitFor()
+         }
+     }
+diff --git a/app/src/dev/AndroidManifest.xml b/app/src/dev/AndroidManifest.xml
+index ee07d6ca..6505a999 100644
+--- a/app/src/dev/AndroidManifest.xml
++++ b/app/src/dev/AndroidManifest.xml
+@@ -3,7 +3,7 @@
+     xmlns:tools="http://schemas.android.com/tools">
+ 
+     <application
+-        android:label="BitChord Dev"
++        android:label="@string/app_name"
+         android:usesCleartextTraffic="true"
+         tools:replace="android:label,android:usesCleartextTraffic" />
+ </manifest>
+diff --git a/app/src/main/java/com/music/bitchord/playback/chords/AndroidChordAnalysis.kt b/app/src/main/java/com/music/bitchord/playback/chords/AndroidChordAnalysis.kt
+new file mode 100644
+index 00000000..de714602
+--- /dev/null
++++ b/app/src/main/java/com/music/bitchord/playback/chords/AndroidChordAnalysis.kt
+@@ -0,0 +1,155 @@
++package com.music.bitchord.playback.chords
++
++import android.content.Context
++import android.media.MediaDataSource
++import android.net.Uri
++import android.util.AtomicFile
++import androidx.media3.common.util.UnstableApi
++import com.music.bitchord.data.model.Song
++import com.music.bitchord.download.Downloads
++import com.music.bitchord.playback.AudioCache
++import com.music.bitchord.playback.smart.AudioDecoder
++import com.music.bitchord.playback.smart.LocalAudioSource
++import com.music.bitchord.ui.player.ChordAnalysisSource
++import java.io.File
++import java.security.MessageDigest
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withContext
++import org.json.JSONArray
++import org.json.JSONObject
++
++/** Explicitly requested, offline-only MVP. Never fetches a different recording. */
++@androidx.annotation.OptIn(UnstableApi::class)
++class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
++    private val app = context.applicationContext
++    private val folder = File(app.cacheDir, "chords-v${ChordAnalyzer.VERSION}")
++    private val lock = Mutex()
++
++    private data class Input(val uri: Uri, val identity: String, val open: () -> MediaDataSource?)
++
++    private suspend fun input(song: Song): Input? {
++        val local = song.localUri ?: Downloads.savedUri(app, song.videoId)?.toString()
++            ?: song.videoId.takeIf { it.startsWith("content://") || it.startsWith("file://") }
++        if (local != null) {
++            val uri = Uri.parse(local)
++            // Size and modification time invalidate results when a local file is replaced.
++            val stamp = if (uri.scheme == "file") {
++                val file = File(requireNotNull(uri.path))
++                "${file.length()}:${file.lastModified()}"
++            } else {
++                val size = app.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: return null
++                val modified = runCatching {
++                    app.contentResolver.query(uri, arrayOf("date_modified"), null, null, null)?.use {
++                        if (it.moveToFirst()) it.getLong(0) else 0L
++                    } ?: 0L
++                }.getOrDefault(0L)
++                "$size:$modified"
++            }
++            return Input(uri, "$uri:$stamp") { LocalAudioSource.open(app.contentResolver, uri) }
++        }
++        val uri = Uri.parse("bitchord://watch?v=${Uri.encode(song.videoId)}")
++        // Do not pick the smallest sibling: it may be a different cut of this song.
++        val key = AudioCache.cacheKeyOf(uri)
++        val rendition = AudioCache.renditionsOf(uri).firstOrNull { it.key == key && it.isComplete } ?: return null
++        return Input(uri, "${rendition.key}:${rendition.contentLength}") {
++            AudioCache.renditionDataSource(uri, rendition)
++        }
++    }
++
++    private fun cacheFile(input: Input): File {
++        val hash = MessageDigest.getInstance("SHA-256").digest(input.identity.toByteArray())
++            .joinToString("") { "%02x".format(it.toInt() and 255) }
++        return File(folder, "$hash.json")
++    }
++
++    override suspend fun cached(song: Song): List<ChordEvent>? = withContext(Dispatchers.IO) {
++        lock.withLock {
++            val input = input(song) ?: return@withLock null
++            read(cacheFile(input))
++        }
++    }
++
++    override suspend fun analyze(song: Song, onProgress: (Float) -> Unit): List<ChordEvent> =
++        withContext(Dispatchers.IO) {
++            lock.withLock {
++                val input = input(song) ?: error("Download this song, or let it finish caching, then try again.")
++                val events = analyzeInput(input, onProgress)
++                currentCoroutineContext().ensureActive()
++                if (events.isNotEmpty()) write(cacheFile(input), events)
++                withContext(Dispatchers.Main) { onProgress(1f) }
++                events
++            }
++        }
++
++    private suspend fun analyzeInput(input: Input, onProgress: (Float) -> Unit): List<ChordEvent> = coroutineScope {
++        val updates = Channel<Float>(Channel.CONFLATED)
++        val notifier = launch(Dispatchers.Main) { for (value in updates) onProgress(value) }
++        try {
++            val source = input.open() ?: error("This audio file cannot be opened.")
++            val coroutine = currentCoroutineContext()
++            source.use {
++                val duration = AudioDecoder.containerDurationSeconds(it)
++                    ?.takeIf { seconds -> seconds.isFinite() && seconds > 0 && seconds <= 1800 }
++                    ?: error("Use a supported audio file no longer than 30 minutes.")
++                val analyzer = ChordAnalyzer()
++                var nextProgress = 0.0
++                val decoded = AudioDecoder.streamRegion(it, 0.0, duration, abort = { !coroutine.isActive }) {
++                        samples, at, rate ->
++                    coroutine.ensureActive()
++                    analyzer.accept(samples, at, rate)
++                    if (at >= nextProgress) {
++                        updates.trySend((at / duration).toFloat().coerceIn(0f, 0.99f))
++                        nextProgress = at + 0.5
++                    }
++                }
++                coroutine.ensureActive()
++                check(decoded != null) { "Android could not decode this audio format." }
++                analyzer.finish((duration * 1000).toLong())
++            }
++        } finally {
++            updates.close()
++            notifier.cancel()
++        }
++    }
++
++    private fun read(file: File): List<ChordEvent>? = runCatching {
++        val json = JSONObject(AtomicFile(file).openRead().bufferedReader().use { it.readText() })
++        check(json.getInt("version") == ChordAnalyzer.VERSION)
++        val rows = json.getJSONArray("events")
++        check(rows.length() in 1..10000)
++        val events = (0 until rows.length()).map { index ->
++            val row = rows.getJSONObject(index)
++            ChordEvent(row.getLong("start"), row.getLong("end"), row.getString("chord"))
++        }
++        check(events.all { it.startMs >= 0 && it.endMs > it.startMs && it.label.matches(Regex("N|[A-G]#?(?:maj7|m7|7|m)?")) })
++        check(events.zipWithNext().all { (a, b) -> a.endMs == b.startMs })
++        file.setLastModified(System.currentTimeMillis())
++        events
++    }.getOrNull()
++
++    private fun write(file: File, events: List<ChordEvent>) {
++        folder.mkdirs()
++        val rows = JSONArray()
++        events.forEach { rows.put(JSONObject().put("start", it.startMs).put("end", it.endMs).put("chord", it.label)) }
++        val json = JSONObject().put("version", ChordAnalyzer.VERSION).put("events", rows)
++        val atomic = AtomicFile(file)
++        val stream = atomic.startWrite()
++        try {
++            stream.write(json.toString().toByteArray())
++            atomic.finishWrite(stream)
++        } catch (e: Exception) {
++            atomic.failWrite(stream)
++            throw e
++        }
++        folder.listFiles()?.filter { it.extension == "json" }?.sortedByDescending { it.lastModified() }
++            ?.drop(64)?.forEach { AtomicFile(it).delete() }
++    }
++}
+diff --git a/app/src/main/java/com/music/bitchord/ui/player/AndroidPlayerHost.kt b/app/src/main/java/com/music/bitchord/ui/player/AndroidPlayerHost.kt
+index cbd7ee11..196068e6 100644
+--- a/app/src/main/java/com/music/bitchord/ui/player/AndroidPlayerHost.kt
++++ b/app/src/main/java/com/music/bitchord/ui/player/AndroidPlayerHost.kt
+@@ -57,6 +57,9 @@ import kotlin.math.roundToInt
+  */
+ class AndroidPlayerHost(context: Context) : PlayerHost {
+     private val app = context.applicationContext
++    override val chordAnalysis: ChordAnalysisSource by lazy {
++        com.music.bitchord.playback.chords.AndroidChordAnalysis(app)
++    }
+     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+     private val main = Handler(Looper.getMainLooper())
+ 
+diff --git a/build-chords-mvp.sh b/build-chords-mvp.sh
+new file mode 100755
+index 00000000..c14e32df
+--- /dev/null
++++ b/build-chords-mvp.sh
+@@ -0,0 +1,4 @@
++#!/bin/sh
++set -eu
++cd "$(dirname "$0")"
++exec sh ./gradlew :app:assembleProdDebug -Pbitchord.bundleWear=false "$@"
+diff --git a/docs/CHORDS_MVP.md b/docs/CHORDS_MVP.md
+new file mode 100644
+index 00000000..adcbd3ea
+--- /dev/null
++++ b/docs/CHORDS_MVP.md
+@@ -0,0 +1,88 @@
++# Offline chords MVP — lyrics layout v2
++
++The Android lyrics view shows estimated chords **above each corresponding lyric
++line**, using the same lyric row container and its scrolling, blur and motion.
++Translations remain below the original lyric. This replaces the earlier separate
++horizontal chord strip. There is no chord-to-word positioning claim: chord names
++wrap naturally above the line instead of attaching to exact lyric characters.
++
++## Use
++
++1. Build/install as described in `BUILD_CHORDS_MVP.md`. The standalone package
++   remains `com.music.bitchord.chordsmvp` (prodDebug).
++2. Play a local/downloaded or fully cached current rendition and open lyrics.
++3. Tap **Find chords**. Progress and cancellation remain available.
++4. Each lyric line shows the chord sounding at its start plus changes before the
++   next distinct lyric timestamp. Duplicate timestamps (duets) share a window.
++5. Chords highlight on the actual audio timeline. Backwards/forwards seeks are
++   handled by stateless interval lookup. A lyric offset moves the line windows,
++   not the chord event timestamps.
++6. **Show chords** hides/shows annotations. **Simplify** reduces Cmaj7 to C,
++   Am7 to Am and G7 to G. Adjacent equal simplified events are merged for display.
++   This does not alter the original detection or its cached results.
++7. **Analyse again** reruns detection. Version 2 caches are separate from the
++   earlier triad-only detector, so old results are not mistaken for richer ones.
++
++With untimed or missing lyrics, the controls provide a current-chord fallback.
++Some outer player layouts use their own placeholder rather than composing the
++lyrics panel when lyrics are absent; verify those layouts on a device. Instrumental
++lyric-gap rows retain their original dot animation, rather than lyric annotations.
++No alignment is invented for unsynchronised lyrics. Chords are hidden while
++selecting lyrics for a share card.
++
++## Analysis
++
++- No server, microphone or model download. The existing Android MediaCodec
++  streaming decoder feeds a bounded-memory, deterministic chroma/template engine.
++- Major, minor, dominant seventh, major seventh and minor seventh templates in all
++  12 roots (60 chord labels). N means silence/uncertainty and displays as a dash.
++- Mono downmix, box-filter decimation to 11025 Hz, 8192-sample Hann FFT,
++  pitch-class accumulation, template comparison and three-frame smoothing.
++- This is a baseline, not a learned model or Moises-quality transcription. Dense
++  mixes, overtones, detuning and stereo cancellation can cause wrong estimates.
++  Diminished/augmented/suspended chords, richer extensions, slash chords, inversions,
++  capo suggestions and chord diagrams are not implemented.
++- Audio must be readable and supported by Android MediaExtractor/MediaCodec;
++  duration is limited to 30 minutes. No new audio download is initiated.
++- Only the current complete cached rendition is used, rather than a smaller
++  potentially different cut. Playback source switches during preparation are not
++  tracked; reanalyse after changing recordings.
++- Atomic JSON results are retained in app-private cache, capped at 64 entries.
++  URI/size/modification time where available or rendition key/length identify the
++  source. Same-size replacements without modification metadata can need reanalysis.
++- Chord polling is 100 ms but highlight precision also depends on the existing
++  playback snapshots. UI labels are English and need resource localisation before
++  a public release. Toggle state is per composed song and not a persisted setting.
++
++## Architecture
++
++`ChordAnalyzer`, `ChordEvent`, `ChordDisplay` and tests are in shared common code.
++`ChordAnalysisSource` is an optional service on PlayerHost. AndroidChordAnalysis
++owns decoding, cancellation and JSON caching. ChordLyricsPanel prepares shared
++state and controls; LyricsContent maps events into line windows, then renders
++LyricChordLine before the original PanelVoice inside the same animated Column.
++The original playback/DSP pipeline is not changed.
++
++## Validation
++
++Actual Kotlin sources compiled with Kotlin/JVM 2.1.0 and JUnit: **12 tests passed**.
++The tests include all 60 chord types/roots at 44.1 and 48 kHz (120 synthetic
++combinations), silence, a C→Am progression, seeking/interval boundaries, chunk-size
++invariance, short input, seventh simplification, preserved originals, carried
++chords, multiple changes per lyric, duplicate duet timestamps and lyric offsets.
++These synthetic tests do not establish real-song accuracy.
++
++Full Android/Compose compilation and visual/device testing remain unverified.
++The cloud has no Android SDK and Java could not download Gradle. No APK is claimed.
++Run on your Mac:
++
++```sh
++./gradlew :shared:jvmTest :app:assembleProdDebug -Pbitchord.bundleWear=false
++```
++
++On-phone checks: portrait/landscape; translation enabled/disabled; long chord
++sequences wrapping above lines; seventh simplification; Show chords; timed/untimed
++lyrics; lyric offset changes; lyric selection; local/downloaded/cached audio;
++partial-cache errors; cancel/change songs during analysis; cached replay;
++backwards/forwards seeking; pause/resume; unsupported codecs. Compare several real
++songs with known charts. This source MVP is not a tested release.
+diff --git a/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordAnalysis.kt b/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordAnalysis.kt
+new file mode 100644
+index 00000000..2613aab9
+--- /dev/null
++++ b/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordAnalysis.kt
+@@ -0,0 +1,171 @@
++package com.music.bitchord.playback.chords
++
++import kotlin.math.*
++
++/** Estimated harmony, not a transcription. N means silence or uncertain harmony. */
++data class ChordEvent(val startMs: Long, val endMs: Long, val label: String)
++
++fun chordIndexAt(events: List<ChordEvent>, positionMs: Long): Int {
++    var low = 0
++    var high = events.lastIndex
++    while (low <= high) {
++        val mid = (low + high) ushr 1
++        val event = events[mid]
++        when {
++            positionMs < event.startMs -> high = mid - 1
++            positionMs >= event.endMs -> low = mid + 1
++            else -> return mid
++        }
++    }
++    return -1
++}
++
++/**
++ * Bounded-memory baseline: low-pass/decimate mono PCM, FFT chroma, then major/minor and seventh-chord
++ * templates. No network, weights or native dependencies. Dense mixes, inversions,
++ * detuning and richer extensions need a better detector; the UI contract stays the same.
++ * One instance per recording, fed in presentation-time order from a worker thread.
++ */
++class ChordAnalyzer {
++    private val ring = DoubleArray(SIZE)
++    private val real = DoubleArray(SIZE)
++    private val imaginary = DoubleArray(SIZE)
++    private val window = DoubleArray(SIZE) { 0.5 - 0.5 * cos(2 * PI * it / (SIZE - 1)) }
++    private var written = 0L
++    private var nextFrame = SIZE.toLong()
++    private var phase = 0.0
++    private var sum = 0.0
++    private var count = 0
++    private var originMs: Double? = null
++    private var rate: Int? = null
++    private val frames = mutableListOf<Pair<Long, String>>()
++
++    fun accept(samples: FloatArray, atSeconds: Double, sampleRate: Int) {
++        require(sampleRate >= TARGET_RATE && atSeconds.isFinite())
++        require(rate == null || rate == sampleRate) { "Sample rate changed during analysis" }
++        rate = sampleRate
++        if (originMs == null) originMs = atSeconds * 1000
++        for (sample in samples) {
++            sum += if (sample.isFinite()) sample.toDouble() else 0.0
++            count++
++            phase += TARGET_RATE
++            if (phase >= sampleRate) {
++                phase -= sampleRate
++                ring[(written % SIZE).toInt()] = sum / count
++                sum = 0.0
++                count = 0
++                written++
++                if (written >= nextFrame) {
++                    val centreMs = originMs!! + (written - SIZE / 2) * 1000.0 / TARGET_RATE
++                    frames += centreMs.toLong().coerceAtLeast(0) to classify()
++                    nextFrame += HOP
++                }
++            }
++        }
++    }
++
++    fun finish(durationMs: Long): List<ChordEvent> {
++        if (frames.isEmpty() || durationMs <= 0) return emptyList()
++        // A three-frame majority suppresses isolated changes without shifting timestamps.
++        val smooth = frames.indices.map { i ->
++            val nearby = frames.subList(max(0, i - 1), min(frames.size, i + 2)).map { it.second }
++            nearby.groupingBy { it }.eachCount().maxByOrNull { it.value }
++                ?.takeIf { it.value >= 2 }?.key ?: frames[i].second
++        }
++        val events = mutableListOf<ChordEvent>()
++        var label = smooth.first()
++        var start = 0L
++        for (i in 1 until frames.size) {
++            if (smooth[i] == label) continue
++            val boundary = ((frames[i - 1].first + frames[i].first) / 2).coerceIn(start, durationMs)
++            if (boundary > start) events += ChordEvent(start, boundary, label)
++            start = boundary
++            label = smooth[i]
++        }
++        if (start < durationMs) events += ChordEvent(start, durationMs, label)
++        return events
++    }
++
++    private fun classify(): String {
++        var energy = 0.0
++        for (i in 0 until SIZE) {
++            val sample = ring[((written + i) % SIZE).toInt()]
++            energy += sample * sample
++            real[i] = sample * window[i]
++            imaginary[i] = 0.0
++        }
++        if (energy / SIZE < 1e-7) return "N"
++        fft()
++        val chroma = DoubleArray(12)
++        for (bin in 1 until SIZE / 2) {
++            val frequency = bin.toDouble() * TARGET_RATE / SIZE
++            if (frequency < 65 || frequency > 1600) continue
++            val midi = 69 + 12 * ln(frequency / 440) / ln(2.0)
++            val note = midi.roundToInt()
++            val distance = abs(midi - note)
++            if (distance > 0.4) continue
++            val magnitude = sqrt(real[bin] * real[bin] + imaginary[bin] * imaginary[bin])
++            chroma[((note % 12) + 12) % 12] += magnitude * (1 - distance / 0.5)
++        }
++        val norm = sqrt(chroma.sumOf { it * it })
++        if (norm < 1e-9) return "N"
++        var best = -1.0
++        var second = -1.0
++        var winner = "N"
++        for (root in 0..11) for ((suffix, intervals) in TEMPLATES) {
++            val score = intervals.sumOf { chroma[(root + it) % 12] } / (norm * sqrt(intervals.size.toDouble()))
++            if (score > best) {
++                second = best
++                best = score
++                winner = NAMES[root] + suffix
++            } else if (score > second) second = score
++        }
++        return if (best < 0.65 || best - second < 0.025) "N" else winner
++    }
++
++    private fun fft() {
++        var j = 0
++        for (i in 1 until SIZE) {
++            var bit = SIZE shr 1
++            while (j and bit != 0) { j = j xor bit; bit = bit shr 1 }
++            j = j xor bit
++            if (i < j) { val t = real[i]; real[i] = real[j]; real[j] = t }
++        }
++        var length = 2
++        while (length <= SIZE) {
++            val angle = -2 * PI / length
++            val stepR = cos(angle)
++            val stepI = sin(angle)
++            for (start in 0 until SIZE step length) {
++                var wr = 1.0
++                var wi = 0.0
++                for (k in 0 until length / 2) {
++                    val a = start + k
++                    val b = a + length / 2
++                    val br = real[b] * wr - imaginary[b] * wi
++                    val bi = real[b] * wi + imaginary[b] * wr
++                    real[b] = real[a] - br
++                    imaginary[b] = imaginary[a] - bi
++                    real[a] += br
++                    imaginary[a] += bi
++                    val nextR = wr * stepR - wi * stepI
++                    wi = wr * stepI + wi * stepR
++                    wr = nextR
++                }
++            }
++            length *= 2
++        }
++    }
++
++    companion object {
++        const val VERSION = 2
++        private const val TARGET_RATE = 11025
++        private const val SIZE = 8192
++        private const val HOP = 2756
++        private val NAMES = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
++        private val TEMPLATES = listOf(
++            "" to listOf(0, 4, 7), "m" to listOf(0, 3, 7),
++            "7" to listOf(0, 4, 7, 10), "maj7" to listOf(0, 4, 7, 11), "m7" to listOf(0, 3, 7, 10),
++        )
++    }
++}
+diff --git a/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordDisplay.kt b/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordDisplay.kt
+new file mode 100644
+index 00000000..4ad386a8
+--- /dev/null
++++ b/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordDisplay.kt
+@@ -0,0 +1,45 @@
++package com.music.bitchord.playback.chords
++
++/** Display-only reduction. Never changes the analysed harmony or its cache. */
++fun simplifyChord(label: String): String {
++    val match = Regex("^([A-G](?:#|b)?)(maj7|m7|7|m)?$").matchEntire(label) ?: return label
++    val root = match.groupValues[1]
++    return root + if (match.groupValues[2] in listOf("m", "m7")) "m" else ""
++}
++
++fun simplifyChordEvents(events: List<ChordEvent>): List<ChordEvent> {
++    val result = mutableListOf<ChordEvent>()
++    for (event in events) {
++        val label = simplifyChord(event.label)
++        val previous = result.lastOrNull()
++        if (previous != null && previous.label == label && previous.endMs == event.startMs) {
++            result[result.lastIndex] = previous.copy(endMs = event.endMs)
++        } else result += event.copy(label = label)
++    }
++    return result
++}
++
++/**
++ * Chords that sound during each lyric's window, including a chord carried over
++ * from the previous line. Duplicate timestamps (duet lines) share a window.
++ * Lyric offsets move the windows, never the audio timestamps or chord changes.
++ */
++fun chordsAboveLines(
++    events: List<ChordEvent>,
++    lyricStartsMs: List<Long>,
++    lyricOffsetMs: Int = 0,
++): List<List<ChordEvent>> {
++    val boundaries = lyricStartsMs.distinct().sorted()
++    val duration = events.lastOrNull()?.endMs ?: 0L
++    return lyricStartsMs.map { lyricStart ->
++        val index = boundaries.binarySearch(lyricStart)
++        val start = (lyricStart + lyricOffsetMs).coerceAtLeast(0L)
++        val end = boundaries.getOrNull(index + 1)?.let { (it + lyricOffsetMs).coerceAtLeast(0L) } ?: duration
++        if (end <= start) emptyList() else {
++            val first = chordIndexAt(events, start).takeIf { it >= 0 }
++                ?: events.indexOfFirst { it.startMs >= start }
++            if (first < 0) emptyList() else events.asSequence().drop(first)
++                .takeWhile { it.startMs < end }.filter { it.endMs > start }.toList()
++        }
++    }
++}
+diff --git a/shared/src/commonTest/kotlin/com/music/bitchord/playback/chords/ChordAnalysisTest.kt b/shared/src/commonTest/kotlin/com/music/bitchord/playback/chords/ChordAnalysisTest.kt
+new file mode 100644
+index 00000000..d2fb64e3
+--- /dev/null
++++ b/shared/src/commonTest/kotlin/com/music/bitchord/playback/chords/ChordAnalysisTest.kt
+@@ -0,0 +1,74 @@
++package com.music.bitchord.playback.chords
++
++import kotlin.math.PI
++import kotlin.math.pow
++import kotlin.math.sin
++import kotlin.test.*
++
++class ChordAnalysisTest {
++    private fun tone(notes: List<Int>, seconds: Int, rate: Int): FloatArray =
++        FloatArray(seconds * rate) { i ->
++            (notes.sumOf { note ->
++                sin(2 * PI * 440 * 2.0.pow((note - 69) / 12.0) * i / rate)
++            } * 0.15).toFloat()
++        }
++
++    private fun analyze(audio: FloatArray, rate: Int, chunk: Int = 1024): List<ChordEvent> {
++        val analyzer = ChordAnalyzer()
++        var start = 0
++        while (start < audio.size) {
++            val end = minOf(start + chunk, audio.size)
++            analyzer.accept(audio.copyOfRange(start, end), start.toDouble() / rate, rate)
++            start = end
++        }
++        return analyzer.finish(audio.size * 1000L / rate)
++    }
++
++    @Test fun identifiesEveryMajorAndMinorTriadAtCommonRates() {
++        val names = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
++        for (rate in listOf(44100, 48000)) for (root in 0..11) for (minor in listOf(false, true)) {
++            val notes = listOf(48 + root, 48 + root + if (minor) 3 else 4, 55 + root)
++            val expected = names[root] + if (minor) "m" else ""
++            val events = analyze(tone(notes, 3, rate), rate)
++            assertEquals(expected, events.maxBy { it.endMs - it.startMs }.label, "$rate Hz $expected")
++        }
++    }
++
++    @Test fun silenceIsNotReportedAsAChord() {
++        assertTrue(analyze(FloatArray(44100 * 2), 44100).all { it.label == "N" })
++    }
++
++    @Test fun progressionHasOrderedContiguousEventsAndTracksSeeks() {
++        val rate = 44100
++        val audio = tone(listOf(48, 52, 55), 3, rate) + tone(listOf(45, 48, 52), 3, rate)
++        val events = analyze(audio, rate)
++        assertEquals("C", events[chordIndexAt(events, 1500)].label)
++        assertEquals("Am", events[chordIndexAt(events, 4500)].label)
++        assertEquals(0, events.first().startMs)
++        assertEquals(6000, events.last().endMs)
++        assertTrue(events.zipWithNext().all { (a, b) -> a.endMs == b.startMs })
++        assertEquals(-1, chordIndexAt(events, -1))
++        assertEquals(-1, chordIndexAt(events, 6000))
++        // Lookup is stateless: seeking backwards must immediately restore the chord.
++        assertEquals("C", events[chordIndexAt(events, 1500)].label)
++    }
++
++    @Test fun decoderBufferSizeDoesNotChangeAnalysis() {
++        val audio = tone(listOf(50, 53, 57), 3, 48000)
++        assertEquals(analyze(audio, 48000, 127), analyze(audio, 48000, 8192))
++    }
++
++    @Test fun emptyOrVeryShortAudioReturnsNoInventedChords() {
++        assertEquals(emptyList(), analyze(FloatArray(100), 44100))
++        assertEquals(-1, chordIndexAt(emptyList(), 0))
++    }
++
++    @Test fun identifiesSeventhsForMeaningfulSimplification() {
++        val names = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
++        val templates = listOf("7" to listOf(0, 4, 7, 10), "maj7" to listOf(0, 4, 7, 11), "m7" to listOf(0, 3, 7, 10))
++        for (rate in listOf(44100, 48000)) for (root in 0..11) for ((suffix, intervals) in templates) {
++            val events = analyze(tone(intervals.map { 48 + root + it }, 3, rate), rate)
++            assertEquals(names[root] + suffix, events.maxBy { it.endMs - it.startMs }.label, "$rate Hz ${names[root]}$suffix")
++        }
++    }
++}
+diff --git a/shared/src/commonTest/kotlin/com/music/bitchord/playback/chords/ChordDisplayTest.kt b/shared/src/commonTest/kotlin/com/music/bitchord/playback/chords/ChordDisplayTest.kt
+new file mode 100644
+index 00000000..33065a5b
+--- /dev/null
++++ b/shared/src/commonTest/kotlin/com/music/bitchord/playback/chords/ChordDisplayTest.kt
+@@ -0,0 +1,54 @@
++package com.music.bitchord.playback.chords
++
++import kotlin.test.*
++
++class ChordDisplayTest {
++    private val events = listOf(
++        ChordEvent(0, 2000, "Cmaj7"), ChordEvent(2000, 4000, "Am7"), ChordEvent(4000, 6000, "G7"),
++    )
++
++    @Test fun simplifyPreservesRootAndMinorQuality() {
++        assertEquals("C", simplifyChord("Cmaj7"))
++        assertEquals("Am", simplifyChord("Am7"))
++        assertEquals("G", simplifyChord("G7"))
++        assertEquals("F#m", simplifyChord("F#m7"))
++        assertEquals("Bb", simplifyChord("Bbmaj7"))
++        assertEquals("N", simplifyChord("N"))
++        assertEquals("Cdim", simplifyChord("Cdim"))
++    }
++
++    @Test fun displaySimplificationDoesNotAlterOriginalAnalysis() {
++        val original = listOf(ChordEvent(0, 1000, "C"), ChordEvent(1000, 2000, "Cmaj7"))
++        assertEquals(listOf(ChordEvent(0, 2000, "C")), simplifyChordEvents(original))
++        assertEquals("Cmaj7", original[1].label)
++    }
++
++    @Test fun linesIncludeCarryOverAndAllChangesWithinTheLine() {
++        val rows = chordsAboveLines(events, listOf(1000, 3000))
++        assertEquals(listOf("Cmaj7", "Am7"), rows[0].map { it.label })
++        assertEquals(listOf("Am7", "G7"), rows[1].map { it.label })
++        assertEquals("Cmaj7", rows[0][chordIndexAt(rows[0], 1500)].label)
++        assertEquals("Am7", rows[0][chordIndexAt(rows[0], 2500)].label)
++    }
++
++    @Test fun duplicateDuetTimestampsAndExactBoundaryChanges() {
++        val rows = chordsAboveLines(events, listOf(0, 2000, 2000, 4000))
++        assertEquals(listOf(events[0]), rows[0])
++        assertEquals(listOf(events[1]), rows[1])
++        assertEquals(rows[1], rows[2])
++        assertEquals(listOf(events[2]), rows[3])
++    }
++
++    @Test fun lyricOffsetChangesPlacementWithoutShiftingChordTimes() {
++        val rows = chordsAboveLines(events, listOf(0, 2000), 1000)
++        assertEquals(listOf("Cmaj7", "Am7"), rows[0].map { it.label })
++        assertEquals(2000, rows[0][1].startMs)
++        assertEquals(listOf(events[0]), chordsAboveLines(events, listOf(0, 2000), -1000)[0])
++    }
++
++    @Test fun emptyAndOutOfRangeWindowsAreSafe() {
++        assertEquals(listOf(emptyList()), chordsAboveLines(emptyList(), listOf(0)))
++        assertEquals(listOf(emptyList()), chordsAboveLines(events, listOf(6000)))
++        assertEquals(emptyList(), chordsAboveLines(events, emptyList()))
++    }
++}
+diff --git a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ChordControls.kt b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ChordControls.kt
+new file mode 100644
+index 00000000..4f4df5db
+--- /dev/null
++++ b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ChordControls.kt
+@@ -0,0 +1,139 @@
++package com.music.bitchord.ui.player
++
++import androidx.compose.foundation.layout.*
++import androidx.compose.material3.*
++import androidx.compose.runtime.*
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.dp
++import com.music.bitchord.data.model.Song
++import com.music.bitchord.playback.chords.ChordEvent
++import com.music.bitchord.playback.chords.chordIndexAt
++import com.music.bitchord.playback.chords.simplifyChordEvents
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.launch
++
++/** Analysis implementations own dispatching and caching; playback is never changed. */
++interface ChordAnalysisSource {
++    suspend fun cached(song: Song): List<ChordEvent>?
++    suspend fun analyze(song: Song, onProgress: (Float) -> Unit): List<ChordEvent>
++}
++
++internal class ChordUiState {
++    var events by mutableStateOf<List<ChordEvent>?>(null)
++    var loading by mutableStateOf(true)
++    var progress by mutableFloatStateOf(0f)
++    var error by mutableStateOf<String?>(null)
++    var show by mutableStateOf(true)
++    var simplify by mutableStateOf(false)
++    var positionMs by mutableLongStateOf(0L)
++    var job: Job? = null
++}
++
++@Composable
++internal fun rememberChordState(
++    song: Song, source: ChordAnalysisSource, playhead: LyricPlayhead, active: Boolean,
++): ChordUiState {
++    val state = remember(song, source) { ChordUiState() }
++    DisposableEffect(state) { onDispose { state.job?.cancel() } }
++    LaunchedEffect(state) {
++        try { state.events = source.cached(song) }
++        catch (e: CancellationException) { throw e }
++        catch (_: Exception) { /* A broken cache must not prevent a fresh analysis. */ }
++        finally { state.loading = false }
++    }
++    LaunchedEffect(state, active, playhead) {
++        if (!active) state.job?.cancel()
++        while (active) {
++            state.positionMs = playhead.audioPositionMs
++            delay(100)
++        }
++    }
++    return state
++}
++
++@Composable
++internal fun ChordControls(
++    song: Song, source: ChordAnalysisSource, state: ChordUiState, active: Boolean, synced: Boolean,
++) {
++    val scope = rememberCoroutineScope()
++    if (!active) return
++    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
++        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
++            Text("Chords · estimates", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
++            if (state.loading) {
++                if (state.job != null) TextButton(onClick = { state.job?.cancel() }) { Text("Cancel") }
++            } else {
++                TextButton(onClick = {
++                    state.loading = true
++                    state.error = null
++                    state.progress = 0f
++                    state.job = scope.launch {
++                        try {
++                            state.events = source.analyze(song) { state.progress = it }
++                            state.show = true
++                        } catch (e: CancellationException) {
++                            throw e
++                        } catch (e: Exception) {
++                            state.error = e.message ?: "Unable to analyse this recording."
++                        } finally { state.loading = false }
++                    }
++                }) { Text(if (state.events == null) "Find chords" else "Analyse again") }
++            }
++        }
++        if (state.loading) LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
++        state.error?.let { Text(it, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall) }
++        if (state.events != null) {
++            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                FilterChip(selected = state.show, onClick = { state.show = !state.show }, label = { Text("Show chords") })
++                FilterChip(selected = state.simplify, onClick = { state.simplify = !state.simplify }, label = { Text("Simplify") })
++            }
++            if (state.events!!.isEmpty()) {
++                Text("Not enough audio to estimate chords.", color = Color.White)
++            } else if (!synced && state.show) {
++                // No invented lyric alignment when the lyric provider has no timestamps.
++                Text("Timed lyrics needed to place chords above lines.", color = Color.White.copy(alpha = 0.7f),
++                    style = MaterialTheme.typography.bodySmall)
++                CurrentChord(state)
++            }
++        }
++    }
++}
++
++@Composable
++private fun CurrentChord(state: ChordUiState) {
++    val events = remember(state.events, state.simplify) {
++        if (state.simplify) simplifyChordEvents(state.events.orEmpty()) else state.events.orEmpty()
++    }
++    val current by remember(events, state) { derivedStateOf { chordIndexAt(events, state.positionMs) } }
++    Text("Now: ${events.getOrNull(current)?.label?.takeUnless { it == "N" } ?: "—"}", color = Color.White,
++        style = MaterialTheme.typography.titleMedium)
++}
++
++/** Text above each lyric, with the same row motion as the original and translation. */
++@OptIn(ExperimentalLayoutApi::class)
++@Composable
++internal fun LyricChordLine(events: List<ChordEvent>, state: ChordUiState, alignEnd: Boolean, inset: Dp) {
++    val current by remember(events, state) { derivedStateOf { chordIndexAt(events, state.positionMs) } }
++    FlowRow(
++        modifier = Modifier.fillMaxWidth().padding(horizontal = inset).padding(top = 6.dp, bottom = 2.dp),
++        horizontalArrangement = if (alignEnd) Arrangement.spacedBy(14.dp, androidx.compose.ui.Alignment.End)
++            else Arrangement.spacedBy(14.dp),
++        verticalArrangement = Arrangement.spacedBy(4.dp),
++    ) {
++        events.forEachIndexed { index, event ->
++            val selected = current == index
++            Text(
++                text = if (event.label == "N") "—" else event.label,
++                color = Color.White.copy(alpha = if (selected) 1f else 0.5f),
++                style = MaterialTheme.typography.titleMedium,
++                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
++                modifier = Modifier.padding(vertical = 2.dp),
++            )
++        }
++    }
++}
+diff --git a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ChordLyricsPanel.kt b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ChordLyricsPanel.kt
+new file mode 100644
+index 00000000..291dec5c
+--- /dev/null
++++ b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ChordLyricsPanel.kt
+@@ -0,0 +1,90 @@
++package com.music.bitchord.ui.player
++
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.runtime.*
++import androidx.compose.ui.Modifier
++import com.music.bitchord.data.lyrics.LyricLine
++import com.music.bitchord.data.model.Song
++
++/** Additive wrapper: the original lyrics implementation remains unchanged. */
++@Composable
++internal fun LyricsPanel(
++    lines: List<LyricLine>,
++    /**
++     * Romanized or translated copies of [lines], index for index, drawn small
++     * under each original line. Null shows the originals alone.
++     */
++    subLines: List<LyricLine>? = null,
++    trackKey: String,
++    chordSong: Song? = null,
++    playhead: LyricPlayhead,
++    /** Whether a lookup for this track is still in flight. */
++    looking: Boolean,
++    isPlaying: Boolean,
++    /** False while the panel is retained offscreen solely as a warm layout. */
++    active: Boolean = true,
++    onSeekToLine: (Long) -> Unit,
++    controlsOpen: Boolean,
++    onRevealControls: () -> Unit,
++    onHideControls: () -> Unit,
++    translationProgress: State<Float>? = null,
++    /** Reports whether the lyric list is mid-scroll, so the player above it
++     * can stand down its own swipe gestures for as long as it is. */
++    onScrollingChange: (Boolean) -> Unit = {},
++    /** Whether this platform can turn picked lines into a card at all. */
++    canPick: Boolean = false,
++    /** Whether the reader is choosing lines to put on a share card. */
++    picking: Boolean = false,
++    /** Which lines are chosen, as indices into [lines]. */
++    picked: Set<Int> = emptySet(),
++    /** Long-press on a line: start picking, or fold that line into the pick. */
++    onPickLine: (Int) -> Unit = {},
++    /** Tap while picking: add or drop that line. */
++    onTogglePick: (Int) -> Unit = {},
++    /**
++     * Holds the sung line in the middle of the panel rather than at its top.
++     * For the wide layouts — TV, landscape, tablet — where a column of lyrics
++     * read from its top edge leaves most of the screen below the words.
++     */
++    centerFocus: Boolean = false,
++    modifier: Modifier = Modifier,
++) {
++    val source = PlayerPlatform.host.chordAnalysis
++    val chordState = if (source != null && chordSong != null) {
++        rememberChordState(chordSong, source, playhead, active)
++    } else null
++    val content: @Composable (Modifier) -> Unit = { bodyModifier ->
++        LyricsContent(
++            lines = lines,
++            chordState = chordState,
++            subLines = subLines,
++            trackKey = trackKey,
++            playhead = playhead,
++            looking = looking,
++            isPlaying = isPlaying,
++            active = active,
++            onSeekToLine = onSeekToLine,
++            controlsOpen = controlsOpen,
++            onRevealControls = onRevealControls,
++            onHideControls = onHideControls,
++            translationProgress = translationProgress,
++            onScrollingChange = onScrollingChange,
++            canPick = canPick,
++            picking = picking,
++            picked = picked,
++            onPickLine = onPickLine,
++            onTogglePick = onTogglePick,
++            centerFocus = centerFocus,
++            modifier = bodyModifier,
++        )
++    }
++    if (source == null || chordSong == null) {
++        content(modifier)
++    } else {
++        Column(modifier) {
++            ChordControls(chordSong, source, requireNotNull(chordState), active && !picking, lines.any { it.timeMs > 0 })
++            content(Modifier.fillMaxWidth().weight(1f))
++        }
++    }
++}
+diff --git a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/NowPlayingScreen.kt b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/NowPlayingScreen.kt
+index a486f59a..ee6112d6 100644
+--- a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/NowPlayingScreen.kt
++++ b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/NowPlayingScreen.kt
+@@ -2660,6 +2660,7 @@ fun NowPlayingScreen(
+                                     lines = lyrics.orEmpty(),
+                                     subLines = lyricsTranslation.subLines,
+                                     trackKey = song.videoId,
++                                    chordSong = song,
+                                     playhead = lyricsPlayhead,
+                                     looking = !lyricsUnavailable,
+                                     isPlaying = isPlaying && position.advancing,
+@@ -4347,6 +4348,7 @@ fun NowPlayingScreen(
+                                         lines = lyrics.orEmpty(),
+                                         subLines = lyricsTranslation.subLines,
+                                         trackKey = song.videoId,
++                                        chordSong = song,
+                                         playhead = lyricsPlayhead,
+                                         looking = !lyricsUnavailable,
+                                         isPlaying = isPlaying && position.advancing,
+diff --git a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerHost.kt b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerHost.kt
+index 2a546e42..883a637f 100644
+--- a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerHost.kt
++++ b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerHost.kt
+@@ -35,6 +35,9 @@ import kotlinx.coroutines.flow.StateFlow
+ interface PlayerHost {
+     val settings: PlayerSettingsSource
+ 
++    /** Optional offline chord analysis; absent platforms keep their existing player. */
++    val chordAnalysis: ChordAnalysisSource? get() = null
++
+     /** Optional in-process feed; platforms without AutoMix leave it absent. */
+     val autoMixVisualState: StateFlow<AutoMixVisualState?>? get() = null
+ 
+diff --git a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerLyrics.kt b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerLyrics.kt
+index cf035218..35166cd3 100644
+--- a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerLyrics.kt
++++ b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerLyrics.kt
+@@ -685,6 +685,9 @@ internal class LyricPlayhead(
+     private val position: PlaybackPosition,
+     private val offsetMs: State<Int>,
+ ) {
++    /** Chords follow the recording, independently of the user's lyric offset. */
++    val audioPositionMs: Long get() = position.positionMs
++    val lyricOffsetMs: Int get() = offsetMs.value
+     val positionMs: Long get() = adjustedLyricsPosition(position.positionMs, offsetMs.value)
+ 
+     val sampledAtNanos: Long get() = position.sampledAtNanos
+@@ -1786,8 +1789,9 @@ internal fun rememberPlayerControlsOnScroll(
+  */
+ @OptIn(ExperimentalFoundationApi::class)
+ @Composable
+-internal fun LyricsPanel(
++internal fun LyricsContent(
+     lines: List<LyricLine>,
++    chordState: ChordUiState? = null,
+     /**
+      * Romanized or translated copies of [lines], index for index, drawn small
+      * under each original line. Null shows the originals alone.
+@@ -1826,6 +1830,16 @@ internal fun LyricsPanel(
+     centerFocus: Boolean = false,
+     modifier: Modifier = Modifier,
+ ) {
++    val chordEvents = chordState?.events.orEmpty()
++    val simplify = chordState?.simplify == true
++    val showChords = chordState?.show == true && !picking
++    val chordOffset = playhead.lyricOffsetMs
++    val chordsByLine = remember(chordEvents, simplify, lines, chordOffset) {
++        val events = if (simplify) com.music.bitchord.playback.chords.simplifyChordEvents(chordEvents) else chordEvents
++        if (lines.any { it.timeMs > 0 }) {
++            com.music.bitchord.playback.chords.chordsAboveLines(events, lines.map { it.timeMs }, chordOffset)
++        } else emptyList()
++    }
+     val panelPlaying = isPlaying && active
+     val clock = rememberLyricClock(trackKey, playhead, isPlaying, active)
+     val subReveal = rememberSubLyricsReveal(subLines, trackKey)
+@@ -2450,6 +2464,11 @@ internal fun LyricsPanel(
+                 }
+                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                 Column(modifier = shape) {
++                    if (showChords && chordState != null) {
++                        chordsByLine.getOrNull(index)?.takeIf { it.isNotEmpty() }?.let { chords ->
++                            LyricChordLine(chords, chordState, alignEnd, GLOW_ROOM)
++                        }
++                    }
+                     PanelVoice(
+                         line = line,
+                         clock = clock,
+diff --git a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerSidePanels.kt b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerSidePanels.kt
+index 4890a5e2..8033fa09 100644
+--- a/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerSidePanels.kt
++++ b/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/PlayerSidePanels.kt
+@@ -109,6 +109,7 @@ fun LyricsSidePanel(
+                         lines = lyrics.orEmpty(),
+                         subLines = lyricsTranslation.subLines,
+                         trackKey = song.videoId,
++                        chordSong = song,
+                         playhead = lyricsPlayhead,
+                         looking = !lyricsUnavailable,
+                         isPlaying = isPlaying && position.advancing,
+diff --git a/wearos/build.gradle.kts b/wearos/build.gradle.kts
+index 05f6754b..f31853f4 100644
+--- a/wearos/build.gradle.kts
++++ b/wearos/build.gradle.kts
+@@ -16,8 +16,8 @@ plugins {
+  *
+  * It has to share the phone app's application id *and* signing key, because the
+  * Wearable Data Layer only delivers between apps that match on both. So:
+- *   dev  -> com.dev.bitchord   pairs only with the phone's dev build
+- *   prod -> com.music.bitchord pairs only with the phone's prod build
++ *   dev  -> com.music.bitchord.chordsmvp.dev   pairs only with the phone's dev build
++ *   prod -> com.music.bitchord.chordsmvp pairs only with the phone's prod build
+  * and each build type is signed exactly the way the phone's is (debug key for
+  * debug, the release keystore for release), so a watch build pairs with the
+  * phone build of the same variant.
+@@ -35,7 +35,7 @@ android {
+     compileSdk = 36
+ 
+     defaultConfig {
+-        applicationId = "com.music.bitchord"
++        applicationId = "com.music.bitchord.chordsmvp"
+         // Wear OS 3, the oldest a Galaxy Watch 4 ever shipped with.
+         minSdk = 30
+         targetSdk = 36
+@@ -53,12 +53,12 @@ android {
+     productFlavors {
+         create("dev") {
+             dimension = "env"
+-            applicationId = "com.dev.bitchord"
+-            resValue("string", "app_name", "BitChord Dev")
++            applicationId = "com.music.bitchord.chordsmvp.dev"
++            resValue("string", "app_name", "BitChord Chords MVP Dev")
+         }
+         create("prod") {
+             dimension = "env"
+-            resValue("string", "app_name", "BitChord")
++            resValue("string", "app_name", "BitChord Chords MVP")
+         }
+     }
+ 

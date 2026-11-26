@@ -1,0 +1,64 @@
+SONORA APP ICON REBRANDING
+Validation date: 2026-11-26
+
+Scope: phone launcher icons and their selector only. The broader UI/performance
+refinement remains pending. No playback, package IDs or networking protocols changed.
+
+Implemented
+- Default keeps the existing Sonora midnight-blue vector foreground/background.
+- Light uses an off-white background and dark navy waveform.
+- Dark uses a black background and silver waveform.
+- Monochrome uses white and black with no gradients.
+- All variants copy the exact five official waveform paths and 108dp/1024-unit
+  viewport. Android supplies the launcher mask; no Samsung/Pixel-specific shapes.
+- Every adaptive icon has the same pure-alpha monochrome waveform for native
+  themed icons. The selector renders the adaptive resources themselves.
+- Removed 169 obsolete launcher/preview icon files and 33 obsolete icon labels.
+  Light/Dark reuse existing localised strings.
+- Four new LauncherSonora* aliases replace all 23 legacy aliases. A fresh default
+  alias is enabled in the manifest, independent of legacy disabled overrides.
+- New choices are persisted and reconciled at application startup/package update.
+  Legacy or unknown choices migrate to Default. No automatic launch or playback
+  commands are issued by migration.
+- API 33+: atomic batch alias updates. API 26-32: enable the chosen alias before
+  disabling alternatives. Every change uses DONT_KILL_APP; the activity and media
+  service remain the same. Older launchers may refresh their cache asynchronously.
+
+Modified source groups
+- app/src/main/java/com/music/bitchord/AppIcon.kt
+- app/src/main/java/com/music/bitchord/BitChordApplication.kt (icon restore only)
+- app/src/main/java/com/music/bitchord/ui/screens/SettingsSheet.kt (icon row only)
+- app/src/main/AndroidManifest.xml (launcher aliases and update receiver)
+- app/src/main/res/drawable/ic_sonora_waveform_*.xml
+- app/src/main/res/mipmap-anydpi/ic_launcher*.xml and ic_sonora_*.xml
+- app/src/main/res/values/sonora_icons.xml and obsolete labels in values*/strings.xml
+- app/src/androidTest/java/com/music/bitchord/AppIconSwitchingTest.kt
+- scripts/validate_sonora_icons.py
+- FILE_GUIDE.md (launcher documentation only)
+
+Validation
+- :app:assembleProdDebug and :app:assembleProdDebugAndroidTest: PASS.
+- scripts/validate_sonora_icons.py: PASS (geometry, adaptive/themed resources,
+  exactly four manifest aliases and one manifest default, absence of legacy assets).
+- Device: Moto G Stylus 5G (2023), Android 14 / API 34.
+- Two instrumentation tests: PASS. Checked all variants, adaptive/monochrome
+  drawables, exactly one enabled launcher entry, unchanged process ID while
+  switching, invalid legacy preference migration, valid preference restoration.
+- Eight additional instrumentation invocations: PASS. Each variant was selected
+  in one process and verified in a fresh process. Default restored last.
+- Native Android-rendered previews visually inspected for all four variants:
+  build/sonora-icons-validation/sonora-icons/{Default,Light,Dark,Monochrome}.png.
+- Updated app installed successfully on the phone; final launcher query returns
+  exactly LauncherSonoraDefault. Temporary instrumentation APK uninstalled.
+
+Known limitations
+- Full phone unit suite: 1354 cases, 1336 passed, 17 failed, 1 skipped.
+  All 17 failures are LocaleStringsTest completeness failures for 50 existing
+  Replay/Automix keys, unrelated to icon resources. They remain for the broader
+  localisation work; no translation placeholders were added to mask failures.
+- Other Android versions/OEM launchers were not device-tested. No configured
+  emulator was available. API 26-32 switching uses the guarded legacy API path.
+- The phone was locked at the final manual UI check, so visual verification used
+  native drawable renders; an unlocked home-screen/selector inspection is pending.
+- Process continuity was tested. Continuous audible playback during switching
+  was not separately measured; playback implementation was not modified.
