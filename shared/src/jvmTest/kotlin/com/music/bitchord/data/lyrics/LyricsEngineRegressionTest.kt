@@ -26,7 +26,6 @@ class LyricsEngineRegressionTest {
         assertEquals("Tití Me Preguntó", "Tití Me Preguntó (Letra Oficial)".forLyricsSearch())
         assertEquals("Dakiti", "Dakiti | Audio Oficial".forLyricsSearch())
         assertEquals("La Canción", "La Canción (feat. Bad Bunny) [Official Video]".forLyricsSearch())
-        // Recording-distinguishing edits MUST stay intact
         assertEquals("Creep (Acoustic)", "Creep (Acoustic) (Official Audio)".forLyricsSearch())
         assertEquals("Hotel California (Live)", "Hotel California (Live) [HD]".forLyricsSearch())
         assertEquals("Música Ligera (En Vivo)", "Música Ligera (En Vivo) (Video Oficial)".forLyricsSearch())
@@ -122,7 +121,14 @@ class LyricsEngineRegressionTest {
                         LyricWord(1500L, 2000L, "world"),
                     ),
                 ),
-                LyricLine(3000L, "Second line", words = listOf(LyricWord(3000L, 3500L, "Second"), LyricWord(3500L, 4000L, "line"))),
+                LyricLine(
+                    3000L,
+                    "Second line",
+                    words = listOf(
+                        LyricWord(3000L, 3500L, "Second", listOf(LyricSyllable(3000L, 3250L, 0, 3), LyricSyllable(3250L, 3500L, 3, 6))),
+                        LyricWord(3500L, 4000L, "line"),
+                    ),
+                ),
                 LyricLine(5000L, "Third line", words = listOf(LyricWord(5000L, 5500L, "Third"), LyricWord(5500L, 6000L, "line"))),
                 LyricLine(7000L, "Fourth line", words = listOf(LyricWord(7000L, 7500L, "Fourth"), LyricWord(7500L, 8000L, "line"))),
             ),
