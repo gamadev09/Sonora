@@ -14,7 +14,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.ui.text.font.FontWeight
 import com.music.bitchord.ui.player.MESH_CYCLE_MILLIS
 import com.music.bitchord.ui.player.MeshGradientBackground
@@ -882,58 +884,71 @@ fun SignInBanner(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, spring(stiffness = 900f), label = "signInScale")
-    Box(
+    val scale by animateFloatAsState(if (pressed) 0.975f else 1f, spring(stiffness = 900f), label = "signInScale")
+    val pillBrush = remember {
+        Brush.horizontalGradient(
+            colors = listOf(Color(0xFF284BC8), Color(0xFF3B63EC), Color(0xFF2E54D8)),
+        )
+    }
+    val pillRim = remember {
+        Brush.verticalGradient(
+            colors = listOf(Color.White.copy(alpha = 0.32f), Color.White.copy(alpha = 0.08f)),
+        )
+    }
+    val circleBrush = remember {
+        Brush.verticalGradient(
+            colors = listOf(Color.White, Color(0xFFDCE6FF)),
+        )
+    }
+
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = PAGE_GUTTER, vertical = 8.dp)
+            .padding(horizontal = PAGE_GUTTER, vertical = 6.dp)
+            .height(56.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(22.dp))
-            .clickable(interactionSource = interaction, indication = null, onClick = onSignIn),
+            .clip(CircleShape)
+            .background(pillBrush)
+            .border(1.dp, pillRim, CircleShape)
+            .clickable(interactionSource = interaction, indication = null, onClick = onSignIn)
+            .padding(start = 18.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // A card is a few hundred dp the reader is looking straight at, which
-        // is the case the mesh lets keep moving — see its `continuous` note.
-        MeshGradientBackground(
-            palette = cyclingMeshPalette(WelcomeMeshPalettes, running = motion),
-            modifier = Modifier.matchParentSize(),
-            continuous = true,
-            paused = !motion,
-            driftMillis = 6_000,
-            blurRadius = 36.dp,
-            colorFadeMillis = MESH_CYCLE_MILLIS,
+        Image(
+            painter = painterResource(Res.drawable.ic_logo),
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White.copy(alpha = 0.96f)),
         )
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 18.dp)) {
-            Text(
-                text = stringResource(Res.string.sign_in_youtube_music),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.W800,
-                color = Color.White,
+        Text(
+            text = stringResource(Res.string.sign_in_with_google),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 16.sp,
+                letterSpacing = (-0.2).sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp),
+        )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(circleBrush),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                contentDescription = stringResource(Res.string.sign_in_with_google),
+                tint = Color(0xFF0F172A),
+                modifier = Modifier.size(20.dp),
             )
-            Spacer(Modifier.height(16.dp))
-            Row(
-                Modifier
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .padding(start = 16.dp, end = 20.dp, top = 10.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Image(
-                    painter = painterResource(Res.drawable.ic_google_g),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = stringResource(Res.string.sign_in_with_google),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.W700,
-                    color = Color.Black,
-                )
-            }
         }
     }
 }
