@@ -1,8 +1,7 @@
-//! Thin, panic-safe Android JNI bridge for `sonora-core`.
+//! Thin Android JNI bridge for `sonora-core`.
 //!
-//! Exports:
-//! - `Java_com_music_bitchord_ui_components_NativeBlur_boxBlur`
-//! - `Java_com_music_bitchord_playback_chords_NativeChordDspAndroid_computeChroma`
+//! Uses non-GC-blocking JNI array access (`GetIntArrayElements` / `GetDoubleArrayRegion` /
+//! `SetDoubleArrayRegion`) so ART garbage collection is never stalled during FFT or blur.
 
 use std::ffi::c_void;
 
@@ -13,14 +12,16 @@ type JInt = i32;
 type JBoolean = u8;
 
 const IDX_GET_ARRAY_LENGTH: usize = 171;
-const IDX_GET_PRIMITIVE_ARRAY_CRITICAL: usize = 222;
-const IDX_RELEASE_PRIMITIVE_ARRAY_CRITICAL: usize = 223;
+const IDX_GET_INT_ARRAY_ELEMENTS: usize = 187;
+const IDX_RELEASE_INT_ARRAY_ELEMENTS: usize = 195;
+const IDX_GET_DOUBLE_ARRAY_REGION: usize = 206;
+const IDX_SET_DOUBLE_ARRAY_REGION: usize = 214;
 
 type GetArrayLengthFn = unsafe extern "C" fn(JniEnv, JArray) -> JInt;
-type GetPrimitiveArrayCriticalFn =
-    unsafe extern "C" fn(JniEnv, JArray, *mut JBoolean) -> *mut c_void;
-type ReleasePrimitiveArrayCriticalFn =
-    unsafe extern "C" fn(JniEnv, JArray, *mut c_void, JInt);
+type GetIntArrayElementsFn = unsafe extern "C" fn(JniEnv, JArray, *mut JBoolean) -> *mut JInt;
+type ReleaseIntArrayElementsFn = unsafe extern "C" fn(JniEnv, JArray, *mut JInt, JInt);
+type GetDoubleArrayRegionFn = unsafe extern "C" fn(JniEnv, JArray, JInt, JInt, *mut f64);
+type SetDoubleArrayRegionFn = unsafe extern "C" fn(JniEnv, JArray, JInt, JInt, *const f64);
 
 #[no_mangle]
 pub unsafe extern "C" fn Java_com_music_bitchord_ui_components_NativeBlur_boxBlur(
@@ -44,10 +45,10 @@ pub unsafe extern "C" fn Java_com_music_bitchord_ui_components_NativeBlur_boxBlu
 
     let vtable = *env;
     let get_len: GetArrayLengthFn = std::mem::transmute(*vtable.add(IDX_GET_ARRAY_LENGTH));
-    let get_crit: GetPrimitiveArrayCriticalFn =
-        std::mem::transmute(*vtable.add(IDX_GET_PRIMITIVE_ARRAY_CRITICAL));
-    let rel_crit: ReleasePrimitiveArrayCriticalFn =
-        std::mem::transmute(*vtable.add(IDX_RELEASE_PRIMITIVE_ARRAY_CRITICAL));
+    let get_elems: GetIntArrayElementsFn =
+        std::mem::transmute(*vtable.add(IDX_GET_INT_ARRAY_ELEMENTS));
+    let rel_elems: ReleaseIntArrayElementsFn =
+        std::mem::transmute(*vtable.add(IDX_RELEASE_INT_ARRAY_ELEMENTS));
 
     let len = get_len(env, pixels_arr);
     let expected = (width as usize).saturating_mul(height as usize);
@@ -56,7 +57,7 @@ pub unsafe extern "C" fn Java_com_music_bitchord_ui_components_NativeBlur_boxBlu
     }
 
     let mut is_copy: JBoolean = 0;
-    let raw_ptr = get_crit(env, pixels_arr, &mut is_copy);
+    let raw_ptr = get_elems(env, pixels_arr, &mut is_copy);
     if raw_ptr.is_null() {
         return;
     }
@@ -70,7 +71,7 @@ pub unsafe extern "C" fn Java_com_music_bitchord_ui_components_NativeBlur_boxBlu
         passes as usize,
     );
 
-    rel_crit(env, pixels_arr, raw_ptr, 0);
+    rel_elems(env, pixels_arr, raw_ptr, 0);
 }
 
 #[no_mangle]
@@ -87,10 +88,10 @@ pub unsafe extern "C" fn Java_com_music_bitchord_playback_chords_NativeChordDspA
 
     let vtable = *env;
     let get_len: GetArrayLengthFn = std::mem::transmute(*vtable.add(IDX_GET_ARRAY_LENGTH));
-    let get_crit: GetPrimitiveArrayCriticalFn =
-        std::mem::transmute(*vtable.add(IDX_GET_PRIMITIVE_ARRAY_CRITICAL));
-    let rel_crit: ReleasePrimitiveArrayCriticalFn =
-        std::mem::transmute(*vtable.add(IDX_RELEASE_PRIMITIVE_ARRAY_CRITICAL));
+    let get_region: GetDoubleArrayRegionFn =
+        std::mem::transmute(*vtable.add(IDX_GET_DOUBLE_ARRAY_REGION));
+    let set_region: SetDoubleArrayRegionFn =
+        std::mem::transmute(*vtable.add(IDX_SET_DOUBLE_ARRAY_REGION));
 
     let ring_len = get_len(env, ring_arr);
     let out_len = get_len(env, out_chroma_arr);
@@ -98,26 +99,22 @@ pub unsafe extern "C" fn Java_com_music_bitchord_playback_chords_NativeChordDspA
         return 0;
     }
 
-    let mut is_copy_ring: JBoolean = 0;
-    let ring_ptr = get_crit(env, ring_arr, &mut is_copy_ring);
-    if ring_ptr.is_null() {
+    // Copy ring into a local buffer so the 8192-point FFT runs completely outside any JVM GC lock.
+    let mut ring_buf = [0.0f64; sonora_core::chords::FFT_SIZE];
+    get_region(
+        env,
+        ring_arr,
+        0,
+        sonora_core::chords::FFT_SIZE as JInt,
+        ring_buf.as_mut_ptr(),
+    );
+
+    let mut out_buf = [0.0f64; 12];
+    let ok = sonora_core::chords::compute_chroma_frame(&ring_buf, base as usize, &mut out_buf);
+    if !ok {
         return 0;
     }
 
-    let mut is_copy_out: JBoolean = 0;
-    let out_ptr = get_crit(env, out_chroma_arr, &mut is_copy_out);
-    if out_ptr.is_null() {
-        rel_crit(env, ring_arr, ring_ptr, 2); // JNI_ABORT (read-only)
-        return 0;
-    }
-
-    let ring_slice = std::slice::from_raw_parts(ring_ptr as *const f64, ring_len as usize);
-    let out_slice = std::slice::from_raw_parts_mut(out_ptr as *mut f64, out_len as usize);
-
-    let ok = sonora_core::chords::compute_chroma_frame(ring_slice, base as usize, out_slice);
-
-    rel_crit(env, out_chroma_arr, out_ptr, 0);
-    rel_crit(env, ring_arr, ring_ptr, 2); // JNI_ABORT (read-only, no copy-back needed)
-
-    if ok { 1 } else { 0 }
+    set_region(env, out_chroma_arr, 0, 12, out_buf.as_ptr());
+    1
 }

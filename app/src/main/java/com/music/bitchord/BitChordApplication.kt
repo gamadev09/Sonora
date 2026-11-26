@@ -122,6 +122,9 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
         val backgroundInit = thread(name = "startup-init") {
             SourceRegistry.init(this)
             AndroidStreamHooks.initInnerTubeX(this)
+            CanvasCache.init(this)
+            ListeningStats.init(this)
+            ArtistFacts.init(this)
         }
         // Migration-safe: an old single cookie becomes the first encrypted
         // session, while newer installs restore the profile the listener chose.
@@ -170,19 +173,12 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
         // What's already saved to Downloads, so the song menu can say so
         // without a media-store query per row.
         Downloads.init(this)
-        // Defer non-first-frame subsystems so cold start reaches the first frame
-        // without blocking on disk/worker setup. Lifecycle observers stay on Main.
-        // Hidden upstream BitChord presence telemetry is intentionally omitted.
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            PlaylistSync.init(this@BitChordApplication)
-            com.music.bitchord.data.backup.DriveBackup.init(this@BitChordApplication)
-        }
-        CoroutineScope(Dispatchers.IO).launch {
-            CanvasCache.init(this@BitChordApplication)
-            ListeningStats.init(this@BitChordApplication)
-            ArtistFacts.init(this@BitChordApplication)
-            initLastfm()
-        }
+        // Register lifecycle-bound subsystems synchronously on Main so PlaybackService
+        // and widgets never observe an uninitialized singleton. Upstream BitChord
+        // presence telemetry remains omitted.
+        PlaylistSync.init(this)
+        com.music.bitchord.data.backup.DriveBackup.init(this)
+        initLastfm()
         // One cache directory can only be opened once per process, and
         // PlaybackService shares this one — so it's opened here, not there.
         AudioCache.init(this)

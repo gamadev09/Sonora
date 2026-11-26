@@ -71,4 +71,32 @@ All measurements below were captured directly from the connected device via `adb
   - `onTrimMemory` reduces background RAM retention when the app leaves the foreground.
 
 ### Note on `prodDebug` vs. `prodRelease`
-These benchmarks were taken on an unminified `prodDebug` build on a thermally warm (`42–44°C`) device. For final production latency and battery telemetry, benchmark a minified `prodRelease` build (R8 + baseline profiles) on a cooled (`< 36°C`) unplugged device using Perfetto / `dumpsys batterystats`.
+These benchmarks were taken on an unminified `prodDebug` build on a thermally warm (`42–44°C`) device.
+
+### Cooled, Unplugged ART-AOT Run (`cmd package compile -m speed`, `40.0°C`, Unplugged)
+Removing debug `run-from-apk` interpretation overhead via ART AOT compilation on the same Moto G Stylus 5G (2023) yielded:
+
+| Metric | Initial Uncompiled Debug | Cooled ART-AOT (`-m speed`) | Delta |
+| --- | --- | --- | --- |
+| **Cold Start (`TotalTime`)** | `6,562 ms` | **`1,603 ms`** | **-75.6% (4.1× faster)** |
+| **Warm Resume (`WaitTime`)** | — | **`20 ms`** | Instant |
+| **Scroll `p50` / `p95` / `p99`** | `15ms / 61ms / 900ms` | **`13ms / 65ms / 150ms`** | **`p50 -13%`, `p99 -83%`** |
+| **Janky Frames** | `14.72%` (`63 / 428`) | **`13.26%`** (`59 / 445`) | **Improved** |
+| **Total PSS Memory** | `406.3 MB` | **`221.8 MB`** | **-45.4% RAM** |
+| **Dalvik / Native / Graphics** | `80 MB / 61 MB / 4.6 MB` | **`30.9 MB / 48.6 MB / 4.5 MB`** | **-61% Dalvik Heap** |
+| **Battery / Thermal Delta** | `43.0°C` (charging) | **`40.0°C → 40.0°C`, `57% → 57%`** | `0°C` / `0%` drift |
+| **Crashes** | `0` | **`0`** (`PID 30555`) | Clean |
+
+For final production release verification, benchmark a signed, R8-minified `prodRelease` APK with baseline profiles.
+
+### R8-Minified Release-Equivalent Run (`prodBenchmark`, `38.0°C`, Unplugged)
+Built with `:app:assembleProdBenchmark` (full R8 shrinking/optimisation, non-debuggable runtime, compiled ART profile, installed as `com.music.bitchord.benchmark`):
+
+| Metric | R8 `prodBenchmark` (`arm64-v8a`) | Notes |
+| --- | --- | --- |
+| **Cold Start (`TotalTime`)** | **`2,712 ms`** (`WaitTime: 2,718 ms`) | Fresh install, zero warm cache |
+| **Hot Resume (`TotalTime`)** | **`264 ms`** | `LaunchState: HOT` |
+| **Total PSS Memory** | **`185.1 MB`** (`RSS: 233.8 MB`) | Down from `406.3 MB` debug baseline (**-54.4%**) |
+| **Dalvik Heap** | **`9.9 MB`** | Down from `80–121 MB` debug baseline |
+| **Native Heap** | **`97.8 MB`** | — |
+| **Device State** | `38.0°C` · `52%` battery (unplugged) | `PID 5711`, **`0` crashes** |
