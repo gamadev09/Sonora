@@ -64,13 +64,13 @@ fun assessLyricsQuality(lines: List<LyricLine>): LyricsQualityAssessment {
         if (line.words.isNotEmpty()) {
             var lineValidWords = 0
             var lineCoveredChars = 0
-            var prevStart = Long.MIN_VALUE
+            var prevStart = -1L
             for (word in line.words) {
                 totalWords++
                 val valid = word.text.isNotBlank() &&
                     word.startMs >= 0L &&
                     word.endMs > word.startMs &&
-                    word.startMs >= prevStart - 50L
+                    (prevStart < 0L || word.startMs >= prevStart - 50L)
                 if (valid) {
                     validWords++
                     lineValidWords++
