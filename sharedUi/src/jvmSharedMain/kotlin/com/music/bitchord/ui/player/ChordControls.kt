@@ -76,6 +76,7 @@ internal class ChordUiState(private val scope: CoroutineScope) {
     var piano by mutableStateOf(false)
     var guitar by mutableStateOf(false)
     var capo by mutableIntStateOf(0)
+    var accentColor by mutableStateOf(DEFAULT_CHORD_ACCENT)
 
     private val cachedDisplayEvents by derivedStateOf {
         displayChordEvents(events.orEmpty(), simplify, notation, if (guitar) capo else 0)
@@ -130,6 +131,13 @@ internal fun rememberChordState(
     // Key on stable videoId rather than Song data class equality so metadata updates
     // (likeStatus, albumId, links) or hiding/reopening controls never drop chord state.
     val state = remember(song.videoId, source) { ChordUiState(scope) }
+    val artworkPalette = rememberArtworkColors(song.thumbnailUrl)
+    val albumAccent = remember(artworkPalette) { chordAccentFromPalette(artworkPalette) }
+    val animatedAccent by androidx.compose.animation.animateColorAsState(
+        targetValue = albumAccent,
+        label = "chordAlbumAccent",
+    )
+    SideEffect { state.accentColor = animatedAccent }
     LaunchedEffect(state, song.videoId, source) {
         try {
             if (state.events == null) {
@@ -475,6 +483,31 @@ internal fun LyricChordLine(
 }
 
 
+private val DEFAULT_CHORD_ACCENT = Color(0xFFFFD88A)
+
+private fun chordAccentFromPalette(palette: MeshPalette): Color {
+    val raw = palette.colors.maxByOrNull { color ->
+        val hsl = FloatArray(3)
+        com.music.bitchord.ui.graphics.ColorUtils.colorToHSL(
+            (0xFF shl 24) or
+                (((color.red * 255f).toInt() and 0xFF) shl 16) or
+                (((color.green * 255f).toInt() and 0xFF) shl 8) or
+                ((color.blue * 255f).toInt() and 0xFF),
+            hsl,
+        )
+        hsl[1] * (1f - kotlin.math.abs(hsl[2] - 0.55f))
+    } ?: return DEFAULT_CHORD_ACCENT
+    val argb = (0xFF shl 24) or
+        (((raw.red * 255f).toInt() and 0xFF) shl 16) or
+        (((raw.green * 255f).toInt() and 0xFF) shl 8) or
+        ((raw.blue * 255f).toInt() and 0xFF)
+    val hsl = FloatArray(3)
+    com.music.bitchord.ui.graphics.ColorUtils.colorToHSL(argb, hsl)
+    hsl[1] = hsl[1].coerceIn(0.45f, 0.92f)
+    hsl[2] = hsl[2].coerceIn(0.72f, 0.86f)
+    return Color(com.music.bitchord.ui.graphics.ColorUtils.HSLToColor(hsl))
+}
+
 @Composable
 private fun InstrumentChordPanel(state: ChordUiState) {
     val events = remember(state.events, state.simplify, state.notation, state.guitar, state.capo) { state.displayEvents() }
@@ -505,7 +538,7 @@ private fun InstrumentChordPanel(state: ChordUiState) {
             key(event.startMs, event.label) {
                 val playing = event == current
                 val glow by animateFloatAsState(if (playing) 1f else 0f, label = "playingChordGlow")
-                val tint = Color(0xFFFFD88A)
+                val tint = state.accentColor
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
                         .background(tint.copy(alpha = 0.03f + glow * 0.16f))

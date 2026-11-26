@@ -114,10 +114,6 @@ fun OnboardingScreen(
         if (signedIn && page == PAGE_CONNECT) onFinish()
     }
 
-    // The mesh never settles on one palette: each crossfade is as long as the
-    // hold, so one runs straight into the next.
-    val palette = cyclingMeshPalette(if (page == PAGE_NAME) WelcomeMeshPalettes else ConnectPalettes)
-
     Box(
         modifier
             .fillMaxSize()
@@ -127,26 +123,6 @@ fun OnboardingScreen(
             // away, which is where a thumb goes to dismiss one.
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
-        MeshGradientBackground(
-            palette = palette,
-            trackKey = page,
-            continuous = true,
-            driftMillis = 6_000,
-            colorFadeMillis = MESH_CYCLE_MILLIS,
-        )
-        // The mesh carries its own light scrim for a player's controls; two
-        // full-width buttons and a paragraph want the foot of it a shade deeper.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.05f),
-                        0.55f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.45f),
-                    ),
-                ),
-        )
 
         AnimatedContent(
             targetState = page,
@@ -209,45 +185,56 @@ private fun ColumnScope.NamePage(
     onNameChange: (String) -> Unit,
     onNext: () -> Unit,
 ) {
-    // With the keyboard up there is room for the title or the logo, not both;
-    // the title is the one that says where you are.
     val keyboardUp = WindowInsets.isImeVisible
-    AnimatedVisibility(
-        visible = !keyboardUp,
-        enter = fadeIn() + expandVertically(),
-        exit = fadeOut() + shrinkVertically(),
+    Spacer(Modifier.weight(1f))
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column {
-            Spacer(Modifier.height(56.dp))
+        AnimatedVisibility(
+            visible = !keyboardUp,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
             Image(
                 painter = painterResource(Res.drawable.ic_logo),
-                contentDescription = null,
-                modifier = Modifier.size(width = 46.dp, height = 30.dp),
+                contentDescription = "Sonora",
+                modifier = Modifier
+                    .padding(bottom = 12.dp)
+                    .size(56.dp),
             )
         }
+        Text(
+            text = "SONORA",
+            style = MaterialTheme.typography.displayLarge.copy(
+                fontSize = 34.sp,
+                lineHeight = 40.sp,
+                letterSpacing = 6.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = Color.White,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(28.dp))
+        Text(
+            text = stringResource(R.string.onboarding_name_prompt),
+            style = MaterialTheme.typography.titleMedium,
+            fontSize = 17.sp,
+            color = Color.White.copy(alpha = 0.78f),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(14.dp))
+        NameField(value = name, onValueChange = onNameChange, onDone = onNext)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.onboarding_name_footer),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.55f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
     }
-    Spacer(Modifier.height(24.dp))
-    Title(stringResource(R.string.onboarding_title))
-
     Spacer(Modifier.weight(1f))
-
-    Text(
-        text = stringResource(R.string.onboarding_name_prompt),
-        style = MaterialTheme.typography.titleMedium,
-        fontSize = 17.sp,
-        color = Color.White.copy(alpha = 0.78f),
-        modifier = Modifier.padding(start = 4.dp),
-    )
-    Spacer(Modifier.height(12.dp))
-    NameField(value = name, onValueChange = onNameChange, onDone = onNext)
-    Spacer(Modifier.height(10.dp))
-    Text(
-        text = stringResource(R.string.onboarding_name_footer),
-        style = MaterialTheme.typography.bodyMedium,
-        color = Color.White.copy(alpha = 0.55f),
-        modifier = Modifier.padding(horizontal = 4.dp),
-    )
-    Spacer(Modifier.height(28.dp))
     PillButton(
         label = stringResource(R.string.onboarding_next),
         onClick = onNext,
