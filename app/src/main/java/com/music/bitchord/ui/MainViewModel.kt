@@ -499,11 +499,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // Apply it as soon as the already-running automatic attempt completes.
                 selectedLyricsSource = source
             }
-            LyricsProviderState.NOT_FETCHED, null -> {
+            LyricsProviderState.NOT_FETCHED, LyricsProviderState.NOT_FOUND, null -> {
                 selectedLyricsSource = source
                 fetchLyricsProvider(request, lyricsGeneration, source)
             }
-            LyricsProviderState.NOT_FOUND -> Unit
         }
     }
 
