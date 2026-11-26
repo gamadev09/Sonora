@@ -81,4 +81,81 @@ class LyricsEngineRegressionTest {
         assertEquals(LyricsSource.LRCLIB, picked!!.source)
         assertFalse(picked.lines.any { it.timeMs > 0L })
     }
+
+    @Test
+    fun qualityHierarchy_completeSyllableBeatsCompleteWordBeatsPartialWordBeatsLine() = runBlocking {
+        val lineSynced = LyricsRepository.Result(
+            LyricsSource.LRCLIB,
+            listOf(
+                LyricLine(1000L, "Hello world"),
+                LyricLine(3000L, "Second line"),
+                LyricLine(5000L, "Third line"),
+                LyricLine(7000L, "Fourth line"),
+            ),
+        )
+        val partialWord = LyricsRepository.Result(
+            LyricsSource.UNISON,
+            listOf(
+                LyricLine(1000L, "Hello world", words = listOf(LyricWord(1000L, 1500L, "Hello"), LyricWord(1500L, 2000L, "world"))),
+                LyricLine(3000L, "Second line", words = listOf(LyricWord(3000L, 3500L, "Second"), LyricWord(3500L, 4000L, "line"))),
+                LyricLine(5000L, "Third line"),
+                LyricLine(7000L, "Fourth line"),
+            ),
+        )
+        val completeWord = LyricsRepository.Result(
+            LyricsSource.BETTER_LYRICS,
+            listOf(
+                LyricLine(1000L, "Hello world", words = listOf(LyricWord(1000L, 1500L, "Hello"), LyricWord(1500L, 2000L, "world"))),
+                LyricLine(3000L, "Second line", words = listOf(LyricWord(3000L, 3500L, "Second"), LyricWord(3500L, 4000L, "line"))),
+                LyricLine(5000L, "Third line", words = listOf(LyricWord(5000L, 5500L, "Third"), LyricWord(5500L, 6000L, "line"))),
+                LyricLine(7000L, "Fourth line", words = listOf(LyricWord(7000L, 7500L, "Fourth"), LyricWord(7500L, 8000L, "line"))),
+            ),
+        )
+        val completeSyllable = LyricsRepository.Result(
+            LyricsSource.LRC_RED,
+            listOf(
+                LyricLine(
+                    1000L,
+                    "Hello world",
+                    words = listOf(
+                        LyricWord(1000L, 1500L, "Hello", listOf(LyricSyllable(1000L, 1250L, 0, 2), LyricSyllable(1250L, 1500L, 2, 5))),
+                        LyricWord(1500L, 2000L, "world"),
+                    ),
+                ),
+                LyricLine(3000L, "Second line", words = listOf(LyricWord(3000L, 3500L, "Second"), LyricWord(3500L, 4000L, "line"))),
+                LyricLine(5000L, "Third line", words = listOf(LyricWord(5000L, 5500L, "Third"), LyricWord(5500L, 6000L, "line"))),
+                LyricLine(7000L, "Fourth line", words = listOf(LyricWord(7000L, 7500L, "Fourth"), LyricWord(7500L, 8000L, "line"))),
+            ),
+        )
+
+        assertEquals(LyricsTimingTier.LINE_SYNCED, assessLyricsQuality(lineSynced.lines).tier)
+        assertEquals(LyricsTimingTier.PARTIAL_WORD, assessLyricsQuality(partialWord.lines).tier)
+        assertEquals(LyricsTimingTier.COMPLETE_WORD, assessLyricsQuality(completeWord.lines).tier)
+        assertEquals(LyricsTimingTier.COMPLETE_SYLLABLE, assessLyricsQuality(completeSyllable.lines).tier)
+
+        val preliminary = mutableListOf<LyricsSource>()
+        val winner = LyricsRepository.pick(
+            racing = listOf(
+                LyricsSource.LRCLIB to suspend { lineSynced },
+                LyricsSource.UNISON to suspend { partialWord },
+                LyricsSource.BETTER_LYRICS to suspend { completeWord },
+                LyricsSource.LRC_RED to suspend { completeSyllable },
+            ),
+            prioritizeSyllableSync = true,
+            onPreliminaryResult = { preliminary += it.source },
+        )
+        assertEquals(LyricsSource.LRC_RED, winner?.source)
+        assertEquals(listOf(LyricsSource.LRCLIB, LyricsSource.UNISON, LyricsSource.BETTER_LYRICS), preliminary)
+    }
+
+    @Test
+    fun invalidZeroDurationWords_doNotOutrankLineSyncedDocument() {
+        val corruptWords = listOf(
+            LyricLine(1000L, "Hello world", words = listOf(LyricWord(1000L, 1000L, "Hello"), LyricWord(1000L, 1000L, "world"))),
+            LyricLine(3000L, "Second line", words = listOf(LyricWord(3000L, 3000L, "Second"), LyricWord(3000L, 3000L, "line"))),
+        )
+        val assessment = assessLyricsQuality(corruptWords)
+        assertEquals(LyricsTimingTier.LINE_SYNCED, assessment.tier)
+        assertTrue(LyricsSource.MUSIXMATCH.wordSynced)
+    }
 }

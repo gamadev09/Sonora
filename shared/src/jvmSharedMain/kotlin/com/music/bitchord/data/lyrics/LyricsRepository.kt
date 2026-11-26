@@ -103,6 +103,11 @@ object LyricsRepository {
         onSourceResult: ((LyricsSource, Result?) -> Unit)? = null,
         /** Lets callers turn a cancelled race loser back into "not fetched". */
         onSourceCancelled: ((LyricsSource) -> Unit)? = null,
+        /**
+         * Optional progressive callback invoked whenever a better valid result becomes
+         * available while still awaiting higher-tier word/syllable providers.
+         */
+        onPreliminaryResult: ((Result) -> Unit)? = null,
     ): Result? = coroutineScope {
         val sequence = (order + LyricsSource.offered)
             .distinct()
@@ -157,7 +162,11 @@ object LyricsRepository {
         }
 
         try {
-            pick(racing.map { (source, job) -> source to suspend { job.await() } }, prioritizeSyllableSync)
+            pick(
+                racing.map { (source, job) -> source to suspend { job.await() } },
+                prioritizeSyllableSync,
+                onPreliminaryResult,
+            )
         } finally {
             // Whoever lost the race is no longer worth waiting on, and
             // coroutineScope will not return while they are still running.
@@ -177,23 +186,37 @@ object LyricsRepository {
     internal suspend fun pick(
         racing: List<Pair<LyricsSource, suspend () -> Result?>>,
         prioritizeSyllableSync: Boolean,
+        onPreliminaryResult: ((Result) -> Unit)? = null,
     ): Result? {
-        var lineSynced: Result? = null
-        var plain: Result? = null
+        var best: Result? = null
+        var bestTier = LyricsTimingTier.INVALID
         for ((source, await) in racing) {
-            // If we already found a line-synced or better result, skip Genius completely
-            if ((lineSynced ?: plain) != null && source == LyricsSource.GENIUS) continue
+            // If we already found a usable result, skip lazy plain Genius scraping.
+            if (best != null && source == LyricsSource.GENIUS) continue
 
             val found = runCatching { await() }.getOrNull() ?: continue
-            if (found.lines.any { it.isWordSynced }) return found
-            if (found.lines.any { it.timeMs > 0 }) {
-                if (!prioritizeSyllableSync) return found
-                if (lineSynced == null) lineSynced = found
-            } else if (plain == null) {
-                plain = found
+            val quality = assessLyricsQuality(found.lines)
+            if (quality.tier == LyricsTimingTier.INVALID) continue
+
+            if (!prioritizeSyllableSync) {
+                if (quality.isTimed) return found
+                if (best == null) {
+                    best = found
+                    bestTier = quality.tier
+                }
+                continue
+            }
+
+            // Document-level quality hierarchy: Complete Syllable > Complete Word > Partial Word > Line > Plain.
+            // Provider priority order breaks ties (strictly greater tier required to replace).
+            if (quality.tier.rank > bestTier.rank) {
+                best = found
+                bestTier = quality.tier
+                if (bestTier == LyricsTimingTier.COMPLETE_SYLLABLE) return best
+                onPreliminaryResult?.invoke(found)
             }
         }
-        return lineSynced ?: plain
+        return best
     }
 
     private suspend fun fetch(

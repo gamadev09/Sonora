@@ -695,7 +695,7 @@ object AppSettings {
      * which is why it defaults off rather than being how [LyricsRepository]
      * always behaved.
      */
-    val prioritizeSyllableSync = MutableStateFlow(false)
+    val prioritizeSyllableSync = MutableStateFlow(true)
 
     /** User-issued credential required by api.paxsenix.org. */
     val paxSenixApiKey = MutableStateFlow("")
@@ -1171,7 +1171,7 @@ object AppSettings {
         syncedLyrics.value = prefs.getBoolean(KEY_SYNCED_LYRICS, true)
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
-        prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, false)
+        prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, true)
         paxSenixApiKey.value = secret(KEY_PAXSENIX_API_KEY)
         com.music.bitchord.data.lyrics.PaxSenix.setApiKey(paxSenixApiKey.value)
         audioCacheLimitBytes.value = clampCacheLimit(prefs.getLong(KEY_CACHE_LIMIT, DEFAULT_CACHE_LIMIT_BYTES))
@@ -1815,7 +1815,7 @@ object AppSettings {
     fun resetLyricsSourceSettings() {
         setLyricsSources(LyricsSource.offered.toSet())
         setLyricsSourceOrder(LyricsSource.offered)
-        setPrioritizeSyllableSync(false)
+        setPrioritizeSyllableSync(true)
     }
 
     fun setAnimatedCanvas(value: Boolean) {

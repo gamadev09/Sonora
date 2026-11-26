@@ -25,7 +25,7 @@ import kotlin.math.abs
 object LrcLib {
 
     private const val BASE = "https://lrclib.net/api"
-    private const val MAX_DURATION_DRIFT_SECONDS = 15.0
+    private const val MAX_DURATION_DRIFT_SECONDS = 6.0
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -104,7 +104,7 @@ object LrcLib {
             .build()
         val body = lyricsGetResult(url.toString()).bodyOrNull ?: return null
         val hits = runCatching { json.parseToJsonElement(body) as? JsonArray }.getOrNull() ?: return null
-        return selectBestHit(hits, title, artist, seconds, requireTitleMatch = false)
+        return selectBestHit(hits, title, artist, seconds, requireTitleMatch = true)
     }
 
     private suspend fun bestQueryHit(title: String, artist: String, seconds: Int): List<LyricLine>? {
