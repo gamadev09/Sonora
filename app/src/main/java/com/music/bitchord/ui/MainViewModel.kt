@@ -36,8 +36,11 @@ import com.music.bitchord.data.spotify.SpotifyLibrary
 import com.music.bitchord.data.spotify.SpotifyTrack
 import com.music.bitchord.data.lyrics.EmbeddedLyrics
 import com.music.bitchord.data.lyrics.LyricLine
+import com.music.bitchord.data.lyrics.LyricsCache
 import com.music.bitchord.data.lyrics.LyricsRepository
 import com.music.bitchord.data.lyrics.LyricsSource
+import com.music.bitchord.data.lyrics.LyricsTimingTier
+import com.music.bitchord.data.lyrics.assessLyricsQuality
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.ui.navigation.AppNavigator
 import com.music.bitchord.data.innertube.Innertube
@@ -353,6 +356,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val lyricsProviderStates: StateFlow<Map<LyricsSource, LyricsProviderState>> =
         _lyricsProviderStates.asStateFlow()
 
+    private val _lyricsProviderTiers = MutableStateFlow<Map<LyricsSource, LyricsTimingTier>>(emptyMap())
+    val lyricsProviderTiers: StateFlow<Map<LyricsSource, LyricsTimingTier>> =
+        _lyricsProviderTiers.asStateFlow()
+
+    private val _isManualLyricsActive = MutableStateFlow(false)
+    val isManualLyricsActive: StateFlow<Boolean> = _isManualLyricsActive.asStateFlow()
+
     /** Completed hits are retained for the playing track so choosing one is instant. */
     private val lyricsProviderResults = ConcurrentHashMap<LyricsSource, LyricsRepository.Result>()
 
@@ -362,11 +372,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val artist: String,
         val durationMs: Long,
         val album: String?,
+        val localUri: String? = null,
     )
 
     private var currentLyricsRequest: LyricsRequest? = null
     private var lyricsGeneration = 0L
     private var selectedLyricsSource: LyricsSource? = null
+    private var displayedLyricsTier: LyricsTimingTier = LyricsTimingTier.INVALID
 
     /**
      * What the loaded lyrics are for. Both the track *and* the settings that
@@ -399,8 +411,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             emptySet()
         }
+        val order = AppSettings.lyricsSourceOrder.value
+        val prioritizeSyllable = AppSettings.prioritizeSyllableSync.value
         val key = lyricsLookupKey(
-            videoId, sources, AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+            videoId = videoId,
+            sources = sources,
+            order = order,
+            prioritizeSyllableSync = prioritizeSyllable,
+            title = title,
+            artist = artist,
+            album = album,
+            durationMs = durationMs,
         )
         if (lyricsFor == key) return
         // The duration lands a beat after the track, and a database match needs
@@ -414,11 +435,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         lyricsFor = key
         lyricsGeneration += 1
         val generation = lyricsGeneration
-        currentLyricsRequest = LyricsRequest(videoId, title, artist, durationMs, album)
+        currentLyricsRequest = LyricsRequest(videoId, title, artist, durationMs, album, localUri)
         selectedLyricsSource = null
+        displayedLyricsTier = LyricsTimingTier.INVALID
+        _isManualLyricsActive.value = false
         manualLyricsJobs.values.forEach(Job::cancel)
         manualLyricsJobs.clear()
         lyricsProviderResults.clear()
+        _lyricsProviderTiers.value = emptyMap()
         _lyricsProviderStates.value =
             LyricsSource.entries.associateWith { LyricsProviderState.NOT_FETCHED }
         _lyrics.value = null
@@ -433,25 +457,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         _lyricsChecked.value = false
         lyricsJob = viewModelScope.launch {
-            // The file first, and without the duration gate below: a length is
-            // only needed to *match* a track against a stranger's database, and
-            // nothing is being matched here — these lyrics were written into
-            // this exact file, for this exact recording.
-            // Plain words from the file: shown at once, but they only stand in
-            // until a source answers with timing. Most taggers store lyrics
-            // untimed (an MP3's USLT nearly always is), and ending the lookup
-            // on them would cost every such file the synced lyrics it got
-            // before the file's own words were read at all.
-            var embeddedPlain: List<LyricLine>? = null
+            // 1. Embedded file lyrics first (offline-safe).
+            // Display immediately; if word/syllable sync is prioritized and embedded
+            // lyrics are only plain or line-synced, keep searching online for an upgrade
+            // without ever downgrading the embedded copy.
+            var baselineLines: List<LyricLine>? = null
+            var baselineSource: LyricsSource? = null
+            var baselineTier = LyricsTimingTier.INVALID
             if (localUri != null) {
                 EmbeddedLyrics.forUri(getApplication(), localUri)?.let { embedded ->
-                    _lyrics.value = embedded
-                    // No source to name: what the file records is the lyrics,
-                    // not which of the eight services they came from months ago.
-                    _lyricsSource.value = null
-                    _lyricsChecked.value = true
-                    if (EmbeddedLyrics.isSynced(embedded)) return@launch
-                    embeddedPlain = embedded
+                    val embeddedQuality = assessLyricsQuality(embedded)
+                    if (embeddedQuality.tier != LyricsTimingTier.INVALID) {
+                        baselineLines = embedded
+                        baselineSource = null
+                        baselineTier = embeddedQuality.tier
+                        displayedLyricsTier = embeddedQuality.tier
+                        _lyrics.value = embedded
+                        _lyricsSource.value = null
+                        _lyricsChecked.value = true
+                        val sufficient = if (prioritizeSyllable) {
+                            embeddedQuality.tier.rank >= LyricsTimingTier.COMPLETE_WORD.rank
+                        } else {
+                            embeddedQuality.isTimed
+                        }
+                        if (sufficient) return@launch
+                    }
                 }
             }
             if (durationMs <= 0L) {
@@ -459,28 +489,159 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 lyricsFor = null
                 return@launch
             }
+            // 2. Bounded persistent cache check before network calls.
+            val cached = withContext(Dispatchers.IO) {
+                LyricsCache.get(videoId, title, artist, durationMs, sources)
+            }
+            if (cached != null) {
+                val cachedQuality = assessLyricsQuality(cached.lines)
+                if (cachedQuality.tier.rank > baselineTier.rank) {
+                    baselineLines = cached.lines
+                    baselineSource = cached.source
+                    baselineTier = cachedQuality.tier
+                    lyricsProviderResults[cached.source] = cached
+                    _lyricsProviderStates.update { it + (cached.source to LyricsProviderState.FOUND) }
+                    _lyricsProviderTiers.update { it + (cached.source to cachedQuality.tier) }
+                    if (selectedLyricsSource == null) {
+                        displayedLyricsTier = cachedQuality.tier
+                        showLyricsResult(cached)
+                    }
+                    val cacheSufficient = if (prioritizeSyllable) {
+                        cachedQuality.tier == LyricsTimingTier.COMPLETE_SYLLABLE
+                    } else {
+                        cachedQuality.isTimed
+                    }
+                    if (cacheSufficient) return@launch
+                }
+            }
+
+            // 3. Progressive online lookup across enabled providers.
             val found = LyricsRepository.lyrics(
-                videoId, title, artist, durationMs, album, sources,
-                AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+                videoId = videoId,
+                title = title,
+                artist = artist,
+                durationMs = durationMs,
+                album = album,
+                sources = sources,
+                order = order,
+                prioritizeSyllableSync = prioritizeSyllable,
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->
                     providerFinished(generation, source, result)
                 },
                 onSourceCancelled = { source -> providerCancelled(generation, source) },
+                onPreliminaryResult = { prelim ->
+                    applyProgressiveLyrics(generation, prelim)
+                },
             )
-            val picked = selectedLyricsSource?.let(lyricsProviderResults::get)
-            // The file's own words beat a stranger's untimed copy; only timing,
-            // or a provider the listener picked by hand, displaces them.
-            val selected = picked
-                ?: found?.takeIf { embeddedPlain == null || EmbeddedLyrics.isSynced(it.lines) }
-            if (selected == null && embeddedPlain != null) {
-                _lyrics.value = embeddedPlain
-                _lyricsSource.value = null
-            } else {
-                _lyrics.value = selected?.lines
-                _lyricsSource.value = selected?.source
+            if (generation != lyricsGeneration) return@launch
+
+            if (found != null) {
+                withContext(Dispatchers.IO) {
+                    LyricsCache.put(videoId, title, artist, durationMs, found)
+                }
             }
-            _lyricsChecked.value = true
+
+            val picked = selectedLyricsSource?.let(lyricsProviderResults::get)
+            if (picked != null) {
+                showLyricsResult(picked)
+                return@launch
+            }
+
+            val foundTier = found?.let { assessLyricsQuality(it.lines).tier } ?: LyricsTimingTier.INVALID
+            if (found != null && foundTier.rank > baselineTier.rank) {
+                displayedLyricsTier = foundTier
+                showLyricsResult(found)
+            } else if (baselineLines != null) {
+                displayedLyricsTier = baselineTier
+                _lyrics.value = baselineLines
+                _lyricsSource.value = baselineSource
+                _lyricsChecked.value = true
+            } else {
+                _lyrics.value = null
+                _lyricsSource.value = null
+                _lyricsChecked.value = true
+            }
+        }
+    }
+
+    /**
+     * Manual lyrics search with user-edited title and artist, searching across
+     * enabled providers while keeping the current track's duration and videoId.
+     */
+    fun searchLyricsManually(customTitle: String, customArtist: String) {
+        val request = currentLyricsRequest ?: return
+        val queryTitle = customTitle.trim().ifEmpty { request.title }
+        val queryArtist = customArtist.trim().ifEmpty { request.artist }
+        val sources = AppSettings.lyricsSources.value.ifEmpty { LyricsSource.offered.toSet() }
+        val order = AppSettings.lyricsSourceOrder.value
+        val prioritizeSyllable = AppSettings.prioritizeSyllableSync.value
+
+        lyricsGeneration += 1
+        val generation = lyricsGeneration
+        selectedLyricsSource = null
+        displayedLyricsTier = LyricsTimingTier.INVALID
+        _isManualLyricsActive.value = true
+        manualLyricsJobs.values.forEach(Job::cancel)
+        manualLyricsJobs.clear()
+        lyricsProviderResults.clear()
+        _lyricsProviderTiers.value = emptyMap()
+        _lyricsProviderStates.value =
+            LyricsSource.entries.associateWith { LyricsProviderState.NOT_FETCHED }
+        lyricsJob?.cancel()
+        _lyricsChecked.value = false
+
+        lyricsJob = viewModelScope.launch {
+            val found = LyricsRepository.lyrics(
+                videoId = request.videoId,
+                title = queryTitle,
+                artist = queryArtist,
+                durationMs = request.durationMs,
+                album = null,
+                sources = sources,
+                order = order,
+                prioritizeSyllableSync = prioritizeSyllable,
+                onSourceStarted = { source -> providerStarted(generation, source) },
+                onSourceResult = { source, result ->
+                    providerFinished(generation, source, result)
+                },
+                onSourceCancelled = { source -> providerCancelled(generation, source) },
+                onPreliminaryResult = { prelim ->
+                    applyProgressiveLyrics(generation, prelim)
+                },
+            )
+            if (generation != lyricsGeneration) return@launch
+            val picked = selectedLyricsSource?.let(lyricsProviderResults::get) ?: found
+            if (picked != null) {
+                displayedLyricsTier = assessLyricsQuality(picked.lines).tier
+                showLyricsResult(picked)
+            } else {
+                _lyricsChecked.value = true
+            }
+        }
+    }
+
+    /** Clears manual provider selection / manual search and restores automatic matching. */
+    fun restoreAutomaticLyrics() {
+        val request = currentLyricsRequest ?: return
+        lyricsFor = null
+        _isManualLyricsActive.value = false
+        loadLyrics(
+            videoId = request.videoId,
+            title = request.title,
+            artist = request.artist,
+            durationMs = request.durationMs,
+            album = request.album,
+            localUri = request.localUri,
+        )
+    }
+
+    private fun applyProgressiveLyrics(generation: Long, candidate: LyricsRepository.Result) {
+        if (generation != lyricsGeneration || selectedLyricsSource != null) return
+        val tier = assessLyricsQuality(candidate.lines).tier
+        if (tier.rank > displayedLyricsTier.rank) {
+            displayedLyricsTier = tier
+            showLyricsResult(candidate)
         }
     }
 
@@ -490,10 +651,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun selectLyricsProvider(source: LyricsSource) {
         val request = currentLyricsRequest ?: return
+        _isManualLyricsActive.value = true
         when (_lyricsProviderStates.value[source]) {
             LyricsProviderState.FOUND -> {
                 selectedLyricsSource = source
-                lyricsProviderResults[source]?.let(::showLyricsResult)
+                lyricsProviderResults[source]?.let {
+                    displayedLyricsTier = assessLyricsQuality(it.lines).tier
+                    showLyricsResult(it)
+                }
             }
             LyricsProviderState.FETCHING -> {
                 // Apply it as soon as the already-running automatic attempt completes.
@@ -547,8 +712,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         lyricsProviderResults[source] = result
+        val tier = assessLyricsQuality(result.lines).tier
+        _lyricsProviderTiers.update { it + (source to tier) }
         _lyricsProviderStates.update { it + (source to LyricsProviderState.FOUND) }
-        if (selectedLyricsSource == source) showLyricsResult(result)
+        if (selectedLyricsSource == source) {
+            displayedLyricsTier = tier
+            showLyricsResult(result)
+        }
     }
 
     private fun providerCancelled(generation: Long, source: LyricsSource) {
@@ -3821,4 +3991,17 @@ internal fun lyricsLookupKey(
     sources: Set<LyricsSource>,
     order: List<LyricsSource>,
     prioritizeSyllableSync: Boolean,
-): List<Any> = listOf(videoId, sources, order, prioritizeSyllableSync)
+    title: String = "",
+    artist: String = "",
+    album: String? = null,
+    durationMs: Long = 0L,
+): List<Any> = listOf(
+    videoId,
+    title.trim(),
+    artist.trim(),
+    album?.trim().orEmpty(),
+    if (durationMs > 0L) durationMs / 2_000L else 0L,
+    sources,
+    order,
+    prioritizeSyllableSync,
+)
