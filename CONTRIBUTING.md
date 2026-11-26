@@ -1,75 +1,48 @@
-# Contributing to BitChord
+# Contributing to Sonora
 
-Thank you for contributing to BitChord. Follow these guidelines to ensure an efficient development and review process.
+Thank you for contributing to Sonora. Follow these guidelines to keep the codebase clean, maintainable and verifiable.
 
 ## Proposing Contributions
-- Substantial features, refactors, or UI redesigns should normally be discussed before implementation. Open an issue on GitHub to outline your proposal.
-- Straightforward bug fixes, documentation improvements, or minor corrections can be submitted directly as a Pull Request.
 
-## Branch and Pull Request Workflow
-Always check the repository for the current active version or development branch before starting work.
+- Discuss substantial features, architectural changes, or UI modifications in an issue before implementing them.
+- Focused bug fixes, verified performance improvements, translations and documentation updates can be submitted directly as a Pull Request.
 
-New work should normally be based on the latest active version or development branch rather than `main`, unless maintainers explicitly instruct otherwise. For example, during the `v1.6.x` release cycle, contributions branch from `v1.6.1`. As new release cycles begin, the target branch will advance accordingly.
+## Pull Request Guidelines
 
-When contributing:
-- Fork the repository and create a descriptive branch (e.g., `fix/streaming-buffer`, `docs/translation-guide`).
-- Keep pull requests focused on a single change or bug fix. Avoid mixing unrelated refactors, cosmetic tweaks, or mass reformatting with functional changes.
-- Keep your branch reasonably synchronized with the target base branch.
-- Provide a clear PR description explaining what was changed and why.
-- Include relevant testing and validation details with your PR.
-- Address review feedback promptly and keep discussions focused on technical merits.
+- Branch from the current active development branch using a descriptive name (e.g., `fix/lyrics-offset`, `perf/chord-cache`).
+- Keep pull requests focused on a single concern. Avoid mixing unrelated refactors or formatting churn with functional changes.
+- Include reproduction steps, test results, and before/after measurements for any performance-related change.
+- Do not add external dependencies unless clearly justified by necessity, binary size and GPLv3 compatibility.
 
 ## Development Setup
-The project requires the following tools:
-- **JDK**: Java Development Kit 17 (Eclipse Temurin 17 recommended).
-- **Android SDK**: `compileSdk = 36`, `targetSdk = 36`, `minSdk = 26`.
-- **C/C++ NDK & CMake**: CMake 3.22.1+ and Android NDK (for native audio DSP components configured under `app/src/main/cpp`).
-- **Listen Together Backend (Optional)**: Go 1.22+ if developing or testing the party server (`backend/`).
+
+- **JDK:** Java Development Kit 21.
+- **Android SDK:** `compileSdk = 37`, `targetSdk = 36`, `minSdk = 26`.
+- **C/C++ NDK & CMake:** CMake 3.22.1+ and Android NDK 27 (for native audio DSP under `app/src/main/cpp` and `native/`).
+- **Rust (Optional):** Stable Rust with `aarch64-linux-android` target if modifying `native/sonora-core` or `native/sonora-android`.
+- **Listen Together Backend (Optional):** Go 1.22+ for `backend/`.
 
 ## Build and Test Commands
-Run Gradle commands from the repository root.
 
-Build:
+Run Gradle commands from the repository root:
+
 ```bash
-./gradlew assembleDevDebug
+./gradlew :app:assembleProdDebug -Pbitchord.bundleWear=false
+./gradlew :shared:jvmTest :sharedUi:jvmTest :app:testProdDebugUnitTest -Pbitchord.bundleWear=false
 ```
 
-Windows:
+Windows PowerShell:
+
 ```powershell
-.\gradlew.bat assembleDevDebug
+.\gradlew.bat :app:assembleProdDebug "-Pbitchord.bundleWear=false"
+.\gradlew.bat :shared:jvmTest :sharedUi:jvmTest :app:testProdDebugUnitTest "-Pbitchord.bundleWear=false"
 ```
 
-Tests:
-```bash
-./gradlew testDevDebugUnitTest
-```
+## Audio, Performance and Telemetry Standards
 
-Windows:
-```powershell
-.\gradlew.bat testDevDebugUnitTest
-```
+- Do not present application telemetry as proof of physical hardware behavior unless verified on hardware.
+- Performance changes must include reproducible measurements on physical devices using production-equivalent builds where applicable, and must never sacrifice user-facing features or visual fidelity.
 
-Run a specific test:
-```bash
-./gradlew testDevDebugUnitTest --tests "com.music.bitchord.playback.audio.DirectAudioStreamingRegressionTest"
-```
+## Licensing & Attribution
 
-## Code Quality
-- Follow idiomatic Kotlin and Jetpack Compose conventions.
-- Maintain the project's existing architecture and separation of concerns (UI, domain logic, playback services, and data repositories).
-- Write unit tests for new logic, fixes, and edge cases.
-- Contributors should run relevant tests, must not introduce new failures, and should document known pre-existing failures when applicable.
-- Keep diffs focused and minimal. Avoid unnecessary third-party dependencies.
-
-## Audio Changes and Telemetry
-For audio changes: application telemetry must not be presented as proof of physical hardware behavior unless that hardware behavior was actually verified.
-
-Distinguish clearly between source metadata, decoder format, internal DSP format, AudioTrack output, AudioFlinger/HAL state, advertised device capability, and external physical endpoint behavior.
-
-## Review Process
-All pull requests require review and approval by repository maintainers before merging. Maintainers review changes for correctness, architecture fit, and maintainability.
-
-## Dependencies and Licensing
-BitChord is licensed under the **GNU General Public License v3.0 (GPLv3)**.
-
-All contributed code and dependencies must be strictly compatible with GPLv3. Avoid introducing external dependencies unless strictly necessary; any new dependency must be evaluated for necessity, binary size, and license compliance.
+Sonora is licensed under the **GNU General Public License v3.0 (GPLv3)** and is derived from **BitChord**. All contributed code and dependencies must remain strictly compatible with GPLv3 and preserve upstream copyright and attribution notices.

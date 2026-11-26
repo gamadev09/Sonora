@@ -159,11 +159,11 @@ android {
         create("dev") {
             dimension = "env"
             applicationId = "com.dev.bitchord.tv"
-            resValue("string", "app_name", "BitChord TV")
+            resValue("string", "app_name", "Sonora TV Dev")
         }
         create("prod") {
             dimension = "env"
-            resValue("string", "app_name", "BitChord TV")
+            resValue("string", "app_name", "Sonora TV")
         }
     }
 
@@ -240,6 +240,7 @@ android {
         resources {
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            excludes += "META-INF/LICENSE.md"
             // BouncyCastle data nothing here reads (~1.2 MB); see app/build.gradle.kts.
             excludes += setOf(
                 "org/bouncycastle/pqc/**",

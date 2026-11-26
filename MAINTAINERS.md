@@ -1,21 +1,15 @@
-# Maintainers
+# Maintainers & Acknowledgements
 
-This document lists the maintainers responsible for BitChord.
+## Sonora Stewardship
 
-| Maintainer | GitHub | Responsibilities |
-|---|---|---|
-| Kushagra Singh | [@kushagrasinghx](https://github.com/kushagrasinghx) | Project creator, core architecture, release management, and PR reviews |
+Sonora is an independent fork and continuation focused on simplicity, performance and musician-oriented features.
 
-## Responsibilities
+## Upstream BitChord Origin & Contributors
 
-Maintainers oversee project direction, repository maintenance, review and merging of contributions, and release management.
+Sonora builds upon **BitChord**, originally created and maintained by **Kushagra Singh** ([@kushagrasinghx](https://github.com/kushagrasinghx)), with contributions from the BitChord community:
 
-## Contributors
-
-This list is automatically generated from GitHub repository contributor data.
-
-<!-- BEGIN CONTRIBUTORS -->
-- [@kushagrasinghx](https://github.com/kushagrasinghx)
+<!-- BEGIN UPSTREAM CONTRIBUTORS -->
+- [@kushagrasinghx](https://github.com/kushagrasinghx) — Original BitChord creator & core architecture
 - [@Galaxyyss](https://github.com/Galaxyyss)
 - [@KabirSinghBhatia](https://github.com/KabirSinghBhatia)
 - [@NeoTurcios](https://github.com/NeoTurcios)
@@ -62,4 +56,4 @@ This list is automatically generated from GitHub repository contributor data.
 - [@BernoldM](https://github.com/BernoldM)
 - [@bazilbycom](https://github.com/bazilbycom)
 - [@Aimar-18](https://github.com/Aimar-18)
-<!-- END CONTRIBUTORS -->
+<!-- END UPSTREAM CONTRIBUTORS -->

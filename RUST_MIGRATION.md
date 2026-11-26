@@ -35,8 +35,8 @@ native/
 | Phase | Component | Status | Justification & Parity |
 | --- | --- | --- | --- |
 | **Phase A** | Rust Workspace + NDK `arm64-v8a` Packaging | **Completed** | Established `native/Cargo.toml`, `sonora-core`, and `sonora-android` → `app/src/main/jniLibs/arm64-v8a/libsonora_core.so` (`510 KB`). Zero external crates. |
-| **Phase B** | Backdrop & Canvas Mesh Blur (`dsp::box_blur_argb`) | **Completed** | Replaces 6-pass Kotlin CPU box blur in [BlurredBackdrop.android.kt](file:///C:/Users/gamve/Projects/BitChord/sharedUi/src/androidMain/kotlin/com/music/bitchord/ui/components/BlurredBackdrop.android.kt) and [ArtworkMeshBackdrop.kt](file:///C:/Users/gamve/Projects/BitChord/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ArtworkMeshBackdrop.kt) (Home cards, Now Playing `128×128` backdrop, and `32×32` Canvas mesh). Live frosted bars (`Haze`) remain on GPU `RenderEffect`. |
-| **Phase C** | Offline Chord FFT & Chroma Extraction (`chords::compute_chroma_frame`) | **Completed** | Replaces the 8192-point radix-2 double-precision FFT + Hann window + 12-bin pitch-class projection in [ChordAnalysis.kt](file:///C:/Users/gamve/Projects/BitChord/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordAnalysis.kt) (~102M FMA ops per 4-minute song). Preserves exact algorithm, chord labels, guitar diagrams, capo, transposition, simplification, and Kotlin fallback. |
+| **Phase B** | Backdrop & Canvas Mesh Blur (`dsp::box_blur_argb`) | **Completed** | Replaces 6-pass Kotlin CPU box blur in [BlurredBackdrop.android.kt](sharedUi/src/androidMain/kotlin/com/music/bitchord/ui/components/BlurredBackdrop.android.kt) and [ArtworkMeshBackdrop.kt](sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/player/ArtworkMeshBackdrop.kt) (Home cards, Now Playing `128×128` backdrop, and `32×32` Canvas mesh). Live frosted bars (`Haze`) remain on GPU `RenderEffect`. |
+| **Phase C** | Offline Chord FFT & Chroma Extraction (`chords::compute_chroma_frame`) | **Completed** | Replaces the 8192-point radix-2 double-precision FFT + Hann window + 12-bin pitch-class projection in [ChordAnalysis.kt](shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/ChordAnalysis.kt) (~102M FMA ops per 4-minute song). Preserves exact algorithm, chord labels, guitar diagrams, capo, transposition, simplification, and Kotlin fallback. |
 | **Phase D** | Smart Audio Alignment / Fingerprinting | **Planned** | Existing C++ native analyzer (`native/analyzer/*`, `native/loopmix/*`) already runs natively; evaluate profiling before migrating to avoid redundant rewrites. |
 | **Phase E** | Additional ABIs (`armeabi-v7a`, `x86_64`) & Gradle Automation | **Planned** | Add `armv7-linux-androideabi` and `x86_64-linux-android` targets via `rustup target add` and wire a Gradle `Exec` task for automated multi-ABI builds. Currently non-`arm64-v8a` ABIs fall back seamlessly to Kotlin. |
 
@@ -44,14 +44,14 @@ native/
 
 ## 3. JNI Interface Documentation
 
-All exported symbols live in [native/sonora-android/src/lib.rs](file:///C:/Users/gamve/Projects/BitChord/native/sonora-android/src/lib.rs) and are packaged into `libsonora_core.so`:
+All exported symbols live in [native/sonora-android/src/lib.rs](native/sonora-android/src/lib.rs) and are packaged into `libsonora_core.so`:
 
 1. **`Java_com_music_bitchord_ui_components_NativeBlur_boxBlur`**
-   - **Kotlin caller:** [NativeBlur.kt](file:///C:/Users/gamve/Projects/BitChord/sharedUi/src/androidMain/kotlin/com/music/bitchord/ui/components/NativeBlur.kt) via [NativeBlurPlatform.kt](file:///C:/Users/gamve/Projects/BitChord/sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/NativeBlurPlatform.kt)
+   - **Kotlin caller:** [NativeBlur.kt](sharedUi/src/androidMain/kotlin/com/music/bitchord/ui/components/NativeBlur.kt) via [NativeBlurPlatform.kt](sharedUi/src/jvmSharedMain/kotlin/com/music/bitchord/ui/components/NativeBlurPlatform.kt)
    - **Signature:** `(pixels: IntArray, width: Int, height: Int, radius: Int, passes: Int) -> Unit`
    - **Memory model:** In-place mutation via `GetPrimitiveArrayCritical` (`mode = 0` on release). Bounds-checked against `width * height`.
 2. **`Java_com_music_bitchord_playback_chords_NativeChordDspAndroid_computeChroma`**
-   - **Kotlin caller:** [NativeChordDsp.jvmShared.kt](file:///C:/Users/gamve/Projects/BitChord/shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/chords/NativeChordDsp.jvmShared.kt) via [NativeChordDsp.kt](file:///C:/Users/gamve/Projects/BitChord/shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/NativeChordDsp.kt)
+   - **Kotlin caller:** [NativeChordDsp.jvmShared.kt](shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/chords/NativeChordDsp.jvmShared.kt) via [NativeChordDsp.kt](shared/src/commonMain/kotlin/com/music/bitchord/playback/chords/NativeChordDsp.kt)
    - **Signature:** `(ring: DoubleArray, base: Int, outChroma: DoubleArray) -> Boolean`
    - **Memory model:** Read-only `ring` released with `JNI_ABORT` (`mode = 2`, zero copy-back); `outChroma` (length ≥ 12) released with `mode = 0`. Returns `false` on invalid input so Kotlin falls back safely.
 
