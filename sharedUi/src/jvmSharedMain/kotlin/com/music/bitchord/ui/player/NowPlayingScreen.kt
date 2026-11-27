@@ -2432,13 +2432,13 @@ fun NowPlayingScreen(
             // The sleeve's corner as laid out, rounding off into the cover's as it
             // lands. Laid out at full size and drawn scaled, so asked for as the
             // radius that comes out right once it has been scaled.
-            val landscapeArtShape: () -> Shape = {
+            val landscapeArtShape: (Dp) -> Shape = { corner ->
                 val t = dockT()
                 if (dock == null || t >= 1f) {
-                    dockFrame.cornerShape(LANDSCAPE_ART_CORNER)
+                    dockFrame.cornerShape(corner)
                 } else {
                     val scale = landscapeDockPose()?.scale?.takeIf { it > 0f } ?: 1f
-                    dockFrame.cornerShape(lerp(dock.miniArtCorner(), LANDSCAPE_ART_CORNER, t) / scale)
+                    dockFrame.cornerShape(lerp(dock.miniArtCorner(), corner, t) / scale)
                 }
             }
 
@@ -2454,9 +2454,16 @@ fun NowPlayingScreen(
                     chordState.events != null && chordState.show && (chordState.guitar || chordState.piano) &&
                     chordState.diagramsExpanded
                 val landscapeAccent = chordState?.accentColor ?: Color.White
+                val landscapeMode = when {
+                    landscapePane == PlayerPane.Main -> LandscapeMode.Artwork
+                    landscapePane == PlayerPane.Queue -> LandscapeMode.Queue
+                    !landscapeChordActive || chordState?.show != true -> LandscapeMode.Lyrics
+                    landscapeCompactArt && chordState.guitar -> LandscapeMode.Guitar
+                    landscapeCompactArt && chordState.piano -> LandscapeMode.Piano
+                    else -> LandscapeMode.Inline
+                }
                 LandscapePlayerLayout(
-                    pane = landscapePane,
-                    compactArtworkMode = landscapeCompactArt,
+                    mode = landscapeMode,
                     background = { backgroundModifier ->
                         // The whole screen is the sheets' frost source: there is
                         // no full-bleed banner here to be it instead.
@@ -2467,7 +2474,7 @@ fun NowPlayingScreen(
                                 .then(if (!frostOff) Modifier.hazeSource(queueHaze, zIndex = -1f) else Modifier),
                         )
                     },
-                    artwork = { artworkModifier ->
+                    artwork = { artworkModifier, artCorner ->
                         LandscapeArtwork(
                             art = art,
                             autoMixFrames = autoMixFrames,
@@ -2489,7 +2496,7 @@ fun NowPlayingScreen(
                             // A clip decoding behind a player on its way to the
                             // bar is work nobody sees — see [dockMoving].
                             pausedForTransition = dockMoving || overlayOpen.value,
-                            sleeveShape = landscapeArtShape,
+                            sleeveShape = { landscapeArtShape(artCorner()) },
                             // Let go of on the way to the mini player, whose
                             // cover sits flat in its bar.
                             shadowFraction = dockT,
@@ -2557,7 +2564,7 @@ fun NowPlayingScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .graphicsLayer {
-                                                shape = landscapeArtShape()
+                                                shape = landscapeArtShape(artCorner())
                                                 clip = true
                                             }
                                             .background(Color.Black),
@@ -2957,6 +2964,7 @@ fun NowPlayingScreen(
                                 }
                                 .then(if (heroMode) Modifier.artworkBottomFade({ 1f }, { HERO_FADE_FRACTION }) else Modifier)
                                 .hazeSource(playerHaze),
+                            alignment = Alignment.TopCenter,
                         )
                     }
                     CanvasPresentationHost(heroClipMounted, standbyClip) { clip, standby ->
@@ -3881,6 +3889,7 @@ fun NowPlayingScreen(
                             } else if (heroIncomingStill != null && pair != null) {
                                 AutoMixIncomingStill(
                                     heroIncomingStill, pair::reveal, pair.generation, polish = !stillMoving,
+                                    alignment = if (heroMode) Alignment.TopCenter else Alignment.Center,
                                 )
                             } else AutoMixPlayerCover(
                                 // Decode at the sleeve's *expanded* size, always.
@@ -3899,6 +3908,7 @@ fun NowPlayingScreen(
                                 // with nothing to upscale between them.
                                 art = art,
                                 frames = autoMixFrames.baseUnderCanvas(pair),
+                                alignment = if (heroMode) Alignment.TopCenter else Alignment.Center,
                                 // TextureView-backed canvas frames can arrive
                                 // before Coil has decoded the sleeve. Alpha alone
                                 // doesn't hide this layer for that window: a
@@ -3999,7 +4009,10 @@ fun NowPlayingScreen(
                                     }
                                     val incoming = autoMixFrames?.incoming
                                     if (gesturePair == null && incoming != null && pair?.liveOutgoing == true && !pair.liveIncoming) {
-                                        AutoMixIncomingStill(incoming, pair::reveal, pair.generation)
+                                        AutoMixIncomingStill(
+                                            incoming, pair::reveal, pair.generation,
+                                            alignment = if (heroMode) Alignment.TopCenter else Alignment.Center,
+                                        )
                                     }
                                 }
                             }
