@@ -174,7 +174,6 @@ import com.music.bitchord.data.settings.AppFont
 import com.music.bitchord.data.settings.PlayerTheme
 import com.music.bitchord.data.stats.Backup
 import com.music.bitchord.playback.AudioCache
-import com.music.bitchord.ui.player.fullBleedArtworkAvailable
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
@@ -1434,10 +1433,6 @@ fun SettingsScreen(
                     )
                 }
             }
-            // Left out where the player won't honour it: a window too wide for
-            // the player to fill and too narrow to stand a page beside it keeps
-            // the sleeve either way. A docked pane is a phone's width, so it does
-            // honour it — see [fullBleedArtworkAvailable].
             val showTotalDurationTitle = stringResource(R.string.show_total_duration)
             row(showTotalDurationTitle, "seek bar", "remaining time", "duration", "song length") {
                 SettingsRow(
