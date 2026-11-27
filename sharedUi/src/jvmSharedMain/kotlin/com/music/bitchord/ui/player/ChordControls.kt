@@ -367,6 +367,7 @@ internal fun ChordControls(
                             }
                         }
                         if (state.guitar && inlineCapoFits) {
+                            Spacer(Modifier.weight(1f))
                             Row(
                                 Modifier
                                     .clip(RoundedCornerShape(14.dp))
@@ -400,6 +401,9 @@ internal fun ChordControls(
                                     Icon(Icons.Rounded.Add, stringResource(Res.string.chord_capo_increase), tint = Color.White)
                                 }
                             }
+                        }
+                        if (!(state.guitar && inlineCapoFits)) {
+                            Spacer(Modifier.weight(1f))
                         }
                         if (state.guitar && !inlineCapoFits) {
                             Box(

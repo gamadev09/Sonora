@@ -105,6 +105,7 @@ import androidx.compose.ui.util.unpackInt2
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
@@ -260,70 +261,38 @@ internal fun PlayerScrubber(
             inactiveColor = ink?.inactive ?: Color.White.copy(alpha = 0.26f),
             markerColor = ink?.marker ?: Color.White.copy(alpha = 0.5f),
         )
-        BoxWithConstraints(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 // The slider's touch target extends well past the drawn bar,
-                // so pull the labels back up under it.
+                // so pull the timestamps back up under it.
                 .offset(y = -SCRUBBER_LABEL_LIFT),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Dodged like the bottom row's glyphs — see [SCRUBBER_LABELS_DODGED].
             val chrome = LocalPlayerChrome.current
             val dodged = chrome && SCRUBBER_LABELS_DODGED
             val timeColor = if (dodged) brightRowInk() else chromeWhite(0.55f)
-            val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
-            val stackQualityLine = maxWidth < 300.dp || fontScale > 1.15f
             val mixingShown by remember { derivedStateOf { mixPulse.cover > 0f } }
-            if (stackQualityLine) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    PlayerScrubberTimes(
-                        shown = shown,
-                        durationMs = durationMs,
-                        totalDuration = totalDuration,
-                        showTotalDuration = showTotalDuration,
-                        timeColor = timeColor,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(if (dodged) Modifier.brightRowChrome(true) else Modifier.additiveChrome(chrome)),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(Modifier.graphicsLayer { alpha = 1f - mixPulse.cover }) {
-                            centerLabel()
-                        }
-                        if (mixingShown) {
-                            MixingLabel(mixPulse, Modifier.align(Alignment.Center))
-                        }
-                    }
-                }
-            } else {
-                PlayerScrubberTimes(
-                    shown = shown,
-                    durationMs = durationMs,
-                    totalDuration = totalDuration,
-                    showTotalDuration = showTotalDuration,
-                    timeColor = timeColor,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (dodged) Modifier.brightRowChrome(true) else Modifier.additiveChrome(chrome)),
-                )
-                // Pinned to the box's own centre with side clearance for elapsed/remaining
-                // timestamps so longer format labels (e.g. "Opus · 135 kbps · 48 kHz")
-                // never overlap the time figures.
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(horizontal = 48.dp)
-                        .graphicsLayer { alpha = 1f - mixPulse.cover },
-                    contentAlignment = Alignment.Center,
-                ) {
+            PlayerScrubberTimes(
+                shown = shown,
+                durationMs = durationMs,
+                totalDuration = totalDuration,
+                showTotalDuration = showTotalDuration,
+                timeColor = timeColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (dodged) Modifier.brightRowChrome(true) else Modifier.additiveChrome(chrome)),
+            )
+            // Audio format / quality indicator on its own dedicated centred line
+            // directly beneath the timestamps so it never collides with time labels.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.graphicsLayer { alpha = 1f - mixPulse.cover }) {
                     centerLabel()
                 }
                 if (mixingShown) {
@@ -701,6 +670,182 @@ private const val GLASS_FLAT_ALPHA = 0.72f
  * [compact] is the landscape player on a phone, where the portrait player's
  * 100dp play target is a third of the window's height on its own.
  */
+/**
+ * Single-row portrait playback controls replacing the previous two-row transport +
+ * oversized output/party pill stack:
+ * `[Lyrics]   [Previous]   [Play/Pause]   [Next]   [Audio Output]`
+ *
+ * Every target maintains >= 48dp touch area while reclaiming ~86dp vertically for
+ * lyrics and artwork.
+ */
+@Composable
+internal fun SingleRowPlaybackControls(
+    isPlaying: Boolean,
+    isLoading: Boolean,
+    previousEnabled: Boolean,
+    nextEnabled: Boolean,
+    lyricsOpen: Boolean,
+    accentColor: Color,
+    onToggleLyrics: () -> Unit,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onOpenOutput: () -> Unit,
+    animationsActive: Boolean = true,
+) {
+    val playSize = 54.dp
+    val playTouch = 62.dp
+    val skipSize = 38.dp
+    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val previousMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
+    val nextMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
+    val playVector = vectorResource(Res.drawable.ic_player_play)
+    val pauseVector = vectorResource(Res.drawable.ic_player_pause)
+    val playPauseMotion = rememberExpandedPlayPauseMotion(
+        isPlaying = isPlaying,
+        active = animationsActive && !isLoading && playVector.root.size > 0 && pauseVector.root.size > 0,
+        reduceMotion = reduceAnimation,
+    )
+    val output = rememberOutputGlyph()
+    val haptics = rememberHaptics()
+    val chrome = LocalPlayerChrome.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        haptics.play(if (lyricsOpen) Haptic.Tap else Haptic.Expand)
+                        onToggleLyrics()
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = BitChordIcons.LyricsQuote,
+                contentDescription = stringResource(if (lyricsOpen) Res.string.close_lyrics else Res.string.open_lyrics),
+                tint = if (lyricsOpen) accentColor else chromeWhite(0.82f),
+                modifier = Modifier
+                    .size(23.dp)
+                    .then(if (!lyricsOpen) Modifier.brightRowChrome(chrome) else Modifier),
+            )
+        }
+        TransportGlyph(
+            icon = Res.drawable.ic_player_previous,
+            contentDescription = stringResource(Res.string.widget_previous),
+            size = skipSize,
+            touchSize = 48.dp,
+            heightScale = PLAYER_SKIP_HEIGHT_SCALE,
+            onClick = onPrevious,
+            enabled = previousEnabled,
+            haptic = Haptic.SkipPrevious,
+            skipMotion = previousMotion,
+            skipPrevious = true,
+        )
+        if (isLoading) {
+            Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(34.dp),
+                )
+            }
+        } else {
+            TransportGlyph(
+                icon = if (isPlaying) Res.drawable.ic_player_pause else Res.drawable.ic_player_play,
+                contentDescription = stringResource(if (isPlaying) Res.string.pause else Res.string.play),
+                size = playSize,
+                touchSize = playTouch,
+                onClick = onPlayPause,
+                haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
+                playPauseMotion = playPauseMotion,
+            )
+        }
+        TransportGlyph(
+            icon = Res.drawable.ic_player_next,
+            contentDescription = stringResource(Res.string.widget_next),
+            size = skipSize,
+            touchSize = 48.dp,
+            heightScale = PLAYER_SKIP_HEIGHT_SCALE,
+            onClick = onNext,
+            enabled = nextEnabled,
+            haptic = Haptic.SkipNext,
+            skipMotion = nextMotion,
+        )
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        haptics.play(Haptic.Tap)
+                        onOpenOutput()
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = output.icon,
+                contentDescription = stringResource(Res.string.audio_output),
+                tint = chromeWhite(0.86f),
+                modifier = Modifier
+                    .size(output.size)
+                    .brightRowChrome(chrome),
+            )
+        }
+    }
+}
+
+/**
+ * Circular utility disc button placed in the utility row above the seekbar,
+ * matching [RomanizationToggleButton], [ChordAnalysisToggleButton], and [TranslationToggleButton].
+ */
+@Composable
+internal fun UtilityDiscButton(
+    icon: ImageVector,
+    contentDescription: String,
+    active: Boolean,
+    accentColor: Color = Color.White,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val chrome = LocalPlayerChrome.current
+    val tint = if (active) accentColor else chromeWhite(0.82f)
+    val discAlpha = animateFloatAsState(
+        targetValue = if (active) 0.34f else 0.18f,
+        label = "utilityDiscAlpha",
+    )
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .additiveChrome(chrome)
+            .drawBehind { drawRect(Color.White.copy(alpha = discAlpha.value)) }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
 @Composable
 internal fun TransportRow(
     isPlaying: Boolean,

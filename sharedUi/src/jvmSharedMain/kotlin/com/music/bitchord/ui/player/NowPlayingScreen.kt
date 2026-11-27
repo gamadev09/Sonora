@@ -56,6 +56,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -1982,6 +1983,8 @@ fun NowPlayingScreen(
                 onOpenCast = { showCast = true },
                 onOpenAirPlay = { showAirPlay = true },
                 onOpenDlna = { showDlna = true },
+                onListenTogether = onListenTogether,
+                onOpenListenTogetherMembers = openListenTogetherMembers,
             )
         }
         if (showLyricsProviders) {
@@ -4493,63 +4496,125 @@ fun NowPlayingScreen(
                     // loading, "not available", status and blank lines titleMedium's
                     // 24sp, taller again in Devanagari or Thai — so every track change
                     // (sung line → loading line) grew the deck and shrank the sleeve.
-                    if (lyricsOpen || (syncedLyricsEnabled && !hideLyricsPreview)) Box(
+                    val playerAccent = chordState?.accentColor ?: Color.White
+                    // Utility row directly above the seekbar:
+                    // - Lyrics mode: Lyrics provider status + [Queue] [Romanization] [Chords] [Translation]
+                    // - Queue mode: Shuffle / Repeat / Autoplay + [Queue]
+                    // - Artwork mode: Lyrics preview (when enabled) + [Queue]
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(lyricSlotHeight),
-                        contentAlignment = Alignment.CenterStart,
+                            .heightIn(min = lyricSlotHeight)
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                    if (!lyricsOpen && syncedLyricsEnabled && !hideLyricsPreview) {
-                        CurrentLyricStrip(
-                            lines = lyricsTranslation.displayedLyrics,
-                            trackKey = song.videoId,
-                            playhead = lyricsPlayhead,
-                            isPlaying = isPlaying && position.advancing,
-                            durationMs = durationMs,
-                            lyricsUnavailable = lyricsUnavailable,
-                            loadingText = lyricsLoadingText,
-                            // Still visible over the queue, so still a valid way in:
-                            // opens the same full lyrics panel it always has, closing
-                            // the queue behind it the same way the "Up next" glyph
-                            // closes lyrics behind the queue.
-                            onClick = openLyrics,
-                        )
-                    }
-                    if (lyricsOpen) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            LyricsStatusWithChange(
-                                status = lyricsTranslation.status,
-                                onStatusClick = { showLyricsProviders = true },
-                                modifier = Modifier.weight(1f),
-                            )
-                            RomanizationToggleButton(
-                                state = lyricsTranslation.romanizationState,
-                                showingRomanization = lyricsTranslation.showingRomanization,
-                                enabled = !lyrics.isNullOrEmpty(),
-                                onClick = lyricsTranslation.toggleRomanization,
-                            )
-                            if (chordSource != null && chordState != null) {
-                                ChordAnalysisToggleButton(
-                                    song = song,
-                                    source = chordSource,
-                                    state = chordState,
-                                    enabled = true,
+                        when {
+                            lyricsOpen -> {
+                                LyricsStatusWithChange(
+                                    status = lyricsTranslation.status,
+                                    onStatusClick = { showLyricsProviders = true },
+                                    modifier = Modifier.weight(1f),
+                                )
+                                UtilityDiscButton(
+                                    icon = BitChordIcons.Queue,
+                                    contentDescription = stringResource(Res.string.up_next),
+                                    active = queueOpen,
+                                    accentColor = playerAccent,
+                                    onClick = toggleQueue,
+                                )
+                                RomanizationToggleButton(
+                                    state = lyricsTranslation.romanizationState,
+                                    showingRomanization = lyricsTranslation.showingRomanization,
+                                    enabled = !lyrics.isNullOrEmpty(),
+                                    onClick = lyricsTranslation.toggleRomanization,
+                                )
+                                if (chordSource != null && chordState != null) {
+                                    ChordAnalysisToggleButton(
+                                        song = song,
+                                        source = chordSource,
+                                        state = chordState,
+                                        enabled = true,
+                                    )
+                                }
+                                TranslationToggleButton(
+                                    state = lyricsTranslation.translationState,
+                                    showingTranslation = lyricsTranslation.showingTranslation,
+                                    enabled = !lyrics.isNullOrEmpty(),
+                                    onClick = lyricsTranslation.toggleTranslation,
                                 )
                             }
-                            TranslationToggleButton(
-                                state = lyricsTranslation.translationState,
-                                showingTranslation = lyricsTranslation.showingTranslation,
-                                enabled = !lyrics.isNullOrEmpty(),
-                                onClick = lyricsTranslation.toggleTranslation,
-                            )
+                            queueOpen -> {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    UtilityDiscButton(
+                                        icon = BitChordIcons.Shuffle,
+                                        contentDescription = stringResource(
+                                            if (shuffleEnabled) Res.string.shuffle_on else Res.string.shuffle_off,
+                                        ),
+                                        active = shuffleEnabled,
+                                        accentColor = playerAccent,
+                                        onClick = onToggleShuffle,
+                                    )
+                                    UtilityDiscButton(
+                                        icon = BitChordIcons.Repeat,
+                                        contentDescription = when (repeatMode) {
+                                            RepeatModes.ONE -> stringResource(Res.string.repeat_one)
+                                            RepeatModes.ALL -> stringResource(Res.string.repeat_all)
+                                            else -> stringResource(Res.string.repeat_off)
+                                        },
+                                        active = repeatMode != RepeatModes.OFF,
+                                        accentColor = playerAccent,
+                                        onClick = onCycleRepeat,
+                                    )
+                                    UtilityDiscButton(
+                                        icon = BitChordIcons.Infinity,
+                                        contentDescription = stringResource(
+                                            if (autoplayEnabled) Res.string.autoplay_on else Res.string.autoplay_off,
+                                        ),
+                                        active = autoplayEnabled,
+                                        accentColor = playerAccent,
+                                        onClick = onToggleAutoplay,
+                                    )
+                                }
+                                UtilityDiscButton(
+                                    icon = BitChordIcons.Queue,
+                                    contentDescription = stringResource(Res.string.up_next),
+                                    active = true,
+                                    accentColor = playerAccent,
+                                    onClick = toggleQueue,
+                                )
+                            }
+                            else -> {
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    if (syncedLyricsEnabled && !hideLyricsPreview) {
+                                        CurrentLyricStrip(
+                                            lines = lyricsTranslation.displayedLyrics,
+                                            trackKey = song.videoId,
+                                            playhead = lyricsPlayhead,
+                                            isPlaying = isPlaying && position.advancing,
+                                            durationMs = durationMs,
+                                            lyricsUnavailable = lyricsUnavailable,
+                                            loadingText = lyricsLoadingText,
+                                            onClick = openLyrics,
+                                        )
+                                    }
+                                }
+                                UtilityDiscButton(
+                                    icon = BitChordIcons.Queue,
+                                    contentDescription = stringResource(Res.string.up_next),
+                                    active = false,
+                                    accentColor = playerAccent,
+                                    onClick = toggleQueue,
+                                )
+                            }
                         }
-                    }
                     }
                     val transitionWindow by PlayerSettings.smartTransitionWindow.collectAsStateWithLifecycle()
                     PlayerScrubber(
@@ -4557,10 +4622,6 @@ fun NowPlayingScreen(
                         durationMs = durationMs,
                         loading = versionSwitching,
                         mixing = mixing && !scrub.scrubbing,
-                        // Hidden while scrubbing: the planner is still describing
-                        // where the transition *would* be, and a marker sitting under
-                        // a finger that is moving the playhead invites reading it as
-                        // a drag target.
                         transitionWindow = transitionWindow
                             ?.takeIf { !scrub.scrubbing && it.end > it.start }
                             ?.let { it.start..it.end },
@@ -4576,31 +4637,26 @@ fun NowPlayingScreen(
                         )
                     }
 
-                    val transport: @Composable () -> Unit = {
-                        TransportRow(
-                            isPlaying = isPlaying,
-                            isLoading = isLoading || audioVersionSwitching,
-                            previousEnabled = !controlsLocked &&
-                                (hasPrevious || pastRestartPoint),
-                            nextEnabled = !controlsLocked && hasNext,
-                            onPrevious = onPrevious,
-                            onPlayPause = onPlayPause,
-                            onNext = onNext,
-                            animationsActive = !lyricPicker.picking &&
-                                (!lyricsOpen || lyricsControlsOpen) &&
-                                (!queueOpen || queueControlsOpen) &&
-                                (!spotifyCanvasPresentation || spotifyCanvasControlsOpen || mixing),
-                        )
-                    }
-                    // Cohesive compact playback deck across artwork, lyrics, and queue modes:
-                    // tight 4dp rhythm around full-presence transport controls, volume inside
-                    // the Audio Output menu, and zero layout shift when switching modes.
-                    Spacer(Modifier.height(4.dp))
-                    transport()
-                    Spacer(Modifier.height(4.dp))
-
-                    playerActions()
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
+                    SingleRowPlaybackControls(
+                        isPlaying = isPlaying,
+                        isLoading = isLoading || audioVersionSwitching,
+                        previousEnabled = !controlsLocked &&
+                            (hasPrevious || pastRestartPoint),
+                        nextEnabled = !controlsLocked && hasNext,
+                        lyricsOpen = lyricsOpen,
+                        accentColor = playerAccent,
+                        onToggleLyrics = toggleLyrics,
+                        onPrevious = onPrevious,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        onOpenOutput = openAudioOutput,
+                        animationsActive = !lyricPicker.picking &&
+                            (!lyricsOpen || lyricsControlsOpen) &&
+                            (!queueOpen || queueControlsOpen) &&
+                            (!spotifyCanvasPresentation || spotifyCanvasControlsOpen || mixing),
+                    )
+                    Spacer(Modifier.height(6.dp))
                     }
                     }
                     }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Earbuds
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Speaker
@@ -144,6 +146,8 @@ internal fun AudioOutputSheet(
     onOpenCast: () -> Unit,
     onOpenAirPlay: () -> Unit = {},
     onOpenDlna: () -> Unit = {},
+    onListenTogether: (() -> Unit)? = null,
+    onOpenListenTogetherMembers: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val outputs = rememberAudioOutputs()
@@ -211,6 +215,52 @@ internal fun AudioOutputSheet(
 
         Spacer(Modifier.height(12.dp))
         VolumeRow(routeKey = outputs)
+
+        if (onListenTogether != null) {
+            val party by PlayerPlatform.host.party.collectAsStateWithLifecycle()
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White.copy(alpha = if (party.inParty) 0.14f else 0.08f))
+                    .clickable {
+                        onDismiss()
+                        if (party.inParty && onOpenListenTogetherMembers != null) {
+                            onOpenListenTogetherMembers()
+                        } else {
+                            onListenTogether()
+                        }
+                    }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Groups,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(Res.string.listen_together),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (party.inParty) {
+                        Text(
+                            text = party.code?.let { "$it · ${party.members.size}" } ?: party.members.size.toString(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.65f),
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(Modifier.height(8.dp))
         AudioPipelineRow(onClick = onOpenPipeline)
