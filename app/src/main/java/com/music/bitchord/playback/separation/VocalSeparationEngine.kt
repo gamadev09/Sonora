@@ -241,15 +241,17 @@ class VocalSeparationEngine(
 
                             Log.d(
                                 TAG,
-                                "Chunk #$chunkIndex: reqStart=%.4fs actualStart=%.4fs deltaMs=%.2f " +
-                                    "decodedFrames=%d@%.0fHz alignedFrames=%d".format(
-                                        startSec,
-                                        actualStartSec,
-                                        (actualStartSec - startSec) * 1000.0,
-                                        decoded.left.size,
-                                        decoded.sampleRate,
-                                        targetChunkSamples,
-                                    ),
+                                (
+                                    "Chunk #$chunkIndex: reqStart=%.4fs actualStart=%.4fs deltaMs=%.2f " +
+                                        "decodedFrames=%d@%.0fHz alignedFrames=%d"
+                                ).format(
+                                    startSec,
+                                    actualStartSec,
+                                    (actualStartSec - startSec) * 1000.0,
+                                    decoded.left.size,
+                                    decoded.sampleRate,
+                                    targetChunkSamples,
+                                ),
                             )
 
                             val stft = StftProcessor.stftStereo(
