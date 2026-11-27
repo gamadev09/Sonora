@@ -591,6 +591,7 @@ internal fun LandscapeLyricsPane(
     picking: Boolean = false,
     pickBar: @Composable () -> Unit = {},
     utilityButtons: @Composable () -> Unit,
+    belowUtilityRow: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
     panel: @Composable (Modifier) -> Unit,
 ) {
@@ -634,6 +635,7 @@ internal fun LandscapeLyricsPane(
                 }
                 utilityButtons()
             }
+            belowUtilityRow()
         }
     }
 }

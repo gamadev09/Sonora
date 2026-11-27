@@ -92,6 +92,7 @@ object VocalSeparationCoordinator : VocalSeparationController {
 
     fun detachProcessor(processor: VocalSeparationProcessor) {
         processors.remove(processor)
+        processor.release()
     }
 
     /**

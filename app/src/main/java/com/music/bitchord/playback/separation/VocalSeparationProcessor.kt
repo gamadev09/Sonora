@@ -5,25 +5,32 @@ import com.music.bitchord.playback.audio.AudioBlock
 import com.music.bitchord.playback.audio.FloatAudioProcessor
 import java.io.File
 import java.io.RandomAccessFile
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.LockSupport
+import kotlin.math.abs
 import kotlin.math.floor
 
 /**
  * Real-time in-place Float32 audio processor that mixes pre-separated vocal and
  * instrumental stems into Sonora's existing playback pipeline (`DspChain`).
  *
- * Guarantees:
- * - Zero-overhead byte-identical bypass when inactive and crossfade has settled.
- * - Sample-accurate alignment to the live playback clock via [setBlockTimestampUs].
- * - Linear resampling when the live output sample rate (e.g. 48 kHz) differs from
- *   the 44.1 kHz stem sample rate.
- * - Smooth 40 ms crossfade on activation/deactivation so switching mid-track never
- *   clicks, pops, or restarts playback.
- * - Automatic safe fallback to original PCM on EOF or any I/O error.
- *
- * Because this runs inside [com.music.bitchord.playback.audio.PrecisionAudioSink]'s
- * [com.music.bitchord.playback.audio.DspChain], all downstream stages (Spatial, EQ,
- * Transition, Loudness, speaker/BT/DAC output, AirPlay, and DLNA PCM streaming)
- * receive the separated mix automatically.
+ * Real-time safety guarantees:
+ * - **Zero file I/O on the audio thread**: all `RandomAccessFile` open, seek,
+ *   read, and close operations run exclusively on a dedicated background
+ *   read-ahead thread (`Sonora-StemReadAhead`).
+ * - **Lock-free bounded ring buffer**: fixed 65,536-frame (~1.48 s at 44.1 kHz)
+ *   stereo PCM16 ring buffers for vocals and instrumental (512 KB total RAM).
+ *   [process] performs zero disk operations, zero locks, and zero allocations.
+ * - **Exact frame alignment**: vocals and instrumental frames are read at the
+ *   same byte offset and published atomically under a shared [bufEndFrame] and
+ *   [bufGen] sequence counter.
+ * - **Click-free fallback**: if a seek is still refilling or an I/O error occurs,
+ *   [process] smoothly ramps `wetMix` back to original PCM rather than blocking
+ *   or outputting silence.
+ * - **Sample-rate & gain accuracy**: preserves timestamp alignment, linear
+ *   resampling when output rate != stem rate (e.g. 48 kHz vs 44.1 kHz), 40 ms
+ *   activation/deactivation crossfade, and real-time [setVocalGain] updates.
  */
 class VocalSeparationProcessor : FloatAudioProcessor {
 
@@ -45,27 +52,63 @@ class VocalSeparationProcessor : FloatAudioProcessor {
     @Volatile
     private var targetConfig: ActiveStemConfig? = null
 
-    private var openKey: String? = null
-    private var vocalsRaf: RandomAccessFile? = null
-    private var instRaf: RandomAccessFile? = null
-    private var lastConfig: ActiveStemConfig? = null
+    @Volatile
+    private var lastValidConfig: ActiveStemConfig? = null
 
     /** Smooth crossfade factor: 0f = 100% original PCM, 1f = 100% separated stem mix. */
     private var wetMix: Float = 0f
 
-    /** Reusable read buffers on the audio thread (zero per-block heap allocations). */
-    private var vocalsBytes = ByteArray(16 * 1024)
-    private var instBytes = ByteArray(16 * 1024)
+    // --- Lock-free SPSC bounded read-ahead ring buffer (512 KB total) ---
+    // Producer = background I/O thread; Consumer = real-time audio thread.
+    private val vocalsRing = ShortArray(RING_FRAMES * 2)
+    private val instRing = ShortArray(RING_FRAMES * 2)
+
+    @Volatile
+    private var bufGen: Long = 0L
+
+    @Volatile
+    private var bufStartFrame: Long = 0L
+
+    @Volatile
+    private var bufEndFrame: Long = 0L
+
+    @Volatile
+    private var bufIoFailed: Boolean = false
+
+    private val desiredGen = AtomicLong(0L)
+
+    @Volatile
+    private var consumerReadFrame: Long = 0L
+
+    @Volatile
+    private var pendingSeekFrame: Long = -1L
+
+    private val seekRequestSeq = AtomicLong(0L)
+    private val shutdownRequested = AtomicBoolean(false)
+
+    @Volatile
+    private var ioThread: Thread? = null
+
+    private val ioThreadLock = Any()
 
     val isActive: Boolean
         get() = targetConfig != null || wetMix > 0f
 
     fun setActiveConfig(config: ActiveStemConfig?) {
         targetConfig = config
+        if (config != null) {
+            lastValidConfig = config
+            bufIoFailed = false
+            ensureIoThreadStarted()
+        }
+        desiredGen.incrementAndGet()
+        wakeIoThread()
     }
 
     fun setVocalGain(gain: Float) {
-        targetConfig?.vocalGain = gain.coerceIn(0f, 1f)
+        val clamped = gain.coerceIn(0f, 1f)
+        targetConfig?.vocalGain = clamped
+        lastValidConfig?.vocalGain = clamped
     }
 
     /**
@@ -81,6 +124,10 @@ class VocalSeparationProcessor : FloatAudioProcessor {
         outputChannels = channelCount
     }
 
+    /**
+     * Real-time audio callback: consumes only already-buffered ring samples.
+     * Performs ZERO file I/O, ZERO locks, ZERO heap allocations, and ZERO logging.
+     */
     override fun process(block: AudioBlock) {
         val frames = block.frameCount
         if (frames <= 0 || outputSampleRate <= 0 || block.channelCount != 2) return
@@ -90,33 +137,19 @@ class VocalSeparationProcessor : FloatAudioProcessor {
 
         // Fast-path byte-identical bypass when completely inactive.
         if (!wantWet && wetMix <= 0f) {
-            if (openKey != null) closeFiles()
             return
         }
 
-        val activeCfg = desired ?: lastConfig
+        val activeCfg = desired ?: lastValidConfig
         if (activeCfg == null) {
             wetMix = 0f
-            closeFiles()
             return
         }
 
         val trackUs = blockTrackTimeUs
         if (trackUs == Long.MIN_VALUE || trackUs < 0L) {
-            // Timestamp unavailable (e.g. silence pre-roll): leave original PCM untouched.
             return
         }
-
-        if (!ensureOpen(activeCfg)) {
-            // I/O failure opening stems: fall back cleanly to original PCM.
-            wetMix = 0f
-            targetConfig = null
-            closeFiles()
-            return
-        }
-
-        val vRaf = vocalsRaf ?: return
-        val iRaf = instRaf ?: return
 
         val stemRate = activeCfg.stemSampleRate.toDouble()
         val outRate = outputSampleRate.toDouble()
@@ -125,37 +158,41 @@ class VocalSeparationProcessor : FloatAudioProcessor {
         val firstStemFrame = floor(startStemFrameD).toLong()
         val lastNeededStemFrame = floor(startStemFrameD + (frames - 1) * stepPerOutFrame).toLong() + 1L
 
-        if (firstStemFrame < 0L || firstStemFrame >= activeCfg.totalFrames) {
-            // Beyond stem duration: gracefully fade out wet mix and keep original PCM.
-            wetMix = 0f
+        val fadeSamples = (outputSampleRate * CROSSFADE_MS / 1000).coerceAtLeast(1)
+        val fadeStep = 1f / fadeSamples.toFloat()
+
+        if (firstStemFrame < 0L || firstStemFrame >= activeCfg.totalFrames || bufIoFailed) {
+            // Beyond stem duration or I/O error: click-free ramp back to original PCM.
+            wetMix = (wetMix - fadeStep * frames).coerceAtLeast(0f)
             return
         }
 
         val clampedLast = minOf(lastNeededStemFrame, activeCfg.totalFrames - 1L)
-        val stemFramesToRead = (clampedLast - firstStemFrame + 1L).toInt().coerceAtLeast(1)
-        val bytesNeeded = stemFramesToRead * BYTES_PER_STEREO_PCM16_FRAME
-        ensureScratchCapacity(bytesNeeded)
+        val expectedGen = desiredGen.get()
+        val snapGen = bufGen
+        val snapStart = bufStartFrame
+        val snapEnd = bufEndFrame
 
-        val byteOffset = firstStemFrame * BYTES_PER_STEREO_PCM16_FRAME.toLong()
-        val readOk = try {
-            readFullyAt(vRaf, byteOffset, vocalsBytes, bytesNeeded) &&
-                readFullyAt(iRaf, byteOffset, instBytes, bytesNeeded)
-        } catch (e: Exception) {
-            Log.w(TAG, "Stem read failed at frame $firstStemFrame; falling back to original PCM", e)
-            false
-        }
+        val bufferReady = snapGen == expectedGen &&
+            firstStemFrame >= snapStart &&
+            clampedLast < snapEnd
 
-        if (!readOk) {
-            wetMix = 0f
+        if (!bufferReady) {
+            // Request background seek/prefill (non-blocking) if outside current window.
+            if (snapGen == expectedGen && (firstStemFrame < snapStart || firstStemFrame > snapEnd + SEEK_JUMP_FRAMES)) {
+                requestAsyncSeek(firstStemFrame)
+            } else {
+                consumerReadFrame = firstStemFrame
+                wakeIoThread()
+            }
+            // Click-free fallback to original PCM on underrun (never output silence).
+            wetMix = (wetMix - fadeStep * frames).coerceAtLeast(0f)
             return
         }
 
-        val fadeSamples = (outputSampleRate * CROSSFADE_MS / 1000).coerceAtLeast(1)
-        val fadeStep = 1f / fadeSamples.toFloat()
         val vocalGain = activeCfg.vocalGain.coerceIn(0f, 1f)
         val samples = block.samples
-        val maxLocalIdx = stemFramesToRead - 1
-        val exactRate = kotlin.math.abs(stepPerOutFrame - 1.0) < 1e-6
+        val exactRate = abs(stepPerOutFrame - 1.0) < 1e-6
 
         var currentWet = wetMix
         for (i in 0 until frames) {
@@ -176,84 +213,249 @@ class VocalSeparationProcessor : FloatAudioProcessor {
             val iR: Float
 
             if (exactRate) {
-                val localIdx = i.coerceAtMost(maxLocalIdx)
-                val bOff = localIdx * 4
-                vL = readPcm16Sample(vocalsBytes, bOff)
-                vR = readPcm16Sample(vocalsBytes, bOff + 2)
-                iL = readPcm16Sample(instBytes, bOff)
-                iR = readPcm16Sample(instBytes, bOff + 2)
+                val stemFrame = minOf(firstStemFrame + i.toLong(), clampedLast)
+                val ringIdx = ((stemFrame and RING_MASK).toInt()) shl 1
+                vL = vocalsRing[ringIdx] * INV_32768
+                vR = vocalsRing[ringIdx + 1] * INV_32768
+                iL = instRing[ringIdx] * INV_32768
+                iR = instRing[ringIdx + 1] * INV_32768
             } else {
-                val stemPos = (startStemFrameD + i * stepPerOutFrame) - firstStemFrame
-                val idx0 = floor(stemPos).toInt().coerceIn(0, maxLocalIdx)
-                val idx1 = (idx0 + 1).coerceAtMost(maxLocalIdx)
-                val frac = (stemPos - idx0).toFloat().coerceIn(0f, 1f)
+                val stemPos = startStemFrameD + i * stepPerOutFrame
+                val f0 = floor(stemPos).toLong().coerceIn(firstStemFrame, clampedLast)
+                val f1 = minOf(f0 + 1L, clampedLast)
+                val frac = (stemPos - f0).toFloat().coerceIn(0f, 1f)
                 val inv = 1f - frac
-                val off0 = idx0 * 4
-                val off1 = idx1 * 4
-                vL = readPcm16Sample(vocalsBytes, off0) * inv + readPcm16Sample(vocalsBytes, off1) * frac
-                vR = readPcm16Sample(vocalsBytes, off0 + 2) * inv + readPcm16Sample(vocalsBytes, off1 + 2) * frac
-                iL = readPcm16Sample(instBytes, off0) * inv + readPcm16Sample(instBytes, off1) * frac
-                iR = readPcm16Sample(instBytes, off0 + 2) * inv + readPcm16Sample(instBytes, off1 + 2) * frac
+                val r0 = ((f0 and RING_MASK).toInt()) shl 1
+                val r1 = ((f1 and RING_MASK).toInt()) shl 1
+                vL = (vocalsRing[r0] * inv + vocalsRing[r1] * frac) * INV_32768
+                vR = (vocalsRing[r0 + 1] * inv + vocalsRing[r1 + 1] * frac) * INV_32768
+                iL = (instRing[r0] * inv + instRing[r1] * frac) * INV_32768
+                iR = (instRing[r0 + 1] * inv + instRing[r1 + 1] * frac) * INV_32768
+            }
+
+            // Sequence-lock check: if a concurrent seek/reconfig invalidated the ring,
+            // leave remaining samples as original PCM rather than mixing stale frames.
+            if (bufGen != expectedGen || bufStartFrame > firstStemFrame) {
+                currentWet = (currentWet - fadeStep).coerceAtLeast(0f)
+                break
             }
 
             val stemL = iL + vocalGain * vL
             val stemR = iR + vocalGain * vR
 
-            val outIdx = i * 2
+            val outIdx = i shl 1
             val dry = 1f - currentWet
             samples[outIdx] = samples[outIdx] * dry + stemL * currentWet
             samples[outIdx + 1] = samples[outIdx + 1] * dry + stemR * currentWet
         }
 
         wetMix = currentWet
-        if (!wantWet && wetMix <= 0f) {
-            closeFiles()
+        consumerReadFrame = clampedLast + 1L
+        if (snapEnd - consumerReadFrame < REFILL_LOW_WATER_FRAMES) {
+            wakeIoThread()
         }
     }
 
     override fun flush() {
         blockTrackTimeUs = Long.MIN_VALUE
+        // Invalidate stale buffered frames on seek / discontinuity without blocking.
+        if (targetConfig != null) {
+            desiredGen.incrementAndGet()
+            wakeIoThread()
+        }
     }
 
     override fun reset() {
         blockTrackTimeUs = Long.MIN_VALUE
         wetMix = 0f
-        closeFiles()
+        targetConfig = null
+        lastValidConfig = null
+        desiredGen.incrementAndGet()
+        wakeIoThread()
     }
 
-    private fun ensureOpen(cfg: ActiveStemConfig): Boolean {
-        if (openKey == cfg.key && vocalsRaf != null && instRaf != null) {
-            lastConfig = cfg
-            return true
+    /** Releases the background read-ahead thread and any open file handles. */
+    fun release() {
+        targetConfig = null
+        lastValidConfig = null
+        wetMix = 0f
+        shutdownRequested.set(true)
+        desiredGen.incrementAndGet()
+        wakeIoThread()
+    }
+
+    /** Test/diagnostics helper: awaits the read-ahead buffer reaching at least [frameExclusive]. */
+    internal fun awaitBufferedUpTo(frameExclusive: Long, timeoutMs: Long = 1_500L): Boolean {
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000L
+        while (System.nanoTime() < deadline) {
+            if (bufGen == desiredGen.get() && bufEndFrame >= frameExclusive) return true
+            Thread.sleep(2L)
         }
-        closeFiles()
-        return try {
-            vocalsRaf = RandomAccessFile(cfg.vocalsFile, "r")
-            instRaf = RandomAccessFile(cfg.instFile, "r")
-            openKey = cfg.key
-            lastConfig = cfg
-            true
-        } catch (e: Exception) {
-            Log.w(TAG, "Unable to open stem files for ${cfg.key}", e)
-            closeFiles()
-            false
+        return bufGen == desiredGen.get() && bufEndFrame >= frameExclusive
+    }
+
+    private fun requestAsyncSeek(frame: Long) {
+        pendingSeekFrame = frame.coerceAtLeast(0L)
+        seekRequestSeq.incrementAndGet()
+        wakeIoThread()
+    }
+
+    private fun ensureIoThreadStarted() {
+        if (ioThread != null && !shutdownRequested.get()) return
+        synchronized(ioThreadLock) {
+            if (ioThread != null && !shutdownRequested.get()) return
+            shutdownRequested.set(false)
+            val t = Thread(::ioLoop, "Sonora-StemReadAhead").apply {
+                isDaemon = true
+                priority = Thread.NORM_PRIORITY
+            }
+            ioThread = t
+            t.start()
         }
     }
 
-    private fun closeFiles() {
-        runCatching { vocalsRaf?.close() }
-        runCatching { instRaf?.close() }
-        vocalsRaf = null
-        instRaf = null
-        openKey = null
-        lastConfig = null
+    private fun wakeIoThread() {
+        ioThread?.let { LockSupport.unpark(it) }
     }
 
-    private fun ensureScratchCapacity(bytesNeeded: Int) {
-        if (vocalsBytes.size < bytesNeeded) {
-            val next = maxOf(bytesNeeded, vocalsBytes.size * 2)
-            vocalsBytes = ByteArray(next)
-            instBytes = ByteArray(next)
+    private fun ioLoop() {
+        var openKey: String? = null
+        var vocalsRaf: RandomAccessFile? = null
+        var instRaf: RandomAccessFile? = null
+        var activeGen = -1L
+        var lastHandledSeekSeq = 0L
+        var writeCursorFrame = 0L
+
+        val vocalsBytes = ByteArray(IO_CHUNK_FRAMES * BYTES_PER_STEREO_PCM16_FRAME)
+        val instBytes = ByteArray(IO_CHUNK_FRAMES * BYTES_PER_STEREO_PCM16_FRAME)
+
+        fun closeHandles() {
+            runCatching { vocalsRaf?.close() }
+            runCatching { instRaf?.close() }
+            vocalsRaf = null
+            instRaf = null
+            openKey = null
+        }
+
+        try {
+            while (!shutdownRequested.get()) {
+                val cfg = targetConfig
+                val gen = desiredGen.get()
+
+                if (cfg == null) {
+                    if (openKey != null) {
+                        closeHandles()
+                        bufStartFrame = 0L
+                        bufEndFrame = 0L
+                        bufGen = gen
+                    }
+                    LockSupport.parkNanos(IDLE_PARK_NANOS)
+                    continue
+                }
+
+                // Reopen files if config changed.
+                if (openKey != cfg.key || vocalsRaf == null || instRaf == null) {
+                    closeHandles()
+                    try {
+                        vocalsRaf = RandomAccessFile(cfg.vocalsFile, "r")
+                        instRaf = RandomAccessFile(cfg.instFile, "r")
+                        openKey = cfg.key
+                        bufIoFailed = false
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Background open failed for stem ${cfg.key}", e)
+                        closeHandles()
+                        bufIoFailed = true
+                        bufStartFrame = 0L
+                        bufEndFrame = 0L
+                        bufGen = gen
+                        LockSupport.parkNanos(IDLE_PARK_NANOS)
+                        continue
+                    }
+                }
+
+                val seekSeq = seekRequestSeq.get()
+                val needsRebase = (activeGen != gen) || (seekSeq != lastHandledSeekSeq)
+                if (needsRebase) {
+                    val requestedStart = if (seekSeq != lastHandledSeekSeq) {
+                        lastHandledSeekSeq = seekSeq
+                        pendingSeekFrame.coerceIn(0L, (cfg.totalFrames - 1L).coerceAtLeast(0L))
+                    } else {
+                        consumerReadFrame.coerceIn(0L, (cfg.totalFrames - 1L).coerceAtLeast(0L))
+                    }
+                    activeGen = gen
+                    writeCursorFrame = requestedStart
+                    // Publish empty range for the new generation before filling.
+                    bufEndFrame = requestedStart
+                    bufStartFrame = requestedStart
+                    bufGen = gen
+                }
+
+                val vRaf = vocalsRaf
+                val iRaf = instRaf
+                if (vRaf == null || iRaf == null) continue
+
+                // Keep consumer behind-margin intact so we never overwrite unread frames.
+                val safeConsumer = consumerReadFrame.coerceIn(bufStartFrame, writeCursorFrame)
+                val newStart = maxOf(bufStartFrame, safeConsumer - BEHIND_MARGIN_FRAMES)
+                if (newStart > bufStartFrame) {
+                    bufStartFrame = newStart
+                }
+
+                val bufferedFrames = writeCursorFrame - bufStartFrame
+                val maxFillable = (RING_FRAMES - SAFETY_GAP_FRAMES) - bufferedFrames
+                val remainingInFile = cfg.totalFrames - writeCursorFrame
+
+                if (maxFillable < IO_MIN_FILL_FRAMES || remainingInFile <= 0L) {
+                    LockSupport.parkNanos(ACTIVE_PARK_NANOS)
+                    continue
+                }
+
+                val framesToRead = minOf(IO_CHUNK_FRAMES.toLong(), maxFillable, remainingInFile).toInt()
+                val bytesToRead = framesToRead * BYTES_PER_STEREO_PCM16_FRAME
+                val byteOffset = writeCursorFrame * BYTES_PER_STEREO_PCM16_FRAME.toLong()
+
+                val ok = try {
+                    readFullyAt(vRaf, byteOffset, vocalsBytes, bytesToRead) &&
+                        readFullyAt(iRaf, byteOffset, instBytes, bytesToRead)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Background stem read failed at frame $writeCursorFrame", e)
+                    false
+                }
+
+                if (!ok) {
+                    bufIoFailed = true
+                    LockSupport.parkNanos(IDLE_PARK_NANOS)
+                    continue
+                }
+
+                // If a new generation or seek arrived mid-read, discard stale read immediately.
+                if (desiredGen.get() != activeGen || seekRequestSeq.get() != lastHandledSeekSeq) {
+                    continue
+                }
+
+                // Unpack stereo PCM16 into aligned ring slots before publishing bufEndFrame.
+                var f = writeCursorFrame
+                var bOff = 0
+                for (n in 0 until framesToRead) {
+                    val ringIdx = ((f and RING_MASK).toInt()) shl 1
+                    vocalsRing[ringIdx] = decodePcm16(vocalsBytes, bOff)
+                    vocalsRing[ringIdx + 1] = decodePcm16(vocalsBytes, bOff + 2)
+                    instRing[ringIdx] = decodePcm16(instBytes, bOff)
+                    instRing[ringIdx + 1] = decodePcm16(instBytes, bOff + 2)
+                    f++
+                    bOff += 4
+                }
+
+                writeCursorFrame = f
+                bufEndFrame = writeCursorFrame
+            }
+        } finally {
+            closeHandles()
+            synchronized(ioThreadLock) {
+                if (ioThread === Thread.currentThread()) {
+                    ioThread = null
+                }
+            }
         }
     }
 
@@ -273,11 +475,10 @@ class VocalSeparationProcessor : FloatAudioProcessor {
         return true
     }
 
-    private fun readPcm16Sample(buf: ByteArray, offset: Int): Float {
+    private fun decodePcm16(buf: ByteArray, offset: Int): Short {
         val lo = buf[offset].toInt() and 0xFF
         val hi = buf[offset + 1].toInt()
-        val s = (hi shl 8) or lo
-        return s * INV_32768
+        return ((hi shl 8) or lo).toShort()
     }
 
     companion object {
@@ -285,5 +486,17 @@ class VocalSeparationProcessor : FloatAudioProcessor {
         private const val CROSSFADE_MS = 40
         private const val BYTES_PER_STEREO_PCM16_FRAME = 4
         private const val INV_32768 = 1f / 32768f
+
+        /** Power-of-2 ring capacity: 65,536 frames (~1.48 s at 44.1 kHz, 512 KB total). */
+        private const val RING_FRAMES = 1 shl 16
+        private const val RING_MASK = (RING_FRAMES - 1).toLong()
+        private const val BEHIND_MARGIN_FRAMES = 4_096L
+        private const val SAFETY_GAP_FRAMES = 2_048L
+        private const val REFILL_LOW_WATER_FRAMES = 32_768L
+        private const val SEEK_JUMP_FRAMES = 8_192L
+        private const val IO_CHUNK_FRAMES = 4_096
+        private const val IO_MIN_FILL_FRAMES = 1_024L
+        private const val ACTIVE_PARK_NANOS = 8_000_000L // 8 ms
+        private const val IDLE_PARK_NANOS = 50_000_000L // 50 ms
     }
 }

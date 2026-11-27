@@ -1565,7 +1565,6 @@ fun NowPlayingScreen(
     val queueShowing by remember { derivedStateOf { queueSlide.floatValue > 0.01f } }
     val chordSource = remember { PlayerPlatform.host.chordAnalysis }
     val vocalSeparation = remember { PlayerPlatform.host.vocalSeparation }
-    val vocalSepState = vocalSeparation?.state?.collectAsState()?.value ?: VocalSeparationUiState.Idle
     val chordState = if (chordSource != null) {
         rememberChordState(song, chordSource, lyricsPlayhead, lyricsOpen && (sideways || collapseDone))
     } else null
@@ -2704,8 +2703,8 @@ fun NowPlayingScreen(
                                 ) {
                                     if (vocalSeparation != null) {
                                         VocalSeparationToggleButton(
+                                            controller = vocalSeparation,
                                             trackId = song.videoId,
-                                            state = vocalSepState,
                                             enabled = true,
                                             onClick = { vocalSeparation.toggle(song) },
                                         )
@@ -2729,6 +2728,14 @@ fun NowPlayingScreen(
                                         showingTranslation = lyricsTranslation.showingTranslation,
                                         enabled = !lyrics.isNullOrEmpty(),
                                         onClick = lyricsTranslation.toggleTranslation,
+                                    )
+                                }
+                            },
+                            belowUtilityRow = {
+                                if (vocalSeparation != null) {
+                                    VocalLevelSliderBar(
+                                        controller = vocalSeparation,
+                                        trackId = song.videoId,
                                     )
                                 }
                             },
@@ -4583,8 +4590,8 @@ fun NowPlayingScreen(
                                 )
                                 if (vocalSeparation != null) {
                                     VocalSeparationToggleButton(
+                                        controller = vocalSeparation,
                                         trackId = song.videoId,
-                                        state = vocalSepState,
                                         enabled = true,
                                         onClick = { vocalSeparation.toggle(song) },
                                     )
@@ -4667,6 +4674,12 @@ fun NowPlayingScreen(
                                 }
                             }
                         }
+                    }
+                    if (lyricsOpen && vocalSeparation != null) {
+                        VocalLevelSliderBar(
+                            controller = vocalSeparation,
+                            trackId = song.videoId,
+                        )
                     }
                     val transitionWindow by PlayerSettings.smartTransitionWindow.collectAsStateWithLifecycle()
                     PlayerScrubber(

@@ -4,7 +4,6 @@ import com.music.bitchord.data.settings.AudioIntelligencePriority
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
-import org.json.JSONObject
 
 /**
  * Persistent automatic LRU cache for separated vocal and instrumental stems.
@@ -267,19 +266,20 @@ class StemCacheStore(
         vocalsFile: File,
         instFile: File,
     ): StemEntry? = runCatching {
-        val json = JSONObject(metaFile.readText(Charsets.UTF_8))
-        if (json.optInt("formatVersion", -1) != FORMAT_VERSION) return null
+        val props = java.util.Properties()
+        metaFile.reader(Charsets.UTF_8).use { props.load(it) }
+        if (props.getProperty("formatVersion")?.toIntOrNull() != FORMAT_VERSION) return null
         StemEntry(
             key = key,
-            trackId = json.getString("trackId"),
-            sourceIdentity = json.getString("sourceIdentity"),
-            modelVersion = json.getString("modelVersion"),
-            priority = json.getString("priority"),
-            sampleRate = json.getInt("sampleRate"),
-            channels = json.getInt("channels"),
-            frameCount = json.getLong("frameCount"),
-            createdAtMs = json.getLong("createdAtMs"),
-            lastAccessedMs = json.getLong("lastAccessedMs"),
+            trackId = props.getProperty("trackId") ?: return null,
+            sourceIdentity = props.getProperty("sourceIdentity") ?: return null,
+            modelVersion = props.getProperty("modelVersion") ?: return null,
+            priority = props.getProperty("priority") ?: return null,
+            sampleRate = props.getProperty("sampleRate")?.toIntOrNull() ?: return null,
+            channels = props.getProperty("channels")?.toIntOrNull() ?: return null,
+            frameCount = props.getProperty("frameCount")?.toLongOrNull() ?: return null,
+            createdAtMs = props.getProperty("createdAtMs")?.toLongOrNull() ?: return null,
+            lastAccessedMs = props.getProperty("lastAccessedMs")?.toLongOrNull() ?: return null,
             vocalsFile = vocalsFile,
             instFile = instFile,
         )
@@ -287,18 +287,19 @@ class StemCacheStore(
 
     private fun writeMetaAtomic(metaTarget: File, entry: StemEntry): Boolean = runCatching {
         val part = File(metaTarget.parentFile, "${metaTarget.name}.part")
-        val json = JSONObject()
-            .put("formatVersion", FORMAT_VERSION)
-            .put("trackId", entry.trackId)
-            .put("sourceIdentity", entry.sourceIdentity)
-            .put("modelVersion", entry.modelVersion)
-            .put("priority", entry.priority)
-            .put("sampleRate", entry.sampleRate)
-            .put("channels", entry.channels)
-            .put("frameCount", entry.frameCount)
-            .put("createdAtMs", entry.createdAtMs)
-            .put("lastAccessedMs", entry.lastAccessedMs)
-        part.writeText(json.toString(), Charsets.UTF_8)
+        val props = java.util.Properties().apply {
+            setProperty("formatVersion", FORMAT_VERSION.toString())
+            setProperty("trackId", entry.trackId)
+            setProperty("sourceIdentity", entry.sourceIdentity)
+            setProperty("modelVersion", entry.modelVersion)
+            setProperty("priority", entry.priority)
+            setProperty("sampleRate", entry.sampleRate.toString())
+            setProperty("channels", entry.channels.toString())
+            setProperty("frameCount", entry.frameCount.toString())
+            setProperty("createdAtMs", entry.createdAtMs.toString())
+            setProperty("lastAccessedMs", entry.lastAccessedMs.toString())
+        }
+        part.writer(Charsets.UTF_8).use { props.store(it, "Sonora Audio Intelligence Stem Metadata") }
         if (metaTarget.exists()) metaTarget.delete()
         if (!part.renameTo(metaTarget)) {
             part.delete()

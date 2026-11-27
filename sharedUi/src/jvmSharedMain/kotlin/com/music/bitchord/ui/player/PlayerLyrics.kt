@@ -1,7 +1,10 @@
 package com.music.bitchord.ui.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -63,6 +66,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -110,6 +114,10 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
@@ -1618,24 +1626,25 @@ internal fun RomanizationToggleButton(
 
 /**
  * Companion vocal-separation mic toggle matching [RomanizationToggleButton]
- * dimensions and interaction style. Displays live model-download / separation
- * progress, active state, and error feedback without adding extra chrome.
+ * dimensions and interaction style. Collects [controller.state] locally so
+ * progress and gain updates never recompose [NowPlayingScreen] or [LyricsPanel].
  */
 @Composable
 internal fun VocalSeparationToggleButton(
+    controller: VocalSeparationController,
     trackId: String,
-    state: VocalSeparationUiState,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val state = controller.state.collectAsState().value
     val isDownloading = state is VocalSeparationUiState.DownloadingModel && state.trackId == trackId
     val isProcessing = state is VocalSeparationUiState.Processing && state.trackId == trackId
     val isActive = state is VocalSeparationUiState.Active && state.trackId == trackId
     val isError = state is VocalSeparationUiState.Error && state.trackId == trackId
     val busy = isDownloading || isProcessing
-    val progress = when {
-        isDownloading -> (state as VocalSeparationUiState.DownloadingModel).progress
-        isProcessing -> (state as VocalSeparationUiState.Processing).progress
+    val progress = when (state) {
+        is VocalSeparationUiState.DownloadingModel -> if (state.trackId == trackId) state.progress else 0f
+        is VocalSeparationUiState.Processing -> if (state.trackId == trackId) state.progress else 0f
         else -> 0f
     }
     val tint = when {
@@ -1674,6 +1683,70 @@ internal fun VocalSeparationToggleButton(
                 },
                 tint = tint,
                 modifier = Modifier.size(19.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Compact horizontal vocal-level slider revealed directly below the lyrics
+ * utility row only while vocal separation is [VocalSeparationUiState.Active].
+ *
+ * Collects [controller.state] inside its own scope so dragging updates the live
+ * DSP vocal gain continuously without recomposing the lyrics list or Now Playing.
+ */
+@Composable
+internal fun VocalLevelSliderBar(
+    controller: VocalSeparationController,
+    trackId: String,
+    modifier: Modifier = Modifier,
+) {
+    val state = controller.state.collectAsState().value
+    val active = state as? VocalSeparationUiState.Active
+    val visible = active != null && active.trackId == trackId
+    val gain = (active?.vocalGain ?: 0f).coerceIn(0f, 1f)
+    val percent = (gain * 100f).toInt().coerceIn(0, 100)
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+        exit = fadeOut(tween(140)) + shrinkVertically(tween(140)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "Vocals",
+                style = MaterialTheme.typography.labelMedium,
+                color = chromeWhite(0.78f),
+                maxLines = 1,
+            )
+            ThinSlider(
+                value = { gain },
+                onValueChange = { v -> controller.setVocalGain(v) },
+                idleHeight = 6.dp,
+                activeHeight = 10.dp,
+                activeColor = Color.White.copy(alpha = 0.92f),
+                inactiveColor = Color.White.copy(alpha = 0.24f),
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        contentDescription = "Vocals level"
+                        stateDescription = "$percent%"
+                    },
+            )
+            Text(
+                text = "$percent%",
+                style = MaterialTheme.typography.labelMedium,
+                color = chromeWhite(0.86f),
+                maxLines = 1,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(36.dp),
             )
         }
     }

@@ -9,6 +9,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -35,11 +36,9 @@ class VocalSeparationTest {
         }
 
         val stft = StftProcessor.stftStereo(left, right)
-        // Null vocal mask -> 100% instrumental, 0% vocals.
         val out = StftProcessor.separateAndReconstruct(stft, vocalMagnitude = null, maskPower = 1.0f)
 
         var maxErr = 0f
-        // Check interior samples (away from exact zero-padded start/end edge).
         for (i in 2048 until sampleCount - 2048) {
             maxErr = maxOf(maxErr, abs(out.instLeft[i] - left[i]))
             maxErr = maxOf(maxErr, abs(out.instRight[i] - right[i]))
@@ -56,7 +55,6 @@ class VocalSeparationTest {
         val right = FloatArray(sampleCount) { i -> (0.5 * sin(2.0 * PI * 660.0 * i / 44100.0)).toFloat() }
 
         val stft = StftProcessor.stftStereo(left, right)
-        // Synthetic predicted vocal magnitude = 40% of mixture magnitude.
         val syntheticVocalMag = FloatArray(stft.magnitude.size) { idx -> stft.magnitude[idx] * 0.4f }
 
         for (power in listOf(1.0f, 1.15f)) {
@@ -73,7 +71,6 @@ class VocalSeparationTest {
     @Test
     fun cacheStoreValidatesAndEvictsLruWithoutDeletingPinned() {
         val cacheDir = tempFolder.newFolder("stems")
-        // Cap at 10 KB so 3 entries of 4 KB each trigger LRU eviction.
         val store = StemCacheStore(cacheDir, maxCacheBytes = 10_000L)
 
         val k1 = StemCacheStore.computeKey("src1", "v1", AudioIntelligencePriority.BALANCED, 44100, 2)
@@ -102,10 +99,8 @@ class VocalSeparationTest {
             )
         }
 
-        // Each entry: 500 frames * 4 bytes * 2 files = 4,000 bytes.
         writeEntry(k1, "t1", 500L, 1_000L)
         writeEntry(k2, "t2", 500L, 2_000L)
-        // Pin k1 (oldest) so it cannot be evicted when k3 pushes total to 12,000 > 10,000.
         store.pin(k1)
         writeEntry(k3, "t3", 500L, 3_000L)
 
@@ -113,7 +108,6 @@ class VocalSeparationTest {
         assertNull("Unpinned second-oldest entry should be evicted", store.getValid(k2, 4_000L))
         assertNotNull("Newest entry must remain", store.getValid(k3, 4_000L))
 
-        // Corrupt k3's vocals file and verify getValid rejects & cleans it up.
         store.unpin(k1)
         File(cacheDir, "$k3.vocals.pcm").writeBytes(ByteArray(10))
         assertNull("Truncated stem file must fail validation", store.getValid(k3, 5_000L))
@@ -129,42 +123,177 @@ class VocalSeparationTest {
         writeConstantPcm16(instFile, totalFrames, left = 0.25f, right = -0.25f)
 
         val processor = VocalSeparationProcessor()
-        processor.configure(44_100, 2)
+        try {
+            processor.configure(44_100, 2)
 
-        // 1. Inactive -> byte-identical passthrough.
-        val block = AudioBlock(capacityFrames = 512, channelCount = 2)
-        block.setFrameCount(256)
-        for (i in 0 until 512) block.samples[i] = 0.75f
-        processor.setBlockTimestampUs(0L)
-        processor.process(block)
-        assertEquals(0.75f, block.samples[0], 0f)
-        assertEquals(0.75f, block.samples[511], 0f)
-
-        // 2. Active with vocalGain = 0f -> after 40 ms (> 1764 frames) crossfade, output matches instrumental stem.
-        processor.setActiveConfig(
-            VocalSeparationProcessor.ActiveStemConfig(
-                key = "k",
-                trackId = "t",
-                vocalsFile = vocalsFile,
-                instFile = instFile,
-                stemSampleRate = 44_100,
-                stemChannels = 2,
-                totalFrames = totalFrames.toLong(),
-                vocalGain = 0.0f,
-            ),
-        )
-        var frameCursor = 0L
-        while (frameCursor < 2560L) {
+            // 1. Inactive -> byte-identical passthrough.
+            val block = AudioBlock(capacityFrames = 512, channelCount = 2)
             block.setFrameCount(256)
             for (i in 0 until 512) block.samples[i] = 0.75f
-            processor.setBlockTimestampUs(frameCursor * 1_000_000L / 44_100L)
+            processor.setBlockTimestampUs(0L)
             processor.process(block)
-            frameCursor += 256L
+            assertEquals(0.75f, block.samples[0], 0f)
+            assertEquals(0.75f, block.samples[511], 0f)
+
+            // 2. Active with vocalGain = 0f -> wait for async read-ahead, then process past 40 ms crossfade.
+            processor.setActiveConfig(
+                VocalSeparationProcessor.ActiveStemConfig(
+                    key = "k",
+                    trackId = "t",
+                    vocalsFile = vocalsFile,
+                    instFile = instFile,
+                    stemSampleRate = 44_100,
+                    stemChannels = 2,
+                    totalFrames = totalFrames.toLong(),
+                    vocalGain = 0.0f,
+                ),
+            )
+            assertTrue("Async read-ahead must buffer stem frames", processor.awaitBufferedUpTo(totalFrames.toLong()))
+
+            var frameCursor = 0L
+            while (frameCursor < 2560L) {
+                block.setFrameCount(256)
+                for (i in 0 until 512) block.samples[i] = 0.75f
+                processor.setBlockTimestampUs(frameCursor * 1_000_000L / 44_100L)
+                processor.process(block)
+                frameCursor += 256L
+            }
+            assertEquals(0.25f, block.samples[510], 1e-3f)
+            assertEquals(-0.25f, block.samples[511], 1e-3f)
+        } finally {
+            processor.release()
         }
-        // After 58 ms, wetMix == 1.0 -> should equal inst (0.25, -0.25) within PCM16 quantization.
-        assertEquals(0.25f, block.samples[510], 1e-3f)
-        assertEquals(-0.25f, block.samples[511], 1e-3f)
-        processor.reset()
+    }
+
+    @Test
+    fun processorVocalGainLevels0_50_100ReachProcessorWithoutDeactivating() {
+        val dir = tempFolder.newFolder("gain")
+        val vocalsFile = File(dir, "v.pcm")
+        val instFile = File(dir, "i.pcm")
+        val totalFrames = 8820 // 200 ms
+        writeConstantPcm16(vocalsFile, totalFrames, left = 0.40f, right = -0.20f)
+        writeConstantPcm16(instFile, totalFrames, left = 0.30f, right = 0.10f)
+
+        val processor = VocalSeparationProcessor()
+        try {
+            processor.configure(44_100, 2)
+            processor.setActiveConfig(
+                VocalSeparationProcessor.ActiveStemConfig(
+                    key = "gain-key",
+                    trackId = "gain-track",
+                    vocalsFile = vocalsFile,
+                    instFile = instFile,
+                    stemSampleRate = 44_100,
+                    stemChannels = 2,
+                    totalFrames = totalFrames.toLong(),
+                    vocalGain = 0.0f,
+                ),
+            )
+            assertTrue(processor.awaitBufferedUpTo(totalFrames.toLong()))
+
+            val block = AudioBlock(capacityFrames = 512, channelCount = 2)
+            // Ramp wetMix to 1.0 over 58 ms.
+            var cursor = 0L
+            while (cursor < 2560L) {
+                block.setFrameCount(256)
+                block.samples.fill(0.0f, 0, 512)
+                processor.setBlockTimestampUs(cursor * 1_000_000L / 44_100L)
+                processor.process(block)
+                cursor += 256L
+            }
+
+            // 0% vocals -> inst only (0.30, 0.10)
+            processor.setVocalGain(0.0f)
+            assertTrue(processor.isActive)
+            block.setFrameCount(256)
+            block.samples.fill(0.0f, 0, 512)
+            processor.setBlockTimestampUs(cursor * 1_000_000L / 44_100L)
+            processor.process(block)
+            assertEquals(0.30f, block.samples[0], 1e-3f)
+            assertEquals(0.10f, block.samples[1], 1e-3f)
+            cursor += 256L
+
+            // 50% vocals -> inst + 0.5 * vocal = (0.30 + 0.20, 0.10 - 0.10) = (0.50, 0.00)
+            processor.setVocalGain(0.5f)
+            assertTrue(processor.isActive)
+            block.setFrameCount(256)
+            block.samples.fill(0.0f, 0, 512)
+            processor.setBlockTimestampUs(cursor * 1_000_000L / 44_100L)
+            processor.process(block)
+            assertEquals(0.50f, block.samples[0], 1e-3f)
+            assertEquals(0.00f, block.samples[1], 1e-3f)
+            cursor += 256L
+
+            // 100% vocals -> inst + 1.0 * vocal = (0.70, -0.10)
+            processor.setVocalGain(1.0f)
+            assertTrue(processor.isActive)
+            block.setFrameCount(256)
+            block.samples.fill(0.0f, 0, 512)
+            processor.setBlockTimestampUs(cursor * 1_000_000L / 44_100L)
+            processor.process(block)
+            assertEquals(0.70f, block.samples[0], 1e-3f)
+            assertEquals(-0.10f, block.samples[1], 1e-3f)
+        } finally {
+            processor.release()
+        }
+    }
+
+    @Test
+    fun processorSeekAndUnderrunFallBackSafelyWithoutStaleSamples() {
+        val dir = tempFolder.newFolder("seek")
+        val vocalsFile = File(dir, "v.pcm")
+        val instFile = File(dir, "i.pcm")
+        // 200,000 frames (~4.5 s): first half inst = 0.20f, second half inst = 0.60f.
+        val totalFrames = 200_000
+        writeTwoRegionPcm16(vocalsFile, totalFrames, splitFrame = 100_000, v1 = 0.0f, v2 = 0.0f)
+        writeTwoRegionPcm16(instFile, totalFrames, splitFrame = 100_000, v1 = 0.20f, v2 = 0.60f)
+
+        val processor = VocalSeparationProcessor()
+        try {
+            processor.configure(44_100, 2)
+            processor.setActiveConfig(
+                VocalSeparationProcessor.ActiveStemConfig(
+                    key = "seek-key",
+                    trackId = "seek-track",
+                    vocalsFile = vocalsFile,
+                    instFile = instFile,
+                    stemSampleRate = 44_100,
+                    stemChannels = 2,
+                    totalFrames = totalFrames.toLong(),
+                    vocalGain = 0.0f,
+                ),
+            )
+            assertTrue(processor.awaitBufferedUpTo(4096L))
+
+            val block = AudioBlock(capacityFrames = 512, channelCount = 2)
+            // Jump far ahead (frame 120,000) beyond the 65,536-frame ring window -> triggers underrun & async seek.
+            val jumpFrame = 120_000L
+            block.setFrameCount(256)
+            for (i in 0 until 512) block.samples[i] = 0.85f
+            processor.setBlockTimestampUs(jumpFrame * 1_000_000L / 44_100L)
+            processor.process(block)
+            // On immediate underrun, original PCM (0.85f) is preserved instead of outputting silence.
+            assertEquals(0.85f, block.samples[0], 1e-4f)
+
+            // Wait for background read-ahead to seek and buffer the new region.
+            assertTrue(processor.awaitBufferedUpTo(jumpFrame + 4096L))
+            var cursor = jumpFrame
+            while (cursor < jumpFrame + 2560L) {
+                block.setFrameCount(256)
+                for (i in 0 until 512) block.samples[i] = 0.85f
+                processor.setBlockTimestampUs(cursor * 1_000_000L / 44_100L)
+                processor.process(block)
+                cursor += 256L
+            }
+            // Must play second-region value (0.60f), NEVER stale first-region value (0.20f).
+            assertEquals(0.60f, block.samples[510], 1e-3f)
+
+            // Reset must cleanly deactivate.
+            processor.reset()
+            assertFalse(processor.isActive)
+        } finally {
+            processor.release()
+        }
     }
 
     private fun writeConstantPcm16(file: File, frames: Int, left: Float, right: Float) {
@@ -174,6 +303,18 @@ class VocalSeparationTest {
         for (i in 0 until frames) {
             buf.putShort(l)
             buf.putShort(r)
+        }
+        file.writeBytes(buf.array())
+    }
+
+    private fun writeTwoRegionPcm16(file: File, frames: Int, splitFrame: Int, v1: Float, v2: Float) {
+        val buf = ByteBuffer.allocate(frames * 4).order(ByteOrder.LITTLE_ENDIAN)
+        val s1 = (v1 * 32767f).toInt().toShort()
+        val s2 = (v2 * 32767f).toInt().toShort()
+        for (i in 0 until frames) {
+            val s = if (i < splitFrame) s1 else s2
+            buf.putShort(s)
+            buf.putShort(s)
         }
         file.writeBytes(buf.array())
     }

@@ -1,15 +1,15 @@
-﻿<resources>
+<resources>
     <string name="app_name">Sonora</string>
     <string name="playback_channel_name">Sedang diputar</string>
     <string name="download_channel_name">Unduhan</string>
     <string name="download_channel_description">Lagu yang sedang disimpan ke folder Musik Anda</string>
     <string name="download_notification_title">Mengunduh</string>
     <string name="download_notification_starting">Memulai</string>
-    <string name="download_notification_queued">%1$s Â· %2$d lagi dalam antrean</string>
+    <string name="download_notification_queued">%1$s · %2$d lagi dalam antrean</string>
     <string name="upload_channel_name">Unggahan</string>
     <string name="upload_channel_description">Lagu yang sedang dikirim ke server WebDAV kamu</string>
     <string name="upload_notification_title">Mengunggah</string>
-    <string name="upload_notification_queued">%1$s Â· %2$d lagi dalam antrean</string>
+    <string name="upload_notification_queued">%1$s · %2$d lagi dalam antrean</string>
     <plurals name="uploading_song_count">
         <item quantity="other">Mengunggah %1$d lagu</item>
     </plurals>
@@ -65,8 +65,8 @@
     <string name="recent_searches">Pencarian terbaru</string>
     <string name="clear">Hapus</string>
     <string name="search_hint">Artis, Lagu, Lirik, dan Lainnya</string>
-    <string name="recent_search_edit">Edit â€œ%1$sâ€</string>
-    <string name="recent_search_remove">Hapus â€œ%1$sâ€ dari pencarian terbaru</string>
+    <string name="recent_search_edit">Edit “%1$s”</string>
+    <string name="recent_search_remove">Hapus “%1$s” dari pencarian terbaru</string>
     <string name="storage_required_save">Akses penyimpanan diperlukan untuk menyimpan lagu</string>
     <string name="storage_required_read">Izin penyimpanan diperlukan untuk membaca file audio lokal</string>
     <string name="sharing_coming_soon">Fitur berbagi akan segera hadir</string>
@@ -82,7 +82,7 @@
     <string name="add_module_source">Tambahkan sumber modul</string>
     <string name="remove_source">Hapus sumber ini</string>
     <string name="test">Uji</string>
-    <string name="testing">Mengujiâ€¦</string>
+    <string name="testing">Menguji…</string>
     <string name="connected">Terhubung</string>
     <string name="account_integrations">Akun &amp; integrasi</string>
     <string name="youtube_premium_audio">Audio YouTube Premium</string>
@@ -103,7 +103,7 @@
     <string name="update_available">Pembaruan tersedia: v%1$s</string>
     <string name="software_update">Pembaruan Perangkat Lunak</string>
     <string name="update_available_body">bitchord %1$s tersedia untuk diunduh.</string>
-    <string name="update_downloading_body">Mengunduh bitchord %1$sâ€¦</string>
+    <string name="update_downloading_body">Mengunduh bitchord %1$s…</string>
     <string name="update_ready_body">bitchord %1$s siap dipasang.</string>
     <string name="update_failed_body">Gagal mengunduh bitchord %1$s.</string>
     <string name="download_now">Unduh Sekarang</string>
@@ -113,18 +113,18 @@
     <string name="try_again">Coba Lagi</string>
     <string name="open_releases_page">Buka Halaman Rilis</string>
     <string name="whats_new">Yang baru</string>
-    <string name="log_copied">Log disalin Â· %1$d baris</string>
+    <string name="log_copied">Log disalin · %1$d baris</string>
     <string name="sign_in_youtube_music">Masuk ke YouTube Music</string>
     <string name="sign_in_discord">Masuk ke Discord</string>
     <string name="personalized_recommendations">Dapatkan rekomendasi yang dipersonalisasi</string>
     <string name="play_next">Putar berikutnya</string>
     <string name="queue">Antrean</string>
     <string name="source_setup_required">Ketuk untuk menyelesaikan pengaturan</string>
-    <string name="source_unreachable">Tidak dapat dijangkau sekarang Â· %1$s</string>
-    <string name="checking">Memeriksaâ€¦</string>
+    <string name="source_unreachable">Tidak dapat dijangkau sekarang · %1$s</string>
+    <string name="checking">Memeriksa…</string>
     <string name="failed">Gagal</string>
-    <string name="widget_square_label">Sedang diputar 2Ã—2</string>
-    <string name="widget_wide_label">Sedang diputar 4Ã—2</string>
+    <string name="widget_square_label">Sedang diputar 2×2</string>
+    <string name="widget_wide_label">Sedang diputar 4×2</string>
     <string name="widget_square_description">Sampul album dengan kontrol pemutaran, berbentuk persegi.</string>
     <string name="widget_wide_description">Sampul album dengan judul lagu dan kontrol pemutaran, selebar layar.</string>
     <string name="widget_play">Putar</string>
@@ -136,14 +136,14 @@
     <string name="widget_open_bitchord">Buka Sonora</string>
     <string name="widget_preview_title">Judul lagu</string>
     <string name="widget_preview_artist">Artis</string>
-    <string name="widget_pill_label">Sedang diputar 4Ã—1</string>
+    <string name="widget_pill_label">Sedang diputar 4×1</string>
     <string name="widget_pill_description">Lagu dengan Suka, Acak, dan kontrol pemutaran dalam satu baris.</string>
     <string name="widget_preview_pill">Judul lagu - Artis</string>
     <string name="download_quality">Kualitas unduhan</string>
     <string name="download_wifi_only">Unduh hanya lewat Wi-Fi</string>
     <string name="spatial_audio">Audio spasial</string>
     <string name="spatial_audio_subtitle">Melebarkan trek stereo untuk pengalaman yang lebih imersif</string>
-    <string name="spatial_audio_atmos_subtitle">Dijeda untuk lagu ini â€” Dolby Atmos sudah spasial</string>
+    <string name="spatial_audio_atmos_subtitle">Dijeda untuk lagu ini — Dolby Atmos sudah spasial</string>
     <string name="animated_cover_cellular">Putar sampul animasi lewat data seluler</string>
     <string name="replay">Replay</string>
     <string name="replay_subtitle">Lagu, artis, album, dan genre teratas Anda</string>
@@ -232,7 +232,7 @@
     <string name="hide_status_bar_in_player">Sembunyikan bilah status di pemutar</string>
     <string name="hide_status_bar_in_player_subtitle">Menyembunyikan jam, baterai, dan ikon notifikasi saat pemutar utama terbuka</string>
     <string name="hide_song_status">Sembunyikan status lagu</string>
-    <string name="hide_song_status_subtitle">Menyembunyikan teks â€œDiputar dariâ€ atau â€œDiputar olehâ€ di pemutar utama</string>
+    <string name="hide_song_status_subtitle">Menyembunyikan teks “Diputar dari” atau “Diputar oleh” di pemutar utama</string>
     <string name="off">Nonaktif</string>
     <string name="low">Rendah</string>
     <string name="medium">Sedang</string>
@@ -326,9 +326,9 @@
     <string name="pinned_playlist_limit">Hanya %1$d playlist yang dapat disematkan</string>
     <string name="downloaded_playlist">Playlist yang diunduh</string>
     <string name="library_sign_in_description">Masuk ke akun Google Anda untuk melihat lagu yang disukai, playlist, dan riwayat YouTube Music Anda.</string>
-    <string name="downloads_progress">Unduhan Â· %1$d%%</string>
-    <string name="downloads_finished">Unduhan Â· selesai</string>
-    <string name="downloading_progress">Mengunduh Â· %1$d%%</string>
+    <string name="downloads_progress">Unduhan · %1$d%%</string>
+    <string name="downloads_finished">Unduhan · selesai</string>
+    <string name="downloading_progress">Mengunduh · %1$d%%</string>
     <string name="starting">Memulai</string>
     <string name="saved_to_bitchord_folder">Disimpan ke Music/Sonora</string>
     <string name="nothing_downloading">Tidak ada yang sedang diunduh</string>
@@ -345,7 +345,7 @@
     <string name="something_went_wrong">Terjadi kesalahan</string>
     <string name="unknown_artist">Artis tidak dikenal</string>
     <plurals name="downloads_failed_count">
-        <item quantity="other">Unduhan Â· %1$d gagal</item>
+        <item quantity="other">Unduhan · %1$d gagal</item>
     </plurals>
     <plurals name="download_waiting_count">
         <item quantity="other">%1$d menunggu</item>
@@ -363,7 +363,7 @@
     <string name="who_can_see_it">Siapa yang dapat melihatnya</string>
     <string name="about_artist">Tentang artis</string>
     <string name="about_album">Tentang album</string>
-    <string name="nothing_matches">Tidak ada yang cocok dengan â€œ%1$sâ€</string>
+    <string name="nothing_matches">Tidak ada yang cocok dengan “%1$s”</string>
     <string name="close_search">Tutup pencarian</string>
     <string name="less">Lebih sedikit</string>
     <string name="song_count_with_minutes">%1$s, %2$d menit</string>
@@ -379,7 +379,7 @@
         <item quantity="other">%1$d lagu ditambahkan ke antrean</item>
     </plurals>
     <plurals name="log_copied_line_count">
-        <item quantity="other">Log disalin Â· %1$d baris</item>
+        <item quantity="other">Log disalin · %1$d baris</item>
     </plurals>
     <string name="integrate_spotify_canvas">Siapkan Spotify Canvas</string>
     <string name="lastfm_login">Login Last.fm</string>
@@ -413,8 +413,8 @@
     <string name="preview">Pratinjau</string>
     <string name="prioritize_syllable_lyrics">Prioritaskan lirik per suku kata</string>
     <string name="prioritize_syllable_lyrics_subtitle">Terus mencari melebihi kecocokan tersinkron per baris untuk mendapatkan lirik kata demi kata</string>
-    <string name="quality_hourly">%1$s Â· %2$s</string>
-    <string name="quality_per_track">%1$s Â· %2$s per trek</string>
+    <string name="quality_hourly">%1$s · %2$s</string>
+    <string name="quality_per_track">%1$s · %2$s per trek</string>
     <string name="queued">Dalam antrean</string>
     <string name="remove">Hapus</string>
     <string name="remove_from_liked">Hapus dari Musik yang Disukai</string>
@@ -444,7 +444,7 @@
     <string name="sharing_listens">Membagikan yang Anda dengarkan</string>
     <string name="show_what_playing">Tampilkan apa yang sedang saya putar</string>
     <string name="signed_in_as">Masuk sebagai %1$s</string>
-    <string name="signing_in">Sedang masukâ€¦</string>
+    <string name="signing_in">Sedang masuk…</string>
     <string name="sleep_timer">Timer tidur</string>
     <string name="sleep_timer_custom">Kustom</string>
     <string name="start_sleep_timer">Mulai timer</string>
@@ -508,7 +508,7 @@
     <string name="lyrics_share_canvas">Canvas</string>
     <string name="lyrics_share_video">Video</string>
     <string name="lyrics_share_image">Gambar</string>
-    <string name="lyrics_share_saving">Menyimpanâ€¦</string>
+    <string name="lyrics_share_saving">Menyimpan…</string>
     <string name="lyrics_share_gradient">Gradien</string>
     <string name="lyrics_share_show_logo">Tampilkan logo Sonora</string>
     <string name="listening_shape">Pola mendengarkan Anda</string>
@@ -591,24 +591,24 @@
     <string name="webdav_subtitle">Musik di server kamu</string>
     <string name="webdav_not_configured">Hubungkan server di Sumber</string>
     <string name="webdav_empty">Tidak ada file audio di server WebDAV. Periksa URL di Setelan.</string>
-    <string name="webdav_description">Arahkan Sonora ke folder musik WebDAV â€” direktori Musik Nextcloud kamu atau server apa pun yang mendukung WebDAV.</string>
+    <string name="webdav_description">Arahkan Sonora ke folder musik WebDAV — direktori Musik Nextcloud kamu atau server apa pun yang mendukung WebDAV.</string>
     <string name="webdav_server_url">URL server</string>
     <string name="webdav_server_url_hint">https://cloud.example.com/remote.php/dav/files/user/Music</string>
     <string name="webdav_disconnect">Putuskan</string>
     <string name="webdav_test_failed">Tidak bisa dijangkau: %1$s</string>
     <string name="upload_to_webdav">Unggah ke WebDAV</string>
-    <string name="webdav_conflict_title">â€œ%1$sâ€ sudah ada di server</string>
+    <string name="webdav_conflict_title">“%1$s” sudah ada di server</string>
     <string name="webdav_conflict_message">Timpa, atau simpan kedua salinan?</string>
     <string name="webdav_overwrite">Timpa</string>
     <string name="webdav_keep_both">Simpan keduanya</string>
     <string name="webdav_skip">Lewati</string>
     <string name="webdav_apply_to_all">Terapkan ke semua</string>
-    <string name="webdav_upload_summary">%1$d terunggah Â· %2$d dilewati Â· %3$d gagal</string>
+    <string name="webdav_upload_summary">%1$d terunggah · %2$d dilewati · %3$d gagal</string>
     <string name="smb">SMB</string>
     <string name="smb_subtitle">Musik di folder berbagi</string>
     <string name="smb_not_configured">Hubungkan folder berbagi di Sumber</string>
     <string name="smb_empty">Tidak ada file audio di folder berbagi SMB. Periksa server di Sumber.</string>
-    <string name="smb_description">Arahkan Sonora ke folder musik bersama â€” NAS atau folder berbagi Windows lewat SMB.</string>
+    <string name="smb_description">Arahkan Sonora ke folder musik bersama — NAS atau folder berbagi Windows lewat SMB.</string>
     <string name="smb_server_hint">nas.local or 192.168.1.10:4445</string>
     <string name="smb_share_hint">Nama share, mis. Music</string>
     <string name="smb_folder_hint">Folder (opsional)</string>
@@ -623,17 +623,17 @@
     <string name="downloading">Mengunduh</string>
     <string name="delete_playlist">Hapus playlist</string>
     <string name="delete_download">Hapus unduhan</string>
-    <string name="delete_playlist_confirmation">Hapus â€œ%1$sâ€? Ketuk lagi untuk konfirmasi.</string>
-    <string name="delete_download_confirmation">Hapus â€œ%1$sâ€ dari perangkat ini? Ketuk lagi untuk konfirmasi.</string>
+    <string name="delete_playlist_confirmation">Hapus “%1$s”? Ketuk lagi untuk konfirmasi.</string>
+    <string name="delete_download_confirmation">Hapus “%1$s” dari perangkat ini? Ketuk lagi untuk konfirmasi.</string>
     <string name="running">Berjalan</string>
-    <string name="version_alignment_status">%1$s Â· %2$s</string>
+    <string name="version_alignment_status">%1$s · %2$s</string>
     <string name="version_cut_not_fetched">belum diambil</string>
     <string name="version_cut_fetching">mengambil</string>
     <string name="version_cut_measuring">menganalisis</string>
     <string name="version_cut_aligned">selaras</string>
     <string name="automix_enabled_subtitle">Mengatur waktu dan memadukan setiap transisi dari trek itu sendiri. Nonaktifkan jika ponsel menjadi panas atau pemutaran tersendat.</string>
     <string name="automix_disabled_subtitle">Mengatur waktu dan memadukan transisi secara otomatis, tanpa penggeser. Performa dapat bervariasi pada perangkat yang lebih lambat.</string>
-    <string name="automix_models_downloading">Mengunduh Automix (%1$d MB)â€¦ %2$d%%. Lagu memakai crossfade biasa sampai selesai.</string>
+    <string name="automix_models_downloading">Mengunduh Automix (%1$d MB)… %2$d%%. Lagu memakai crossfade biasa sampai selesai.</string>
     <string name="automix_model">Model Automix</string>
     <string name="automix_model_missing">Belum diunduh. Automix mengunduhnya saat diaktifkan, atau unduh sekarang.</string>
     <string name="automix_model_download">Unduh (%1$d MB)</string>
@@ -672,13 +672,13 @@
     <!-- Listen together -->
     <string name="listen_together">Dengar bersama</string>
     <string name="listen_together_subtitle">Bagikan kode dan putar musik yang sama, serempak</string>
-    <string name="listen_together_in_party">Dalam pesta Â· %1$s</string>
+    <string name="listen_together_in_party">Dalam pesta · %1$s</string>
     <string name="listen_together_sign_in_footer">Mendengar bersama butuh akun, supaya semua orang di pesta bisa lihat siapa saja yang ikut.</string>
     <string name="listen_together_server">Server pesta</string>
-    <string name="listen_together_server_online">Online Â· %1$d ms</string>
-    <string name="listen_together_server_online_fallback">Online (cadangan bawaan) Â· %1$d ms</string>
+    <string name="listen_together_server_online">Online · %1$d ms</string>
+    <string name="listen_together_server_online_fallback">Online (cadangan bawaan) · %1$d ms</string>
     <string name="listen_together_server_offline">Sedang tidak bisa dihubungi</string>
-    <string name="listen_together_server_checking">Memeriksaâ€¦</string>
+    <string name="listen_together_server_checking">Memeriksa…</string>
     <string name="listen_together_server_unknown">Ketuk untuk memeriksa</string>
     <string name="listen_together_custom_server">Pakai server sendiri</string>
     <string name="listen_together_custom_server_footer">Biarkan kosong untuk memakai server bawaan. Kalau kamu menjalankan salinan sendiri, semua orang di pesta harus diarahkan ke server yang sama.</string>
@@ -692,11 +692,11 @@
     <string name="listen_together_profile">Profil pestamu</string>
     <string name="listen_together_nickname_hint">Nama panggilan untuk pesta ini</string>
     <string name="listen_together_party_size">Ukuran pesta</string>
-    <string name="listen_together_party_size_subtitle">Pilih 2â€“10 pendengar</string>
+    <string name="listen_together_party_size_subtitle">Pilih 2–10 pendengar</string>
     <string name="listen_together_host_controls">Hanya kamu yang bisa mengubah kapasitas atau mengeluarkan pendengar</string>
     <string name="listen_together_remove">Keluarkan</string>
     <string name="listen_together_activity">Aktivitas terbaru</string>
-    <string name="listen_together_activity_footer">Hanya sesi ini Â· terbaru dulu Â· hingga 100 aksi</string>
+    <string name="listen_together_activity_footer">Hanya sesi ini · terbaru dulu · hingga 100 aksi</string>
     <string name="listen_together_activity_played">Memulai pemutaran</string>
     <string name="listen_together_activity_paused">Menjeda pemutaran</string>
     <string name="listen_together_activity_seeked">Menggeser posisi lagu</string>
@@ -713,23 +713,23 @@
     <string name="listen_together_join_action">Ikut</string>
     <string name="listen_together_code_hint">Enam huruf atau angka</string>
     <string name="listen_together_code">Kode pesta</string>
-    <string name="listen_together_code_footer">Bacakan atau kirimkan. Huruf O dan I tidak dipakai, jadi â€œoâ€ selalu berarti nol.</string>
+    <string name="listen_together_code_footer">Bacakan atau kirimkan. Huruf O dan I tidak dipakai, jadi “o” selalu berarti nol.</string>
     <string name="copy_code">Salin kode</string>
-    <string name="listen_together_share_text">Dengarkan bareng aku di Sonora â€” kode pesta %1$s</string>
+    <string name="listen_together_share_text">Dengarkan bareng aku di Sonora — kode pesta %1$s</string>
     <string name="listen_together_now_playing">Sedang diputar</string>
     <string name="listen_together_nothing_playing">Belum ada yang diputar</string>
-    <string name="listen_together_listening">Mendengarkan Â· %1$d dari %2$d</string>
+    <string name="listen_together_listening">Mendengarkan · %1$d dari %2$d</string>
     <string name="listen_together_members_footer">Satu pesta menampung %1$d perangkat. Siapa pun di dalamnya bisa mengatur musik.</string>
     <string name="listen_together_you">Kamu</string>
     <string name="listen_together_host">Tuan rumah</string>
-    <string name="listen_together_away">Sedang menjauh â€” tempatnya ditahan</string>
+    <string name="listen_together_away">Sedang menjauh — tempatnya ditahan</string>
     <string name="listen_together_landing_title">Mulai pesta</string>
     <string name="listen_together_landing_subtitle">Karena musik lebih seru didengar bersama. Ajak teman mendengarkan dan menambahkan lagu secara langsung, di mana pun mereka berada.</string>
     <string name="listen_together_create_action">Buat pesta</string>
     <string name="listen_together_join_existing">Ikut yang sudah ada</string>
     <string name="listen_together_create_sheet_subtitle">Pilih bagaimana kamu tampil, dan berapa orang yang bisa ikut.</string>
-    <string name="listen_together_creating">Membuatâ€¦</string>
-    <string name="listen_together_joining">Bergabungâ€¦</string>
+    <string name="listen_together_creating">Membuat…</string>
+    <string name="listen_together_joining">Bergabung…</string>
     <string name="listen_together_full">Pesta ini sudah penuh</string>
     <string name="listen_together_join_question">Ikut pesta %1$s?</string>
     <string name="listen_together_join_question_unnamed">Ikut pesta ini?</string>
@@ -745,9 +745,9 @@
     <string name="listen_together_host_only_notice">Hanya host yang bisa mengatur musik</string>
     <string name="listen_together_leave">Keluar dari pesta</string>
     <string name="listen_together_leave_subtitle">Yang lain tetap mendengarkan</string>
-    <string name="listen_together_reconnecting">Menyambung ulangâ€¦</string>
-    <string name="listen_together_syncing_clock">Mengukur jamâ€¦</string>
-    <string name="listen_together_in_sync">Sinkron Â· %1$d ms bolak-balik</string>
+    <string name="listen_together_reconnecting">Menyambung ulang…</string>
+    <string name="listen_together_syncing_clock">Mengukur jam…</string>
+    <string name="listen_together_in_sync">Sinkron · %1$d ms bolak-balik</string>
     <string name="listen_together_custom_server_dialog_title">Ikut pesta di server kustom?</string>
     <string name="listen_together_custom_server_dialog_message">Pesta ini di-host di server eksternal:\n\n%1$s\n\nMau mengganti server pesta dan ikut pesta %2$s?</string>
     <string name="listen_together_custom_server_switch_and_join">Ganti &amp; Ikut</string>
@@ -756,7 +756,7 @@
     <string name="listen_together_switch_failed_stayed_in_party">Gagal ikut pesta: %1$s. Tetap di pesta %2$s.</string>
     <string name="listen_together_switch_failed">Gagal ikut pesta: %1$s.</string>
     <string name="listen_together_ping">%1$d ms</string>
-    <string name="listen_together_server_offline_dash">â€”</string>
+    <string name="listen_together_server_offline_dash">—</string>
     <string name="listen_together_invalid_server_url">URL server tidak valid. Masukkan alamat yang valid (mis. https://your-server.com)</string>
     <string name="listen_together_err_whitespace">URL server tidak boleh berisi spasi</string>
     <string name="listen_together_err_invalid_path">URL server berisi path yang tidak valid</string>
@@ -766,10 +766,10 @@
     <string name="listen_together_err_invalid_port">Port server harus antara 1 dan 65535</string>
     <string name="listen_together_custom_server_connected">Terhubung ke server kustom</string>
     <string name="listen_together_custom_server_unreachable_fallback">Server kustom tidak terjangkau. Memakai server cadangan bawaan.</string>
-    <string name="listen_together_status_custom_online">Terhubung ke server kustom Â· %1$d ms</string>
-    <string name="listen_together_status_custom_fallback">Server kustom tidak terjangkau Â· Memakai cadangan bawaan (%1$d ms)</string>
+    <string name="listen_together_status_custom_online">Terhubung ke server kustom · %1$d ms</string>
+    <string name="listen_together_status_custom_fallback">Server kustom tidak terjangkau · Memakai cadangan bawaan (%1$d ms)</string>
     <string name="listen_together_status_all_offline">Server kustom dan server bawaan sama-sama offline</string>
-    <string name="listen_together_top_bar_fallback">Cadangan Â· %1$s</string>
+    <string name="listen_together_top_bar_fallback">Cadangan · %1$s</string>
 
     <string name="vietnamese">Vietnam</string>
 
@@ -790,20 +790,20 @@
 
     <string name="add_addon_detail">Arahkan Sonora ke server addon yang Anda miliki atau bagikan tautan</string>
 
-    <string name="addon_url_description">Tempel URL addon â€” direktori utama atau manifest.json.</string>
+    <string name="addon_url_description">Tempel URL addon — direktori utama atau manifest.json.</string>
 
 
     <string name="automix_mode_balanced">Seimbang</string>
 
-    <string name="automix_mode_balanced_subtitle">2 thread Â· keseimbangan kecepatan dan baterai yang disarankan</string>
+    <string name="automix_mode_balanced_subtitle">2 thread · keseimbangan kecepatan dan baterai yang disarankan</string>
 
     <string name="automix_mode_efficient">Efisien</string>
 
-    <string name="automix_mode_efficient_subtitle">1 thread Â· panas dan penggunaan baterai terendah</string>
+    <string name="automix_mode_efficient_subtitle">1 thread · panas dan penggunaan baterai terendah</string>
 
     <string name="automix_mode_performance">Performa</string>
 
-    <string name="automix_mode_performance_subtitle">4 thread Â· analisis tercepat Â· penggunaan baterai lebih tinggi</string>
+    <string name="automix_mode_performance_subtitle">4 thread · analisis tercepat · penggunaan baterai lebih tinggi</string>
 
 
     <string name="automix_performance">Performa Automix</string>
@@ -824,7 +824,7 @@
 
     <string name="card_views_format">%1$s tayangan</string>
 
-    <string name="channel_session_unavailable">Belum ada sesi di sini â€” buka YouTube Music terlebih dahulu</string>
+    <string name="channel_session_unavailable">Belum ada sesi di sini — buka YouTube Music terlebih dahulu</string>
 
     <string name="channel_switch_instructions">Beralih dengan avatar, lalu ketuk Gunakan channel ini</string>
 
@@ -835,7 +835,7 @@
     <string name="convert_to_audio">Konversi ke audio</string>
     <string name="convert_to_video">Ubah ke video</string>
 
-    <string name="converting_to_audio">Mengonversi ke audioâ€¦</string>
+    <string name="converting_to_audio">Mengonversi ke audio…</string>
 
     <string name="current_account">Akun saat ini</string>
 
@@ -900,7 +900,7 @@
     <string name="pipeline_loudness_gain">Gain</string>
     <string name="pipeline_loudness_measured">Terukur</string>
     <string name="pipeline_bit_exact">Bit-exact</string>
-    <string name="loudness_measuring">Mengukurâ€¦</string>
+    <string name="loudness_measuring">Mengukur…</string>
     <string name="loudness_gain_db">%1$s dB</string>
     <string name="loudness_lufs">%1$s LUFS</string>
 
@@ -1007,7 +1007,7 @@
 
     <string name="source_already_added">Sudah ditambahkan sebagai %1$s</string>
 
-    <string name="source_skipped_by_quality">Tidak digunakan pada %1$s Â· kualitas diatur ke %2$s</string>
+    <string name="source_skipped_by_quality">Tidak digunakan pada %1$s · kualitas diatur ke %2$s</string>
 
     <string name="source_unrecognised">Sonora tidak mengenali tautan tersebut</string>
 
@@ -1072,7 +1072,7 @@
 
     <string name="settings_search_hint">Search settings</string>
 
-    <string name="settings_search_empty">No settings match â€œ%1$sâ€</string>
+    <string name="settings_search_empty">No settings match “%1$s”</string>
 
 
     <string name="content_preferences">Content Preferences</string>
@@ -1184,9 +1184,9 @@
     <string name="audio_pipeline">Audio Pipeline</string>
     <string name="cast_dialog_title">Cast</string>
     <string name="cast_dialog_subtitle">Play on a Chromecast or Google Cast speaker</string>
-    <string name="cast_searching">Looking for devicesâ€¦</string>
+    <string name="cast_searching">Looking for devices…</string>
     <string name="cast_searching_hint">Your phone and the receiver need to be on the same Wi-Fi network.</string>
-    <string name="cast_device_connecting">Connectingâ€¦</string>
+    <string name="cast_device_connecting">Connecting…</string>
     <string name="cast_device_connected">Casting</string>
     <string name="cast_stop">Stop casting</string>
     <string name="cast_track_unsupported">This track can\'t be cast</string>
@@ -1267,9 +1267,9 @@
 
 
 
-    <string name="source_needs_lossless_output">Perlu output lossless Â· gunakan perangkat yang mendukung lossless</string>
-    <string name="source_needs_lossless_bt_codec">Perlu output lossless Â· Bluetooth memakai %1$s; gunakan perangkat yang mendukung lossless</string>
-    <string name="source_needs_lossless_bt_unknown">Perlu output lossless Â· codec Bluetooth yang dipakai tidak bisa diketahui</string>
+    <string name="source_needs_lossless_output">Perlu output lossless · gunakan perangkat yang mendukung lossless</string>
+    <string name="source_needs_lossless_bt_codec">Perlu output lossless · Bluetooth memakai %1$s; gunakan perangkat yang mendukung lossless</string>
+    <string name="source_needs_lossless_bt_unknown">Perlu output lossless · codec Bluetooth yang dipakai tidak bisa diketahui</string>
     <string name="source_downloads_on">Unduhan diizinkan</string>
     <string name="source_downloads_off">Hanya streaming</string>
     <string name="lossless_output_permission">Periksa codec Bluetooth</string>
@@ -1289,9 +1289,9 @@
     <string name="clear_song_cache_warning">Semua lagu dalam cache akan dihapus dan folder lagu dalam cache akan dikosongkan. Lagu akan di-streaming lagi saat diputar berikutnya.</string>
     <string name="import_spotify">Impor dari Spotify</string>
     <string name="import_spotify_subtitle">Dari tautan playlist</string>
-    <string name="local_playlist_subtitle">%1$d lagu Â· Di perangkat ini</string>
+    <string name="local_playlist_subtitle">%1$d lagu · Di perangkat ini</string>
     <string name="lossless_output_permission_denied">Izin perangkat terdekat nonaktif</string>
-    <string name="lossless_output_permission_denied_detail">Ketuk untuk membuka Pengaturan dan mengizinkan perangkat terdekat â€” tanpa itu codec Bluetooth Anda tidak bisa dibaca</string>
+    <string name="lossless_output_permission_denied_detail">Ketuk untuk membuka Pengaturan dan mengizinkan perangkat terdekat — tanpa itu codec Bluetooth Anda tidak bisa dibaca</string>
     <string name="recent_album">Album Terbaru</string>
     <string name="recent_ep">EP Terbaru</string>
     <string name="recent_single">Single Terbaru</string>
@@ -1303,13 +1303,13 @@
     <string name="spotify_import_button">Impor</string>
     <string name="spotify_import_description">Tempelkan tautan playlist publik. Lagu dicocokkan di YouTube Music.</string>
     <string name="spotify_import_description_local">Tempelkan tautan playlist publik. Lagu dicocokkan di YouTube Music dan disimpan di perangkat ini.</string>
-    <string name="spotify_import_done">â€˜%1$sâ€™ diimpor</string>
+    <string name="spotify_import_done">‘%1$s’ diimpor</string>
     <string name="spotify_import_empty_playlist">Tidak ada lagu di playlist ini</string>
     <string name="spotify_import_failed">Gagal mengimpor playlist: %1$s</string>
-    <string name="spotify_import_fetching">Membaca playlist Spotifyâ€¦</string>
-    <string name="spotify_import_hint">open.spotify.com/playlist/â€¦</string>
+    <string name="spotify_import_fetching">Membaca playlist Spotify…</string>
+    <string name="spotify_import_hint">open.spotify.com/playlist/…</string>
     <string name="spotify_import_invalid">Itu bukan tautan playlist Spotify.</string>
-    <string name="spotify_import_local_fallback">Tidak bisa dibuat di YouTube Music, jadi â€˜%1$sâ€™ disimpan di perangkat ini.</string>
+    <string name="spotify_import_local_fallback">Tidak bisa dibuat di YouTube Music, jadi ‘%1$s’ disimpan di perangkat ini.</string>
     <string name="spotify_import_matching">Mencocokkan lagu %1$d dari %2$d</string>
     <string name="spotify_import_none">Tidak ada lagu itu yang ditemukan di YouTube Music.</string>
     <string name="spotify_import_title">Impor playlist Spotify</string>
@@ -1322,14 +1322,14 @@
     <string name="artist_signatures_subtitle">Menampilkan tanda tangan tulisan tangan saat Apple Music tidak memiliki logo judul</string>
     <string name="artist_signatures_url">URL API tanda tangan</string>
     <string name="artist_signatures_url_hint">https://signatures.example.com</string>
-    <string name="artist_signatures_unconfigured">Belum dikonfigurasi â€” ketuk untuk mengatur URL API</string>
+    <string name="artist_signatures_unconfigured">Belum dikonfigurasi — ketuk untuk mengatur URL API</string>
     <string name="artist_signatures_test_failed">Tidak dapat menjangkau API di URL tersebut</string>
     <string name="search_source_addons">Addon</string>
-    <string name="search_addons_none">Tidak ada addon yang aktif. Tambahkan satu di Pengaturan â†’ Sumber.</string>
+    <string name="search_addons_none">Tidak ada addon yang aktif. Tambahkan satu di Pengaturan → Sumber.</string>
     <string name="app_icon">Ikon aplikasi</string>
     <string name="app_icon_default">Default</string>
     <string name="show_queue_history">Tampilkan riwayat antrean</string>
-    <string name="show_queue_history_subtitle">Menampilkan hingga 25 lagu yang sudah diputar di atas â€œSedang diputarâ€ di antrean</string>
+    <string name="show_queue_history_subtitle">Menampilkan hingga 25 lagu yang sudah diputar di atas “Sedang diputar” di antrean</string>
     <string name="not_enough_this_week">Putar beberapa lagu lagi minggu ini untuk membuka Replay Anda.</string>
     <string name="replay_artist_start_week">Sepanjang minggu ini, </string>
     <string name="replay_songs_end_week"> mengisi minggu Anda.</string>
@@ -1355,28 +1355,28 @@
     <string name="wear_os_value_none">Tidak ada jam tangan</string>
     <string name="wear_os_value_not_installed">Belum terpasang</string>
     <string name="wear_os_value_up_to_date">Terbaru</string>
-    <string name="wear_os_looking">Mencari jam tanganâ€¦</string>
+    <string name="wear_os_looking">Mencari jam tangan…</string>
     <string name="wear_os_no_watch">Tidak ada jam tangan yang terhubung</string>
     <string name="wear_os_no_watch_subtitle">Pasangkan dulu jam tangan Wear OS dengan ponsel ini lewat aplikasi pendampingnya.</string>
-    <string name="wear_os_checking">Memeriksaâ€¦</string>
+    <string name="wear_os_checking">Memeriksa…</string>
     <string name="wear_os_not_installed">Sonora tidak ada di jam tangan ini</string>
-    <string name="wear_os_up_to_date">Terbaru Â· %1$s</string>
+    <string name="wear_os_up_to_date">Terbaru · %1$s</string>
     <string name="wear_os_update_available">Pembaruan tersedia</string>
-    <string name="wear_os_unknown">Terpasang Â· versi tidak dapat diperiksa</string>
-    <string name="wear_os_sending">Mengirim ke jam tangan Andaâ€¦</string>
-    <string name="wear_os_sent">Terkirim â€” selesaikan di jam tangan jika diminta</string>
+    <string name="wear_os_unknown">Terpasang · versi tidak dapat diperiksa</string>
+    <string name="wear_os_sending">Mengirim ke jam tangan Anda…</string>
+    <string name="wear_os_sent">Terkirim — selesaikan di jam tangan jika diminta</string>
     <string name="wear_os_send_failed">Tidak dapat mengirim pembaruan (%1$s)</string>
     <string name="wear_os_install">Pasang</string>
     <string name="wear_os_update">Perbarui</string>
     <string name="wear_os_install_title">Pasang di jam tangan Anda</string>
     <string name="wear_os_step_wifi">Hubungkan jam tangan ke Wi-Fi yang sama dengan ponsel ini.</string>
-    <string name="wear_os_step_developer">Aktifkan Opsi pengembang di jam tangan. Galaxy Watch: Pengaturan â†’ Tentang jam tangan â†’ Informasi perangkat lunak â†’ ketuk Versi perangkat lunak lima kali. Pixel Watch: Pengaturan â†’ Sistem â†’ Tentang â†’ ketuk Nomor build tujuh kali.</string>
+    <string name="wear_os_step_developer">Aktifkan Opsi pengembang di jam tangan. Galaxy Watch: Pengaturan → Tentang jam tangan → Informasi perangkat lunak → ketuk Versi perangkat lunak lima kali. Pixel Watch: Pengaturan → Sistem → Tentang → ketuk Nomor build tujuh kali.</string>
     <string name="wear_os_step_debugging">Di Opsi pengembang, aktifkan Debugging ADB dan Debugging nirkabel.</string>
     <string name="wear_os_step_pair">Ketuk Pasangkan perangkat baru, lalu masukkan kode enam digit yang ditampilkan jam tangan.</string>
-    <string name="wear_os_searching">Mencari jam tangan Anda di Wi-Fiâ€¦</string>
+    <string name="wear_os_searching">Mencari jam tangan Anda di Wi-Fi…</string>
     <string name="wear_os_found">Jam tangan ditemukan</string>
-    <string name="wear_os_pairing">Memasangkanâ€¦</string>
-    <string name="wear_os_installing">Memasang Sonora di jam tangan Andaâ€¦</string>
+    <string name="wear_os_pairing">Memasangkan…</string>
+    <string name="wear_os_installing">Memasang Sonora di jam tangan Anda…</string>
     <string name="wear_os_installed">Terpasang. Anda dapat mematikan Debugging nirkabel lagi.</string>
     <string name="wear_os_failed">Gagal (%1$s). Periksa kodenya dan coba lagi.</string>
     <string name="wear_os_unsupported">Memasang di jam tangan memerlukan Android 11 atau lebih baru di ponsel ini.</string>
@@ -1410,7 +1410,7 @@
     <string name="remove_from_history">Hapus dari riwayat</string>
     <string name="remove_from_history_failed">Tidak dapat menghapus dari riwayat</string>
     <string name="addon_blocked_title">Tidak dapat memutar lagu ini</string>
-    <string name="addon_blocked_quality">Kualitas audio di %1$s diatur ke %2$s. Lagu dari %3$s hanya diputar dalam Lossless â€” ubah di Pengaturan â†’ Kualitas audio untuk memutar lagu ini.</string>
+    <string name="addon_blocked_quality">Kualitas audio di %1$s diatur ke %2$s. Lagu dari %3$s hanya diputar dalam Lossless — ubah di Pengaturan → Kualitas audio untuk memutar lagu ini.</string>
     <string name="addon_blocked_watch">Musik diputar melalui jam tangan Anda, yang membatasi audio di bawah Lossless. Lagu dari %1$s akan diputar lagi setelah ponsel Anda mengambil alih musik.</string>
     <string name="download_addon_left_out_title">Mengunduh tanpa %1$s</string>
     <string name="download_addon_not_allowed">%1$s tidak mengizinkan unduhan, jadi lagu Anda disimpan dari sumber Anda yang lain.</string>
@@ -1420,8 +1420,8 @@
     <string name="font">Font</string>
     <string name="font_default">Default</string>
     <string name="font_legacy">Lama</string>
-    <string name="font_default_subtitle">SF Pro Display Â· Ketebalan Apple Music</string>
-    <string name="font_legacy_subtitle">SF Pro Display Â· Ketebalan tebal asli</string>
+    <string name="font_default_subtitle">SF Pro Display · Ketebalan Apple Music</string>
+    <string name="font_legacy_subtitle">SF Pro Display · Ketebalan tebal asli</string>
     <string name="font_footer">Lama mengembalikan huruf yang lebih tebal dan rapat yang dipakai aplikasi sebelum disamakan dengan Apple Music.</string>
     <string name="bit_perfect_output">Output bit-perfect</string>
     <string name="bit_perfect_bypassed_footer">Output bit-perfect sudah siap, jadi pengaturan yang redup dilewati dan versi Dolby Atmos tidak diminta. Semuanya berfungsi lagi saat DAC dilepas atau mode dimatikan.</string>
@@ -1445,13 +1445,13 @@
     <string name="convert_for_limited_dac_subtitle">Mengonversi trek di atas batas DAC Anda ke format tertingginya. Trek mungkin lebih lama dimulai dan tidak akan bit-perfect terhadap aslinya.</string>
     <string name="bit_perfect_confirm_title">Aktifkan output bit-perfect?</string>
     <string name="bit_perfect_confirm_message">DAC menerima musik pada skala penuh, dan tombol volume ponsel mungkin berhenti berfungsi. Kecilkan DAC atau amplifier sebelum memutar.</string>
-    <string name="bit_perfect_status_active">%1$s Â· %2$s kHz Â· %3$d-bit</string>
-    <string name="bit_perfect_status_dac_limited">%1$s Â· %2$s kHz Â· %3$d-bit Â· maksimum DAC, dikonversi dari format trek ini</string>
-    <string name="bit_perfect_status_inexact">%1$s Â· tidak persis: sumber ini bukan PCM lossless</string>
+    <string name="bit_perfect_status_active">%1$s · %2$s kHz · %3$d-bit</string>
+    <string name="bit_perfect_status_dac_limited">%1$s · %2$s kHz · %3$d-bit · maksimum DAC, dikonversi dari format trek ini</string>
+    <string name="bit_perfect_status_inexact">%1$s · tidak persis: sumber ini bukan PCM lossless</string>
     <string name="bit_perfect_status_waiting">Menunggu trek lossless pada output yang didukung</string>
     <string name="bit_perfect_status_unavailable">Tidak tersedia untuk trek ini (%1$s)</string>
     <string name="find_a_playlist">Cari playlist</string>
-    <string name="no_playlists_match">Tidak ada playlist yang cocok dengan â€œ%1$sâ€</string>
+    <string name="no_playlists_match">Tidak ada playlist yang cocok dengan “%1$s”</string>
     <string name="hide_lyrics_preview">Sembunyikan lirik</string>
     <string name="hide_lyrics_preview_subtitle">Menyembunyikan baris lirik di pemutar</string>
     <string name="show_total_duration">Tampilkan durasi total</string>
@@ -1481,11 +1481,11 @@
     <string name="drive_sign_in_again_subtitle">Akses Google Drive telah dihapus. Masuk lagi untuk terus mencadangkan.</string>
     <string name="drive_sign_in_again">Masuk</string>
     <string name="drive_restore_header">Pulihkan</string>
-    <string name="drive_backup_footer">Cadangan disimpan di folder aplikasi tersembunyi di Google Drive Anda dan dihitung dalam penyimpanan Drive. Kata sandi dan info masuk tidak pernah disertakan. Untuk menghapusnya, buka Drive â†’ Setelan â†’ Kelola aplikasi.</string>
+    <string name="drive_backup_footer">Cadangan disimpan di folder aplikasi tersembunyi di Google Drive Anda dan dihitung dalam penyimpanan Drive. Kata sandi dan info masuk tidak pernah disertakan. Untuk menghapusnya, buka Drive → Setelan → Kelola aplikasi.</string>
     <string name="drive_restore_connect_first">Hubungkan akun Google terlebih dahulu</string>
     <string name="drive_restore_action">Pulihkan</string>
     <string name="drive_disconnect_confirm_title">Putuskan Google Drive?</string>
-    <string name="drive_backup_restoring">Memulihkanâ€¦</string>
+    <string name="drive_backup_restoring">Memulihkan…</string>
     <string name="drive_frequency_daily">Harian</string>
     <string name="drive_frequency_weekly">Mingguan</string>
     <string name="drive_frequency_monthly">Bulanan</string>
@@ -1496,7 +1496,7 @@
     <string name="drive_choose_device_subtitle">Cadangkan sebagai perangkat baru, atau pulihkan sebagai perangkat yang sudah ada di Drive</string>
     <string name="drive_device_not_set">Pilih perangkat</string>
     <string name="drive_device_synced">Disinkronkan %1$s</string>
-    <string name="drive_devices_checking">Mencari perangkatâ€¦</string>
+    <string name="drive_devices_checking">Mencari perangkat…</string>
     <string name="drive_devices_failed">Tidak dapat memuat perangkat: %1$s</string>
     <string name="drive_devices_footer">Riwayat dengar dari setiap perangkat dijumlahkan di Replay. Ketuk perangkat untuk menghapus cadangannya.</string>
     <string name="drive_devices_header">Perangkat</string>
@@ -1512,17 +1512,17 @@
     <string name="drive_rename">Ganti nama</string>
     <string name="drive_rename_title">Ganti nama ponsel ini</string>
     <string name="drive_rename_message">Perangkat Anda yang lain akan menampilkan ponsel ini dengan nama ini.</string>
-    <string name="drive_restore_as_done">Kini disinkronkan sebagai %1$s Â· %2$s</string>
+    <string name="drive_restore_as_done">Kini disinkronkan sebagai %1$s · %2$s</string>
     <string name="drive_restore_as_footer">Ponsel ini menjadi perangkat yang Anda pilih: riwayat dengar dan pengaturannya menggantikan milik ponsel ini.</string>
     <string name="drive_restore_as_header">Pulihkan sebagai</string>
     <string name="drive_restore_as_subtitle">Pilih perangkat di Drive Anda untuk dilanjutkan</string>
     <string name="drive_restore_as_title">Pulihkan sebagai perangkat lain</string>
     <string name="drive_sync_done">Baru saja disinkronkan</string>
-    <string name="drive_sync_downloading">Mengunduh dari %1$s Â· %2$d dari %3$d</string>
+    <string name="drive_sync_downloading">Mengunduh dari %1$s · %2$d dari %3$d</string>
     <string name="drive_sync_failed">Sinkronisasi gagal: %1$s</string>
     <string name="drive_sync_last">Sinkronisasi terakhir</string>
     <string name="drive_sync_now">Sinkronkan sekarang</string>
-    <string name="drive_sync_preparing">Menyiapkan sinkronisasiâ€¦</string>
+    <string name="drive_sync_preparing">Menyiapkan sinkronisasi…</string>
     <string name="drive_sync_uploading">Mengunggah bulan %1$d dari %2$d</string>
     <string name="drive_this_phone">Ponsel ini</string>
     <string name="drive_this_phone_header">Ponsel ini</string>
@@ -1541,12 +1541,12 @@
     <string name="show_best_part">Best Part button</string>
     <string name="show_best_part_subtitle">A button on the artwork that skips to the part of the song people replay most</string>
     <string name="replay_year_open">Open your Replay %1$s</string>
-    <string name="replay_year_building">Building your yearâ€¦</string>
+    <string name="replay_year_building">Building your year…</string>
     <string name="replay_year_opener_start">Your</string>
     <string name="replay_year_opener_end">in Sonora</string>
-    <string name="replay_year_opener_detail">Letâ€™s look back at what you played.</string>
+    <string name="replay_year_opener_detail">Let’s look back at what you played.</string>
     <string name="replay_year_minutes_start">This year you listened for</string>
-    <string name="replay_year_minutes_days_start">Thatâ€™s</string>
+    <string name="replay_year_minutes_days_start">That’s</string>
     <string name="replay_year_minutes_days_value">%1$s days</string>
     <string name="replay_year_minutes_hours_value">%1$s hours</string>
     <string name="replay_year_minutes_days_end">of music.</string>
@@ -1565,10 +1565,10 @@
     <string name="replay_year_all_day">Around the Clock</string>
     <string name="replay_year_all_day_detail">Morning, noon or night, something was playing.</string>
     <string name="replay_year_genres_start">Your sound this year</string>
-    <string name="replay_year_artist_start">Your top artist this year wasâ€¦</string>
+    <string name="replay_year_artist_start">Your top artist this year was…</string>
     <string name="replay_year_minutes_together">%1$s minutes together</string>
     <string name="replay_year_top_artists">Your top artists</string>
-    <string name="replay_year_song_start">And your song of the yearâ€¦</string>
+    <string name="replay_year_song_start">And your song of the year…</string>
     <string name="replay_year_top_songs">The rest of your top songs</string>
     <string name="replay_year_albums">Albums you lived in</string>
     <string name="replay_year_months">Your year, month by month</string>
