@@ -95,6 +95,7 @@ Built with `:app:assembleProdBenchmark` (full R8 shrinking/optimisation, non-deb
 | Metric | R8 `prodBenchmark` (`arm64-v8a`) | Notes |
 | --- | --- | --- |
 | **Cold Start (`TotalTime`)** | **`2,712 ms`** (`WaitTime: 2,718 ms`) | Fresh install, zero warm cache |
+| **Cold Start (ART `speed`, `com.gamadev09.sonora.benchmark`)** | **`1,438 ms`** (`WaitTime: 1,457 ms`) | 120.00 Hz display mode (`modeId 1`), `45.0°C` |
 | **Hot Resume (`TotalTime`)** | **`264 ms`** | `LaunchState: HOT` |
 | **Total PSS Memory** | **`185.1 MB`** (`RSS: 233.8 MB`) | Down from `406.3 MB` debug baseline (**-54.4%**) |
 | **Dalvik Heap** | **`9.9 MB`** | Down from `80–121 MB` debug baseline |
