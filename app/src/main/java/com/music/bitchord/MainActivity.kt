@@ -972,6 +972,8 @@ private fun BitChordApp(
     val lyricsSource by viewModel.lyricsSource.collectAsStateWithLifecycle()
     val lyricsChecked by viewModel.lyricsChecked.collectAsStateWithLifecycle()
     val lyricsProviderStates by viewModel.lyricsProviderStates.collectAsStateWithLifecycle()
+    val lyricsProviderTiers by viewModel.lyricsProviderTiers.collectAsStateWithLifecycle()
+    val isManualLyricsActive by viewModel.isManualLyricsActive.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
     val searchSuggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val searchLoadingMore by viewModel.searchLoadingMore.collectAsStateWithLifecycle()
@@ -1235,7 +1237,8 @@ private fun BitChordApp(
     val lyricsSourceOrder by AppSettings.lyricsSourceOrder.collectAsStateWithLifecycle()
     val prioritizeSyllableSync by AppSettings.prioritizeSyllableSync.collectAsStateWithLifecycle()
     LaunchedEffect(
-        player.song?.videoId, player.durationMs, syncedLyricsEnabled, lyricsSources,
+        player.song?.videoId, player.song?.title, player.song?.artist, player.song?.albumName,
+        player.durationMs, syncedLyricsEnabled, lyricsSources,
         lyricsSourceOrder, prioritizeSyllableSync,
     ) {
         player.song?.let {
@@ -2919,6 +2922,10 @@ private fun BitChordApp(
             lyricsSource = lyricsSource,
             lyricsProviderStates = lyricsProviderStates,
             onSelectLyricsProvider = viewModel::selectLyricsProvider,
+            lyricsProviderTiers = lyricsProviderTiers,
+            isManualLyricsActive = isManualLyricsActive,
+            onManualLyricsSearch = viewModel::searchLyricsManually,
+            onRestoreAutomaticLyrics = viewModel::restoreAutomaticLyrics,
             lyricsUnavailable = lyricsChecked && lyrics.isNullOrEmpty(),
             lyricsOffsetOpen = showLyricsOffset,
             onDismissLyricsOffset = { showLyricsOffset = false },

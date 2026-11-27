@@ -46,6 +46,10 @@ fun LyricsSidePanel(
     lyricsUnavailable: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    lyricsProviderTiers: Map<LyricsSource, com.music.bitchord.data.lyrics.LyricsTimingTier> = emptyMap(),
+    isManualLyricsActive: Boolean = false,
+    onManualLyricsSearch: ((title: String, artist: String) -> Unit)? = null,
+    onRestoreAutomaticLyrics: (() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
     val lyricsOffsetMs by PlayerSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
@@ -131,6 +135,12 @@ fun LyricsSidePanel(
                 states = lyricsProviderStates,
                 onSelect = onSelectLyricsProvider,
                 onDismiss = { showLyricsProviders = false },
+                providerTiers = lyricsProviderTiers,
+                initialTitle = song.title,
+                initialArtist = song.artist,
+                isManualActive = isManualLyricsActive,
+                onManualSearch = onManualLyricsSearch,
+                onRestoreAutomatic = onRestoreAutomaticLyrics,
             )
         }
     }

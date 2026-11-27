@@ -980,6 +980,10 @@ fun NowPlayingScreen(
     lyricsSource: LyricsSource?,
     lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
     onSelectLyricsProvider: (LyricsSource) -> Unit,
+    lyricsProviderTiers: Map<LyricsSource, com.music.bitchord.data.lyrics.LyricsTimingTier> = emptyMap(),
+    isManualLyricsActive: Boolean = false,
+    onManualLyricsSearch: ((title: String, artist: String) -> Unit)? = null,
+    onRestoreAutomaticLyrics: (() -> Unit)? = null,
     lyricsUnavailable: Boolean,
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
@@ -1984,6 +1988,12 @@ fun NowPlayingScreen(
                 states = lyricsProviderStates,
                 onSelect = onSelectLyricsProvider,
                 onDismiss = { showLyricsProviders = false },
+                providerTiers = lyricsProviderTiers,
+                initialTitle = song.title,
+                initialArtist = song.artist,
+                isManualActive = isManualLyricsActive,
+                onManualSearch = onManualLyricsSearch,
+                onRestoreAutomatic = onRestoreAutomaticLyrics,
             )
         }
         if (showAudioPipeline) {
