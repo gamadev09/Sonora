@@ -4325,6 +4325,7 @@ fun NowPlayingScreen(
                                     trackKey = song.videoId,
                                     chordSong = song,
                                     chordState = chordState,
+                                    hazeState = playerHaze,
                                         playhead = lyricsPlayhead,
                                         looking = !lyricsUnavailable,
                                         isPlaying = isPlaying && position.advancing,

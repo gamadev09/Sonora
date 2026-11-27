@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.model.Song
+import dev.chrisbanes.haze.HazeState
 
 /** Additive wrapper: the original lyrics implementation remains unchanged. */
 @Composable
@@ -56,6 +57,7 @@ internal fun LyricsPanel(
      */
     centerFocus: Boolean = false,
     chordState: ChordUiState? = null,
+    hazeState: HazeState? = null,
     modifier: Modifier = Modifier,
 ) {
     val source = PlayerPlatform.host.chordAnalysis
@@ -106,7 +108,7 @@ internal fun LyricsPanel(
                 exit = shrinkVertically(tween(220, easing = FastOutSlowInEasing)) +
                     fadeOut(tween(180)),
             ) {
-                ChordControls(chordSong, source, internalChordState, true, synced)
+                ChordControls(chordSong, source, internalChordState, true, synced, hazeState = hazeState)
             }
             content(Modifier.fillMaxWidth().weight(1f))
         }

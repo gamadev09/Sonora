@@ -1,6 +1,13 @@
 package com.music.bitchord.ui.player
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.border
@@ -17,9 +24,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -27,8 +37,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.chrisbanes.haze.HazeState
+import kotlin.math.abs
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.chords.ChordEvent
 import com.music.bitchord.playback.chords.chordIndexAt
@@ -264,25 +281,143 @@ internal fun ChordAnalysisToggleButton(
     }
 }
 
+/**
+ * Compact text-only glass capsule selector matching Sonora's FloatingBottomBar:
+ * blurred translucent capsule backdrop ([playerBarSurface]), top-lit [glassRim],
+ * evenly distributed options, and a spring-animated sliding active pill with
+ * subtle stretch/squash motion (respecting `reduceAnimation` and `reduceDynamicBlur`).
+ */
+@Composable
+private fun GlassCapsuleSelector(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    accentColor: Color,
+    hazeState: HazeState?,
+    modifier: Modifier = Modifier,
+    itemHeight: Dp = 36.dp,
+    innerInset: Dp = 4.dp,
+    useBackdropFrost: Boolean = true,
+) {
+    val pillShape = RoundedCornerShape(percent = 50)
+    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val spec: AnimationSpec<Float> = if (reduceAnimation) {
+        snap()
+    } else {
+        spring(dampingRatio = 0.68f, stiffness = 420f)
+    }
+    val density = LocalDensity.current
+    var rowSize by remember { mutableStateOf(IntSize.Zero) }
+    val gapPx = with(density) { 4.dp.toPx() }
+    val n = options.size.coerceAtLeast(1)
+    val tabWidthPx = if (rowSize.width > 0) (rowSize.width - gapPx * (n - 1)) / n else 0f
+    val tabStepPx = if (rowSize.width > 0) (rowSize.width + gapPx) / n else 0f
+    val targetOffset = if (tabStepPx > 0f) selectedIndex.coerceIn(0, n - 1) * tabStepPx else 0f
+    val animatedOffset by animateFloatAsState(
+        targetValue = targetOffset,
+        animationSpec = spec,
+        label = "capsuleSelectorOffset",
+    )
+    val lag = if (tabStepPx > 0f) (abs(targetOffset - animatedOffset) / tabStepPx).coerceIn(0f, 1f) else 0f
+
+    Box(
+        modifier = modifier
+            .then(
+                if (useBackdropFrost) {
+                    Modifier
+                        .playerBarSurface(pillShape, hazeState)
+                        .glassRim(pillShape)
+                } else {
+                    Modifier
+                        .clip(pillShape)
+                        .background(Color.White.copy(alpha = 0.09f))
+                        .border(0.5.dp, Color.White.copy(alpha = 0.12f), pillShape)
+                },
+            )
+            .padding(horizontal = innerInset, vertical = innerInset),
+    ) {
+        if (tabWidthPx > 0f && rowSize.height > 0) {
+            Box(
+                modifier = Modifier
+                    .width(with(density) { tabWidthPx.toDp() })
+                    .height(with(density) { rowSize.height.toDp() })
+                    .graphicsLayer {
+                        translationX = animatedOffset
+                        scaleX = 1f + lag * 0.14f
+                        scaleY = 1f - lag * 0.14f * 0.35f
+                    }
+                    .clip(pillShape)
+                    .background(accentColor.copy(alpha = 0.32f))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.22f), pillShape),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { rowSize = it },
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            options.forEachIndexed { index, label ->
+                val selected = index == selectedIndex
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(itemHeight)
+                        .clip(pillShape)
+                        .selectable(
+                            selected = selected,
+                            role = Role.RadioButton,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onSelect(index) },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        color = if (selected) Color.White else chromeWhite(0.68f),
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        ),
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 internal fun ChordControls(
-    song: Song, source: ChordAnalysisSource, state: ChordUiState, active: Boolean, synced: Boolean,
+    song: Song,
+    source: ChordAnalysisSource,
+    state: ChordUiState,
+    active: Boolean,
+    synced: Boolean,
+    hazeState: HazeState? = null,
 ) {
     if (!active) return
+    val instruments = remember {
+        listOf(ChordInstrument.INLINE, ChordInstrument.GUITAR, ChordInstrument.PIANO)
+    }
+    val instrumentLabels = listOf(
+        stringResource(Res.string.chord_inline),
+        stringResource(Res.string.chord_guitar),
+        stringResource(Res.string.chord_piano),
+    )
     Column(
         Modifier
             .fillMaxWidth()
             .padding(top = 2.dp, bottom = 4.dp)
             .animateContentSize()
     ) {
-        // Single adaptive toolbar combining instrument selection, capo stepper
-        // (moved into options on narrow portrait widths so nothing clips or scrolls),
-        // and chord options — maximising lyrics viewport with >=48dp touch targets.
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val inlineCapoFits = maxWidth >= 360.dp
+            val inlineCapoFits = maxWidth >= 390.dp
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 when {
@@ -301,64 +436,32 @@ internal fun ChordControls(
                         ChordGlassButton(label = stringResource(Res.string.chord_find), onClick = { state.startAnalysis(song, source) })
                     }
                     else -> {
-                        Row(
-                            Modifier
-                                .weight(1f, fill = false)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .padding(horizontal = 3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            listOf(
-                                ChordInstrument.INLINE to stringResource(Res.string.chord_inline),
-                                ChordInstrument.GUITAR to stringResource(Res.string.chord_guitar),
-                                ChordInstrument.PIANO to stringResource(Res.string.chord_piano),
-                            ).forEach { (instrument, label) ->
-                                val selected = state.instrument == instrument
-                                Box(
-                                    Modifier
-                                        .heightIn(min = 48.dp)
-                                        .selectable(
-                                            selected = selected,
-                                            role = Role.RadioButton,
-                                            onClick = {
-                                                if (instrument == ChordInstrument.GUITAR && !state.capoManuallySet) {
-                                                    val raw = state.events.orEmpty()
-                                                    val basis = if (state.simplify) simplifyChordEvents(raw) else raw
-                                                    state.capo = suggestedCapo(basis)
-                                                }
-                                                state.instrument = instrument
-                                                state.show = true
-                                            },
-                                        )
-                                        .padding(vertical = 4.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Box(
-                                        Modifier
-                                            .height(36.dp)
-                                            .clip(RoundedCornerShape(11.dp))
-                                            .background(if (selected) state.accentColor.copy(alpha = 0.35f) else Color.Transparent)
-                                            .padding(horizontal = 10.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            color = if (selected) Color.White else chromeWhite(0.72f),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            maxLines = 1,
-                                        )
-                                    }
+                        GlassCapsuleSelector(
+                            options = instrumentLabels,
+                            selectedIndex = instruments.indexOf(state.instrument).coerceAtLeast(0),
+                            onSelect = { idx ->
+                                val instrument = instruments[idx]
+                                if (instrument == ChordInstrument.GUITAR && !state.capoManuallySet) {
+                                    val raw = state.events.orEmpty()
+                                    val basis = if (state.simplify) simplifyChordEvents(raw) else raw
+                                    state.capo = suggestedCapo(basis)
                                 }
-                            }
-                        }
+                                state.instrument = instrument
+                                state.show = true
+                            },
+                            accentColor = state.accentColor,
+                            hazeState = hazeState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(max = 264.dp),
+                        )
                         if (state.guitar && inlineCapoFits) {
-                            Spacer(Modifier.weight(1f))
+                            Spacer(Modifier.weight(0.15f))
+                            val capoShape = RoundedCornerShape(percent = 50)
                             Row(
                                 Modifier
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color.White.copy(alpha = 0.12f)),
+                                    .playerBarSurface(capoShape, hazeState)
+                                    .glassRim(capoShape),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconButton(
@@ -367,15 +470,16 @@ internal fun ChordControls(
                                         state.capoManuallySet = true
                                     },
                                     enabled = state.capo > 0,
-                                    modifier = Modifier.size(48.dp),
+                                    modifier = Modifier.size(40.dp),
                                 ) {
-                                    Icon(Icons.Rounded.Remove, stringResource(Res.string.chord_capo_decrease), tint = Color.White)
+                                    Icon(Icons.Rounded.Remove, stringResource(Res.string.chord_capo_decrease), tint = Color.White, modifier = Modifier.size(18.dp))
                                 }
                                 Text(
                                     stringResource(Res.string.chord_capo_value, state.capo),
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
                                     maxLines = 1,
+                                    softWrap = false,
                                 )
                                 IconButton(
                                     onClick = {
@@ -383,175 +487,55 @@ internal fun ChordControls(
                                         state.capoManuallySet = true
                                     },
                                     enabled = state.capo < 11,
-                                    modifier = Modifier.size(48.dp),
+                                    modifier = Modifier.size(40.dp),
                                 ) {
-                                    Icon(Icons.Rounded.Add, stringResource(Res.string.chord_capo_increase), tint = Color.White)
+                                    Icon(Icons.Rounded.Add, stringResource(Res.string.chord_capo_increase), tint = Color.White, modifier = Modifier.size(18.dp))
                                 }
                             }
-                        }
-                        if (!(state.guitar && inlineCapoFits)) {
-                            Spacer(Modifier.weight(1f))
+                        } else {
+                            Spacer(Modifier.weight(1f, fill = false))
                         }
                         if (state.guitar && !inlineCapoFits) {
+                            val badgeShape = RoundedCornerShape(percent = 50)
                             Box(
                                 Modifier
-                                    .heightIn(min = 48.dp)
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .height(34.dp)
+                                    .playerBarSurface(badgeShape, hazeState)
+                                    .glassRim(badgeShape)
                                     .clickable(role = Role.Button) { state.options = true }
-                                    .padding(vertical = 4.dp),
+                                    .padding(horizontal = 10.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Box(
-                                    Modifier
-                                        .height(36.dp)
-                                        .clip(RoundedCornerShape(11.dp))
-                                        .background(state.accentColor.copy(alpha = 0.22f))
-                                        .padding(horizontal = 8.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = stringResource(Res.string.chord_capo_short, state.capo),
-                                        color = state.accentColor,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        maxLines = 1,
-                                    )
-                                }
+                                Text(
+                                    text = stringResource(Res.string.chord_capo_short, state.capo),
+                                    color = state.accentColor,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
                             }
                         }
-                        Box {
-                            IconButton(onClick = { state.options = true }, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Rounded.Tune, stringResource(Res.string.chord_options), tint = Color.White)
-                            }
-                            DropdownMenu(
-                                expanded = state.options,
-                                onDismissRequest = { state.options = false },
-                                containerColor = Color(0xFF1C1C1E),
-                                shape = RoundedCornerShape(16.dp),
-                                border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.12f)),
+                        Box(contentAlignment = Alignment.Center) {
+                            CircleGlyphContainer(
+                                active = state.options,
+                                onClick = { state.options = !state.options },
                             ) {
-                                if (state.guitar && !inlineCapoFits) {
-                                    Row(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Text(
-                                            text = stringResource(Res.string.chord_capo_value, state.capo),
-                                            color = Color.White,
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                        )
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            IconButton(
-                                                onClick = {
-                                                    state.capo = (state.capo - 1).coerceAtLeast(0)
-                                                    state.capoManuallySet = true
-                                                },
-                                                enabled = state.capo > 0,
-                                                modifier = Modifier.size(48.dp),
-                                            ) {
-                                                Icon(Icons.Rounded.Remove, stringResource(Res.string.chord_capo_decrease), tint = Color.White)
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    state.capo = (state.capo + 1).coerceAtMost(11)
-                                                    state.capoManuallySet = true
-                                                },
-                                                enabled = state.capo < 11,
-                                                modifier = Modifier.size(48.dp),
-                                            ) {
-                                                Icon(Icons.Rounded.Add, stringResource(Res.string.chord_capo_increase), tint = Color.White)
-                                            }
-                                        }
-                                    }
-                                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                                }
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(Res.string.chord_simplify),
-                                            color = Color.White,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                        )
-                                    },
-                                    onClick = { state.simplify = !state.simplify },
-                                    trailingIcon = {
-                                        ChordOptionToggle(
-                                            checked = state.simplify,
-                                            accent = state.accentColor,
-                                        )
-                                    },
-                                )
-                                if (state.guitar || state.piano) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                stringResource(Res.string.chord_show_diagrams),
-                                                color = Color.White,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                            )
-                                        },
-                                        onClick = { state.diagramsExpanded = !state.diagramsExpanded },
-                                        trailingIcon = {
-                                            ChordOptionToggle(
-                                                checked = state.diagramsExpanded,
-                                                accent = state.accentColor,
-                                            )
-                                        },
-                                    )
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color.White.copy(alpha = 0.08f))
-                                        .padding(3.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    listOf(
-                                        ChordNotation.AUTO to stringResource(Res.string.chord_notation_auto),
-                                        ChordNotation.SHARPS to stringResource(Res.string.chord_notation_sharps),
-                                        ChordNotation.FLATS to stringResource(Res.string.chord_notation_flats),
-                                    ).forEach { (notation, label) ->
-                                        val selected = state.notation == notation
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .heightIn(min = 40.dp)
-                                                .clip(RoundedCornerShape(9.dp))
-                                                .background(if (selected) state.accentColor.copy(alpha = 0.34f) else Color.Transparent)
-                                                .selectable(
-                                                    selected = selected,
-                                                    role = Role.RadioButton,
-                                                    onClick = { state.notation = notation },
-                                                )
-                                                .padding(horizontal = 8.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Text(
-                                                text = label,
-                                                color = if (selected) Color.White else chromeWhite(0.72f),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                maxLines = 1,
-                                            )
-                                        }
-                                    }
-                                }
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(Res.string.chord_reanalyse),
-                                            color = state.accentColor,
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                        )
-                                    },
-                                    onClick = { state.options = false; state.startAnalysis(song, source) },
+                                Icon(
+                                    imageVector = Icons.Rounded.Tune,
+                                    contentDescription = stringResource(Res.string.chord_options),
+                                    tint = if (state.options) state.accentColor else Color.White,
+                                    modifier = Modifier.size(19.dp),
                                 )
                             }
+                            ChordOptionsPopover(
+                                expanded = state.options,
+                                onDismiss = { state.options = false },
+                                state = state,
+                                song = song,
+                                source = source,
+                                showCapoInMenu = state.guitar && !inlineCapoFits,
+                                hazeState = hazeState,
+                            )
                         }
                     }
                 }
@@ -710,6 +694,191 @@ private fun chordAccentFromPalette(palette: MeshPalette): Color {
     hsl[1] = hsl[1].coerceIn(0.45f, 0.92f)
     hsl[2] = hsl[2].coerceIn(0.72f, 0.86f)
     return Color(com.music.bitchord.ui.graphics.ColorUtils.HSLToColor(hsl))
+}
+
+/**
+ * Blurred chord-options popover matching Sonora's overflow menu (`playerMenuSurface`,
+ * `glassRim`, spring scale/alpha animation, hairline dividers, and shared
+ * [GlassCapsuleSelector] for notation).
+ */
+@Composable
+private fun ChordOptionsPopover(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    state: ChordUiState,
+    song: Song,
+    source: ChordAnalysisSource,
+    showCapoInMenu: Boolean,
+    hazeState: HazeState?,
+) {
+    var mounted by remember { mutableStateOf(expanded) }
+    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            mounted = true
+            progress.animateTo(
+                1f,
+                if (reduceAnimation) {
+                    tween(durationMillis = 120)
+                } else {
+                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 600f)
+                },
+            )
+        } else if (mounted) {
+            progress.animateTo(
+                0f,
+                tween(durationMillis = if (reduceAnimation) 100 else 170, easing = FastOutSlowInEasing),
+            )
+            mounted = false
+        }
+    }
+    if (!mounted) return
+
+    val density = LocalDensity.current
+    val yOffsetPx = with(density) { 42.dp.roundToPx() }
+    val menuShape = RoundedCornerShape(22.dp)
+    val notations = remember { listOf(ChordNotation.AUTO, ChordNotation.SHARPS, ChordNotation.FLATS) }
+    val notationLabels = listOf(
+        stringResource(Res.string.chord_notation_auto),
+        stringResource(Res.string.chord_notation_sharps),
+        stringResource(Res.string.chord_notation_flats),
+    )
+
+    Popup(
+        alignment = Alignment.TopEnd,
+        offset = IntOffset(0, yOffsetPx),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Column(
+            modifier = Modifier
+                .width(248.dp)
+                .graphicsLayer {
+                    val t = progress.value.coerceIn(0f, 1f)
+                    val s = 0.88f + 0.12f * t
+                    scaleX = s
+                    scaleY = s
+                    alpha = t
+                    transformOrigin = TransformOrigin(1f, 0f)
+                }
+                .shadow(
+                    elevation = 16.dp,
+                    shape = menuShape,
+                    ambientColor = Color.Black.copy(alpha = 0.45f),
+                    spotColor = Color.Black.copy(alpha = 0.45f),
+                )
+                .playerMenuSurface(menuShape, hazeState)
+                .glassRim(menuShape)
+                .padding(vertical = 6.dp),
+        ) {
+            if (showCapoInMenu) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(Res.string.chord_capo_value, state.capo),
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                state.capo = (state.capo - 1).coerceAtLeast(0)
+                                state.capoManuallySet = true
+                            },
+                            enabled = state.capo > 0,
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Icon(Icons.Rounded.Remove, stringResource(Res.string.chord_capo_decrease), tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(
+                            onClick = {
+                                state.capo = (state.capo + 1).coerceAtMost(11)
+                                state.capoManuallySet = true
+                            },
+                            enabled = state.capo < 11,
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Icon(Icons.Rounded.Add, stringResource(Res.string.chord_capo_increase), tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 46.dp)
+                    .clickable { state.simplify = !state.simplify }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(Res.string.chord_simplify),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ChordOptionToggle(checked = state.simplify, accent = state.accentColor)
+            }
+            if (state.guitar || state.piano) {
+                HorizontalDivider(color = Color.White.copy(alpha = 0.10f), modifier = Modifier.padding(horizontal = 14.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 46.dp)
+                        .clickable { state.diagramsExpanded = !state.diagramsExpanded }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(Res.string.chord_show_diagrams),
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    ChordOptionToggle(checked = state.diagramsExpanded, accent = state.accentColor)
+                }
+            }
+            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+                GlassCapsuleSelector(
+                    options = notationLabels,
+                    selectedIndex = notations.indexOf(state.notation).coerceAtLeast(0),
+                    onSelect = { state.notation = notations[it] },
+                    accentColor = state.accentColor,
+                    hazeState = null,
+                    itemHeight = 32.dp,
+                    innerInset = 3.dp,
+                    useBackdropFrost = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 46.dp)
+                    .clickable {
+                        onDismiss()
+                        state.startAnalysis(song, source)
+                    }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.chord_reanalyse),
+                    color = state.accentColor,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                )
+            }
+        }
+    }
 }
 
 /** Compact Sonora-styled toggle pill for chord options, avoiding oversized Material switches. */
