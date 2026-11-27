@@ -61,7 +61,8 @@ class VocalSeparationEngine(
         private const val OUTPUT_CHANNELS = 2
         private const val PCM_WRITE_BUFFER_BYTES = 64 * 1024
 
-        val MODEL_VERSION: String = "umxhq_int8_${AutomixModels.VOCALS.sha256.take(12)}"
+        /** Bumped to v2 after fixing decoder timestamp trimming, reflect STFT padding, and band-limited resampling. */
+        val MODEL_VERSION: String = "umxhq_int8_v2_${AutomixModels.VOCALS.sha256.take(12)}"
     }
 
     data class SeparationMetrics(
@@ -215,22 +216,40 @@ class VocalSeparationEngine(
 
                             val src = openSource()
                                 ?: throw IOException("Audio source became unavailable during separation")
-                            val decoded = src.use { dataSource ->
+                            val decodedPair = src.use { dataSource ->
                                 AudioDecoder.decodeRegionStereo(
                                     source = dataSource,
                                     startSeconds = startSec,
                                     endSeconds = endSec,
                                     abort = { false },
                                 )
-                            }?.first ?: throw IOException("Failed to decode audio chunk at ${startSec.roundToInt()}s")
+                            } ?: throw IOException("Failed to decode audio chunk at ${startSec.roundToInt()}s")
+
+                            val decoded = decodedPair.first
+                            val actualStartSec = decodedPair.second
 
                             coroutineContext.ensureActive()
 
-                            val (left44, right44) = resampleStereoTo44100(
-                                decoded.left,
-                                decoded.right,
-                                decoded.sampleRate,
-                                targetChunkSamples,
+                            val (left44, right44) = alignAndResampleChunkTo44100(
+                                left = decoded.left,
+                                right = decoded.right,
+                                sourceRate = decoded.sampleRate,
+                                requestedStartSec = startSec,
+                                actualStartSec = actualStartSec,
+                                targetSamples = targetChunkSamples,
+                            )
+
+                            Log.d(
+                                TAG,
+                                "Chunk #$chunkIndex: reqStart=%.4fs actualStart=%.4fs deltaMs=%.2f " +
+                                    "decodedFrames=%d@%.0fHz alignedFrames=%d".format(
+                                        startSec,
+                                        actualStartSec,
+                                        (actualStartSec - startSec) * 1000.0,
+                                        decoded.left.size,
+                                        decoded.sampleRate,
+                                        targetChunkSamples,
+                                    ),
                             )
 
                             val stft = StftProcessor.stftStereo(
@@ -364,41 +383,39 @@ class VocalSeparationEngine(
         )
     }
 
-    private fun resampleStereoTo44100(
+    /**
+     * Resamples [left]/[right] to 44.1 kHz using Sonora's band-limited Blackman-windowed
+     * sinc resampler and compensates for any residual delta between [actualStartSec] and
+     * [requestedStartSec] so sample 0 of the returned arrays aligns exactly to [requestedStartSec].
+     */
+    internal fun alignAndResampleChunkTo44100(
         left: FloatArray,
         right: FloatArray,
         sourceRate: Double,
+        requestedStartSec: Double,
+        actualStartSec: Double,
         targetSamples: Int,
     ): Pair<FloatArray, FloatArray> {
-        val srcLen = minOf(left.size, right.size)
-        if (srcLen == 0) return FloatArray(targetSamples) to FloatArray(targetSamples)
-
+        val (resL, resR) = BandLimitedResampler.resampleStereo(
+            left = left,
+            right = right,
+            inputRate = sourceRate,
+            outputRate = OUTPUT_SAMPLE_RATE.toDouble(),
+        )
         val outL = FloatArray(targetSamples)
         val outR = FloatArray(targetSamples)
+        val resLen = minOf(resL.size, resR.size)
+        if (resLen <= 0) return outL to outR
 
-        if (kotlin.math.abs(sourceRate - OUTPUT_SAMPLE_RATE.toDouble()) < 1.0) {
-            val copyLen = minOf(srcLen, targetSamples)
-            System.arraycopy(left, 0, outL, 0, copyLen)
-            System.arraycopy(right, 0, outR, 0, copyLen)
-            return outL to outR
-        }
-
-        val ratio = sourceRate / OUTPUT_SAMPLE_RATE.toDouble()
-        val lastIdx = srcLen - 1
-        for (i in 0 until targetSamples) {
-            val pos = i * ratio
-            val idx = floor(pos).toInt()
-            if (idx >= lastIdx) {
-                if (idx == lastIdx) {
-                    outL[i] = left[lastIdx]
-                    outR[i] = right[lastIdx]
-                }
-                break
-            }
-            val frac = (pos - idx).toFloat()
-            val inv = 1f - frac
-            outL[i] = left[idx] * inv + left[idx + 1] * frac
-            outR[i] = right[idx] * inv + right[idx + 1] * frac
+        // Positive delta means decoded audio started slightly AFTER requestedStartSec -> shift right (pad leading zeros).
+        // Negative delta means decoded audio started slightly BEFORE requestedStartSec -> skip leading samples.
+        val deltaSamples = kotlin.math.round((actualStartSec - requestedStartSec) * OUTPUT_SAMPLE_RATE).toInt()
+        val srcStart = (-deltaSamples).coerceAtLeast(0)
+        val dstStart = deltaSamples.coerceAtLeast(0)
+        val copyLen = minOf(resLen - srcStart, targetSamples - dstStart).coerceAtLeast(0)
+        if (copyLen > 0) {
+            System.arraycopy(resL, srcStart, outL, dstStart, copyLen)
+            System.arraycopy(resR, srcStart, outR, dstStart, copyLen)
         }
         return outL to outR
     }
@@ -416,8 +433,10 @@ class VocalSeparationEngine(
                 out.write(scratch, 0, offset)
                 offset = 0
             }
-            val l = (left[i].coerceIn(-1f, 1f) * 32767f).roundToInt().coerceIn(-32768, 32767)
-            val r = (right[i].coerceIn(-1f, 1f) * 32767f).roundToInt().coerceIn(-32768, 32767)
+            val lf = if (left[i].isFinite()) left[i].coerceIn(-1f, 1f) else 0f
+            val rf = if (right[i].isFinite()) right[i].coerceIn(-1f, 1f) else 0f
+            val l = (lf * 32767f).roundToInt().coerceIn(-32768, 32767)
+            val r = (rf * 32767f).roundToInt().coerceIn(-32768, 32767)
             scratch[offset++] = (l and 0xFF).toByte()
             scratch[offset++] = ((l ushr 8) and 0xFF).toByte()
             scratch[offset++] = (r and 0xFF).toByte()

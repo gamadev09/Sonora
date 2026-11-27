@@ -296,6 +296,198 @@ class VocalSeparationTest {
         }
     }
 
+    @Test
+    fun audioDecoderTimestampTrimExcludesPrerollAndPostrollExactly() {
+        for (rate in listOf(44_100, 48_000, 88_200, 96_000)) {
+            val startUs = 10_000_000L // 10.0 s
+            val endUs = 10_100_000L // 10.1 s
+
+            // Buffer entirely in preroll (9.80 s .. 9.85 s) -> must be dropped.
+            val prerollFrames = rate / 20 // 50 ms
+            assertNull(
+                com.music.bitchord.playback.smart.AudioDecoder.computeTimestampTrim(
+                    bufferPtsUs = 9_800_000L,
+                    bufferFrames = prerollFrames,
+                    sampleRate = rate,
+                    startUs = startUs,
+                    endUs = endUs,
+                ),
+            )
+
+            // Buffer straddling startUs (9.975 s .. 10.025 s) -> must skip first half.
+            val straddle = com.music.bitchord.playback.smart.AudioDecoder.computeTimestampTrim(
+                bufferPtsUs = 9_975_000L,
+                bufferFrames = prerollFrames,
+                sampleRate = rate,
+                startUs = startUs,
+                endUs = endUs,
+            )
+            assertNotNull("Straddling start buffer must produce trimmed slice at $rate Hz", straddle)
+            val expectedSkip = kotlin.math.round(25_000.0 * rate / 1_000_000.0).toInt()
+            assertEquals(expectedSkip, straddle!!.skipFrames)
+            assertEquals(prerollFrames - expectedSkip, straddle.takeFrames)
+            val oneSampleUs = (1_000_000L / rate) + 1L
+            assertTrue(
+                "trimmedStartUs=${straddle.trimmedStartUs} not within 1 sample of $startUs at $rate Hz",
+                abs(straddle.trimmedStartUs - startUs) <= oneSampleUs,
+            )
+
+            // Buffer straddling endUs (10.075 s .. 10.125 s) -> must clip tail to 25 ms.
+            val tail = com.music.bitchord.playback.smart.AudioDecoder.computeTimestampTrim(
+                bufferPtsUs = 10_075_000L,
+                bufferFrames = prerollFrames,
+                sampleRate = rate,
+                startUs = startUs,
+                endUs = endUs,
+            )
+            assertNotNull("Straddling end buffer must produce trimmed slice at $rate Hz", tail)
+            assertEquals(0, tail!!.skipFrames)
+            assertEquals(expectedSkip, tail.takeFrames)
+        }
+    }
+
+    @Test
+    fun bandLimitedResamplerHandles44100_48000_88200_96000WithAntiAliasing() {
+        val targetRate = 44_100.0
+        val durationSec = 0.25
+
+        for (inRate in listOf(44_100.0, 48_000.0, 88_200.0, 96_000.0)) {
+            val nIn = (inRate * durationSec).toInt()
+            // 1 kHz passband tone on left, 1 kHz passband + out-of-band alias tone on right (when > 44.1 kHz).
+            val left = FloatArray(nIn) { i -> (0.5 * sin(2.0 * PI * 1000.0 * i / inRate)).toFloat() }
+            val aliasFreq = if (inRate >= 88_200.0) 35_000.0 else if (inRate > 44_100.0) 23_200.0 else 0.0
+            val right = FloatArray(nIn) { i ->
+                val base = 0.5 * sin(2.0 * PI * 1000.0 * i / inRate)
+                val hf = if (aliasFreq > 0.0) 0.4 * sin(2.0 * PI * aliasFreq * i / inRate) else 0.0
+                (base + hf).toFloat()
+            }
+
+            val (outL, outR) = BandLimitedResampler.resampleStereo(left, right, inRate, targetRate)
+            val expectedLen = kotlin.math.floor(nIn * (targetRate / inRate)).toInt()
+            assertEquals("Output length mismatch for $inRate Hz", expectedLen, outL.size)
+            assertEquals("Stereo L/R length mismatch for $inRate Hz", outL.size, outR.size)
+
+            // Verify passband accuracy, finite samples, zero clipping, low DC offset, and anti-aliasing on right.
+            var dcSum = 0.0
+            var maxErrL = 0f
+            var maxDiffLR = 0f
+            for (i in 200 until outL.size - 200) {
+                assertTrue(outL[i].isFinite() && outR[i].isFinite())
+                assertTrue(abs(outL[i]) <= 1.0f && abs(outR[i]) <= 1.0f)
+                dcSum += outL[i]
+                val ref = (0.5 * sin(2.0 * PI * 1000.0 * i / targetRate)).toFloat()
+                maxErrL = maxOf(maxErrL, abs(outL[i] - ref))
+                // After anti-aliasing, right (which had an out-of-band tone) must closely match left!
+                maxDiffLR = maxOf(maxDiffLR, abs(outR[i] - outL[i]))
+            }
+            val dc = abs(dcSum / (outL.size - 400))
+            assertTrue("DC offset too high ($dc) for $inRate Hz", dc < 1e-3)
+            assertTrue("Passband error too high ($maxErrL) for $inRate Hz", maxErrL < 2e-2f)
+            assertTrue("Anti-alias rejection too weak (maxDiffLR=$maxDiffLR) for $inRate Hz", maxDiffLR < 2e-2f)
+        }
+    }
+
+    @Test
+    fun chunkedOverlapReconstructionMaintainsPhaseAndBoundaryContinuity() {
+        val sampleRate = 44_100
+        val totalSamples = 24_576
+        val windowSamples = 12_288
+        val overlapSamples = 3_072
+        val stepSamples = windowSamples - overlapSamples
+
+        val refL = FloatArray(totalSamples) { i ->
+            (0.45 * sin(2.0 * PI * 440.0 * i / sampleRate) +
+                0.25 * sin(2.0 * PI * 880.0 * i / sampleRate)).toFloat()
+        }
+        val refR = FloatArray(totalSamples) { i ->
+            (0.40 * sin(2.0 * PI * 554.37 * i / sampleRate) +
+                0.20 * sin(2.0 * PI * 1108.73 * i / sampleRate)).toFloat()
+        }
+
+        val stitchedL = FloatArray(totalSamples)
+        val stitchedR = FloatArray(totalSamples)
+        var prevTailL: FloatArray? = null
+        var prevTailR: FloatArray? = null
+        var written = 0
+        var start = 0
+
+        while (start < totalSamples) {
+            val end = minOf(totalSamples, start + windowSamples)
+            val len = end - start
+            val chunkL = refL.copyOfRange(start, end)
+            val chunkR = refR.copyOfRange(start, end)
+            val stft = StftProcessor.stftStereo(chunkL, chunkR)
+            val sep = StftProcessor.separateAndReconstruct(stft, vocalMagnitude = null, maskPower = 1.0f)
+
+            val pL = prevTailL
+            val pR = prevTailR
+            if (pL != null && pR != null) {
+                val blend = minOf(pL.size, len)
+                val denom = (blend - 1).coerceAtLeast(1).toFloat()
+                for (i in 0 until blend) {
+                    val a = i / denom
+                    val inv = 1f - a
+                    sep.instLeft[i] = pL[i] * inv + sep.instLeft[i] * a
+                    sep.instRight[i] = pR[i] * inv + sep.instRight[i] * a
+                }
+            }
+
+            val isLast = end >= totalSamples
+            val emit = if (isLast) len else minOf(stepSamples, len)
+            System.arraycopy(sep.instLeft, 0, stitchedL, written, emit)
+            System.arraycopy(sep.instRight, 0, stitchedR, written, emit)
+            written += emit
+
+            if (!isLast && len > emit) {
+                prevTailL = sep.instLeft.copyOfRange(emit, len)
+                prevTailR = sep.instRight.copyOfRange(emit, len)
+            } else {
+                prevTailL = null
+                prevTailR = null
+            }
+            if (isLast) break
+            start += stepSamples
+        }
+
+        assertEquals(totalSamples, written)
+        var dot = 0.0
+        var normRef = 0.0
+        var normOut = 0.0
+        var maxBoundaryErr = 0f
+        for (i in 0 until totalSamples) {
+            assertTrue(stitchedL[i].isFinite() && stitchedR[i].isFinite())
+            dot += refL[i] * stitchedL[i]
+            normRef += refL[i] * refL[i]
+            normOut += stitchedL[i] * stitchedL[i]
+            if (i in (stepSamples - 512)..(stepSamples + 512)) {
+                maxBoundaryErr = maxOf(maxBoundaryErr, abs(stitchedL[i] - refL[i]))
+            }
+        }
+        val corr = dot / kotlin.math.sqrt(normRef * normOut)
+        assertTrue("Expected correlation > 0.9999 across chunk boundaries, got $corr", corr > 0.9999)
+        assertTrue("Expected chunk boundary error < 1e-3, got $maxBoundaryErr", maxBoundaryErr < 1e-3f)
+    }
+
+    @Test
+    fun stftSanitizesNonFiniteModelPredictions() {
+        val sampleCount = 8192
+        val left = FloatArray(sampleCount) { i -> (0.5 * sin(2.0 * PI * 440.0 * i / 44100.0)).toFloat() }
+        val right = left.copyOf()
+        val stft = StftProcessor.stftStereo(left, right)
+        val corruptedMag = FloatArray(stft.magnitude.size) { idx ->
+            when (idx % 3) {
+                0 -> Float.NaN
+                1 -> Float.POSITIVE_INFINITY
+                else -> -5.0f
+            }
+        }
+        val out = StftProcessor.separateAndReconstruct(stft, corruptedMag, maskPower = 1.15f)
+        for (i in 0 until sampleCount) {
+            assertTrue(out.vocalsLeft[i].isFinite() && out.instLeft[i].isFinite())
+            assertTrue(out.vocalsRight[i].isFinite() && out.instRight[i].isFinite())
+        }
+    }
+
     private fun writeConstantPcm16(file: File, frames: Int, left: Float, right: Float) {
         val buf = ByteBuffer.allocate(frames * 4).order(ByteOrder.LITTLE_ENDIAN)
         val l = (left * 32767f).toInt().toShort()

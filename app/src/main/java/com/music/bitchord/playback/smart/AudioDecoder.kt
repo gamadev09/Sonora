@@ -69,6 +69,64 @@ object AudioDecoder {
     private const val FFMPEG_INPUT_BUFFERS = 8
     private const val FFMPEG_OUTPUT_BUFFERS = 8
     private const val FFMPEG_INITIAL_INPUT_BYTES = 16 * 1024
+    /** Preroll decoded before requested startUs so compressed codecs (AAC/Opus/MP3) prime cleanly. */
+    private const val PREROLL_US = 250_000L
+
+    /** Exact sample-trimming window for one decoded PCM output buffer. */
+    internal data class TrimmedBufferSlice(
+        val skipFrames: Int,
+        val takeFrames: Int,
+        val trimmedStartUs: Long,
+    )
+
+    internal fun bytesPerPcmSample(pcmEncoding: Int): Int = when (pcmEncoding) {
+        AudioFormat.ENCODING_PCM_8BIT -> 1
+        AudioFormat.ENCODING_PCM_24BIT_PACKED -> 3
+        AudioFormat.ENCODING_PCM_32BIT, AudioFormat.ENCODING_PCM_FLOAT -> 4
+        else -> 2 // ENCODING_PCM_16BIT
+    }
+
+    /**
+     * Computes exact frame trimming for a decoded PCM buffer starting at [bufferPtsUs]
+     * containing [bufferFrames] frames at [sampleRate] Hz, clipped to `[startUs, endUs)`.
+     * Returns null when the entire buffer lies outside `[startUs, endUs)`.
+     */
+    internal fun computeTimestampTrim(
+        bufferPtsUs: Long,
+        bufferFrames: Int,
+        sampleRate: Int,
+        startUs: Long,
+        endUs: Long,
+    ): TrimmedBufferSlice? {
+        if (bufferFrames <= 0 || sampleRate <= 0 || endUs <= startUs) return null
+        val bufDurUs = kotlin.math.round(bufferFrames * 1_000_000.0 / sampleRate).toLong()
+        val bufEndUs = bufferPtsUs + bufDurUs
+        if (bufEndUs <= startUs || bufferPtsUs >= endUs) return null
+
+        val skipFrames = if (bufferPtsUs < startUs) {
+            kotlin.math.round((startUs - bufferPtsUs) * sampleRate / 1_000_000.0).toInt()
+                .coerceIn(0, bufferFrames)
+        } else {
+            0
+        }
+        val remaining = bufferFrames - skipFrames
+        if (remaining <= 0) return null
+
+        val trimmedStartUs = bufferPtsUs + kotlin.math.round(skipFrames * 1_000_000.0 / sampleRate).toLong()
+        val maxFramesBeforeEnd = if (bufEndUs > endUs) {
+            kotlin.math.round((endUs - trimmedStartUs).coerceAtLeast(0L) * sampleRate / 1_000_000.0).toInt()
+                .coerceIn(0, remaining)
+        } else {
+            remaining
+        }
+        if (maxFramesBeforeEnd <= 0) return null
+
+        return TrimmedBufferSlice(
+            skipFrames = skipFrames,
+            takeFrames = maxFramesBeforeEnd,
+            trimmedStartUs = trimmedStartUs,
+        )
+    }
 
     /** Decoded mono PCM at the container's own sample rate; the caller resamples. */
     data class Pcm(val samples: FloatArray, val sampleRate: Double)
@@ -159,7 +217,12 @@ object AudioDecoder {
     }
 
     /**
-     * As [decodeRegion], but keeping the two channels apart.
+     * Decodes `[startSeconds, endSeconds)` of [source] into planar stereo float PCM.
+     *
+     * Contract: both platform MediaCodec and Media3/FFmpeg fallback paths decode with
+     * preroll and trim decoded PCM buffers to `[startSeconds, endSeconds)` using each
+     * buffer's presentation timestamp. The returned pair's second value is the exact
+     * timestamp (in seconds) of frame 0 of the returned [StereoPcm].
      */
     fun decodeRegionStereo(
         source: MediaDataSource,
@@ -307,12 +370,13 @@ object AudioDecoder {
             val mime = format.getString(MediaFormat.KEY_MIME)
                 ?: return DecodeOutcome.Failure(DecodeFailure.CORRUPT_MEDIA, "Missing MIME type")
 
-            val startUs = (startSeconds * 1_000_000).toLong()
+            val startUs = (startSeconds * 1_000_000).toLong().coerceAtLeast(0L)
             val endUs = (endSeconds * 1_000_000).toLong()
-            extractor.seekTo(startUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+            val seekTargetUs = (startUs - PREROLL_US).coerceAtLeast(0L)
+            extractor.seekTo(seekTargetUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
 
             if (mime == MimeTypes.AUDIO_RAW) {
-                return streamRawPcmFromExtractor(extractor, format, endUs, abort, onBuffer)
+                return streamRawPcmFromExtractor(extractor, format, startUs, endUs, abort, onBuffer)
             }
 
             codec = try {
@@ -379,14 +443,35 @@ object AudioDecoder {
                                 outputDone = true
                             }
                             if (bufferInfo.size > 0 && outputRate > 0) {
-                                if (!sawFirstSample) {
-                                    actualStartSeconds = bufferInfo.presentationTimeUs.coerceAtLeast(0L) / 1_000_000.0
-                                    sawFirstSample = true
+                                val bytesPerFrame = max(1, outputChannels) * bytesPerPcmSample(outputPcmEncoding)
+                                val totalFrames = bufferInfo.size / bytesPerFrame
+                                val bufPtsUs = bufferInfo.presentationTimeUs.coerceAtLeast(0L)
+                                val slice = computeTimestampTrim(
+                                    bufferPtsUs = bufPtsUs,
+                                    bufferFrames = totalFrames,
+                                    sampleRate = outputRate,
+                                    startUs = startUs,
+                                    endUs = endUs,
+                                )
+                                if (slice != null) {
+                                    if (!sawFirstSample) {
+                                        actualStartSeconds = slice.trimmedStartUs / 1_000_000.0
+                                        sawFirstSample = true
+                                    }
+                                    codec.getOutputBuffer(outputIndex)?.let { output ->
+                                        val trimmedInfo = MediaCodec.BufferInfo().apply {
+                                            set(
+                                                bufferInfo.offset + slice.skipFrames * bytesPerFrame,
+                                                slice.takeFrames * bytesPerFrame,
+                                                slice.trimmedStartUs,
+                                                bufferInfo.flags,
+                                            )
+                                        }
+                                        onBuffer(output, trimmedInfo, outputChannels, outputRate, outputPcmEncoding)
+                                    }
                                 }
-                                codec.getOutputBuffer(outputIndex)?.let { output ->
-                                    onBuffer(output, bufferInfo, outputChannels, outputRate, outputPcmEncoding)
-                                }
-                                if (bufferInfo.presentationTimeUs > endUs) outputDone = true
+                                val bufEndUs = bufPtsUs + kotlin.math.round(totalFrames * 1_000_000.0 / outputRate).toLong()
+                                if (bufEndUs >= endUs) outputDone = true
                             }
                             codec.releaseOutputBuffer(outputIndex, false)
                         }
@@ -422,6 +507,7 @@ object AudioDecoder {
     private fun streamRawPcmFromExtractor(
         extractor: MediaExtractor,
         format: MediaFormat,
+        startUs: Long,
         endUs: Long,
         abort: () -> Boolean,
         onBuffer: (ByteBuffer, MediaCodec.BufferInfo, Int, Int, Int) -> Unit,
@@ -432,6 +518,7 @@ object AudioDecoder {
         if (sampleRate <= 0) {
             return DecodeOutcome.Failure(DecodeFailure.CORRUPT_MEDIA, "Raw PCM track missing sample rate")
         }
+        val bytesPerFrame = max(1, channels) * bytesPerPcmSample(pcmEncoding)
         val readBuf = ByteBuffer.allocate(RAW_READ_BUFFER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
         val info = MediaCodec.BufferInfo()
         var sawFirst = false
@@ -442,14 +529,20 @@ object AudioDecoder {
             val size = extractor.readSampleData(readBuf, 0)
             if (size < 0) break
             val ptsUs = extractor.sampleTime.coerceAtLeast(0L)
-            if (ptsUs > endUs) break
+            if (ptsUs >= endUs) break
             if (size > 0) {
-                if (!sawFirst) {
-                    actualStart = ptsUs / 1_000_000.0
-                    sawFirst = true
+                val totalFrames = size / bytesPerFrame
+                val slice = computeTimestampTrim(ptsUs, totalFrames, sampleRate, startUs, endUs)
+                if (slice != null) {
+                    if (!sawFirst) {
+                        actualStart = slice.trimmedStartUs / 1_000_000.0
+                        sawFirst = true
+                    }
+                    info.set(slice.skipFrames * bytesPerFrame, slice.takeFrames * bytesPerFrame, slice.trimmedStartUs, 0)
+                    onBuffer(readBuf, info, channels, sampleRate, pcmEncoding)
                 }
-                info.set(0, size, ptsUs, 0)
-                onBuffer(readBuf, info, channels, sampleRate, pcmEncoding)
+                val bufEndUs = ptsUs + kotlin.math.round(totalFrames * 1_000_000.0 / sampleRate).toLong()
+                if (bufEndUs >= endUs) break
             }
             if (!extractor.advance()) break
         }
@@ -648,19 +741,27 @@ object AudioDecoder {
                                 outputSampleRate = sr
                                 outputChannels = ch
                                 val pts = out.timeUs.coerceAtLeast(0L)
-                                if (pts >= startUs && pts <= endUs) {
+                                val encoding = if (dec.encoding == C.ENCODING_PCM_FLOAT) {
+                                    AudioFormat.ENCODING_PCM_FLOAT
+                                } else {
+                                    AudioFormat.ENCODING_PCM_16BIT
+                                }
+                                val bytesPerFrame = max(1, ch) * bytesPerPcmSample(encoding)
+                                val totalFrames = data.remaining() / bytesPerFrame
+                                val slice = computeTimestampTrim(pts, totalFrames, sr, startUs, endUs)
+                                if (slice != null) {
                                     if (!sawFirstSample) {
-                                        actualStartSeconds = pts / 1_000_000.0
+                                        actualStartSeconds = slice.trimmedStartUs / 1_000_000.0
                                         sawFirstSample = true
                                     }
-                                    val encoding = if (dec.encoding == C.ENCODING_PCM_FLOAT) {
-                                        AudioFormat.ENCODING_PCM_FLOAT
-                                    } else {
-                                        AudioFormat.ENCODING_PCM_16BIT
-                                    }
-                                    onPcm(data, data.remaining(), pts, ch, sr, encoding)
+                                    val trimmed = data.duplicate().apply {
+                                        position(data.position() + slice.skipFrames * bytesPerFrame)
+                                        limit(position() + slice.takeFrames * bytesPerFrame)
+                                    }.slice()
+                                    onPcm(trimmed, trimmed.remaining(), slice.trimmedStartUs, ch, sr, encoding)
                                 }
-                                if (pts > endUs) stopReading = true
+                                val bufEndUs = pts + kotlin.math.round(totalFrames * 1_000_000.0 / sr).toLong()
+                                if (bufEndUs >= endUs) stopReading = true
                             }
                         }
                     } finally {
@@ -730,14 +831,24 @@ object AudioDecoder {
                         outputSampleRate = sr
                         outputChannels = ch
                         val pts = timeUs.coerceAtLeast(0L)
-                        if (pts >= startUs) {
+                        val androidEnc = media3PcmToAndroid(fmt.pcmEncoding)
+                        val bytesPerFrame = max(1, ch) * bytesPerPcmSample(androidEnc)
+                        val totalFrames = sliceLen / bytesPerFrame
+                        val slice = computeTimestampTrim(pts, totalFrames, sr, startUs, endUs)
+                        if (slice != null) {
                             if (!sawFirstSample) {
-                                actualStartSeconds = pts / 1_000_000.0
+                                actualStartSeconds = slice.trimmedStartUs / 1_000_000.0
                                 sawFirstSample = true
                             }
-                            val bb = ByteBuffer.wrap(packetBytes, sliceStart, sliceLen).order(ByteOrder.LITTLE_ENDIAN)
-                            onPcm(bb, sliceLen, pts, ch, sr, media3PcmToAndroid(fmt.pcmEncoding))
+                            val bb = ByteBuffer.wrap(
+                                packetBytes,
+                                sliceStart + slice.skipFrames * bytesPerFrame,
+                                slice.takeFrames * bytesPerFrame,
+                            ).slice().order(ByteOrder.LITTLE_ENDIAN)
+                            onPcm(bb, slice.takeFrames * bytesPerFrame, slice.trimmedStartUs, ch, sr, androidEnc)
                         }
+                        val bufEndUs = pts + kotlin.math.round(totalFrames * 1_000_000.0 / sr).toLong()
+                        if (bufEndUs >= endUs) stopReading = true
                         return
                     }
 
@@ -804,9 +915,10 @@ object AudioDecoder {
                     didSeekToStart = true
                     val map = seekMap!!
                     if (map.isSeekable) {
-                        val seekPoints = map.getSeekPoints(startUs)
+                        val seekUs = (startUs - PREROLL_US).coerceAtLeast(0L)
+                        val seekPoints = map.getSeekPoints(seekUs)
                         val pos = seekPoints.first.position
-                        activeExtractor.seek(pos, startUs)
+                        activeExtractor.seek(pos, seekUs)
                         adapter.seek(pos)
                         input = DefaultExtractorInput(adapter, pos, length)
                         continue

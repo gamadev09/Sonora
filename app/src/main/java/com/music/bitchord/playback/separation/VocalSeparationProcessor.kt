@@ -220,17 +220,22 @@ class VocalSeparationProcessor : FloatAudioProcessor {
                 iL = instRing[ringIdx] * INV_32768
                 iR = instRing[ringIdx + 1] * INV_32768
             } else {
+                // 4-point Catmull-Rom cubic Hermite interpolation (clean 44.1 -> 48 kHz
+                // playback with zero extra allocations and far lower imaging than linear).
                 val stemPos = startStemFrameD + i * stepPerOutFrame
-                val f0 = floor(stemPos).toLong().coerceIn(firstStemFrame, clampedLast)
-                val f1 = minOf(f0 + 1L, clampedLast)
-                val frac = (stemPos - f0).toFloat().coerceIn(0f, 1f)
-                val inv = 1f - frac
+                val f1 = floor(stemPos).toLong().coerceIn(firstStemFrame, clampedLast)
+                val f0 = maxOf(f1 - 1L, snapStart)
+                val f2 = minOf(f1 + 1L, clampedLast)
+                val f3 = minOf(f1 + 2L, clampedLast)
+                val t = (stemPos - f1).toFloat().coerceIn(0f, 1f)
                 val r0 = ((f0 and RING_MASK).toInt()) shl 1
                 val r1 = ((f1 and RING_MASK).toInt()) shl 1
-                vL = (vocalsRing[r0] * inv + vocalsRing[r1] * frac) * INV_32768
-                vR = (vocalsRing[r0 + 1] * inv + vocalsRing[r1 + 1] * frac) * INV_32768
-                iL = (instRing[r0] * inv + instRing[r1] * frac) * INV_32768
-                iR = (instRing[r0 + 1] * inv + instRing[r1 + 1] * frac) * INV_32768
+                val r2 = ((f2 and RING_MASK).toInt()) shl 1
+                val r3 = ((f3 and RING_MASK).toInt()) shl 1
+                vL = catmullRom(vocalsRing[r0], vocalsRing[r1], vocalsRing[r2], vocalsRing[r3], t) * INV_32768
+                vR = catmullRom(vocalsRing[r0 + 1], vocalsRing[r1 + 1], vocalsRing[r2 + 1], vocalsRing[r3 + 1], t) * INV_32768
+                iL = catmullRom(instRing[r0], instRing[r1], instRing[r2], instRing[r3], t) * INV_32768
+                iR = catmullRom(instRing[r0 + 1], instRing[r1 + 1], instRing[r2 + 1], instRing[r3 + 1], t) * INV_32768
             }
 
             // Sequence-lock check: if a concurrent seek/reconfig invalidated the ring,
@@ -479,6 +484,17 @@ class VocalSeparationProcessor : FloatAudioProcessor {
         val lo = buf[offset].toInt() and 0xFF
         val hi = buf[offset + 1].toInt()
         return ((hi shl 8) or lo).toShort()
+    }
+
+    private fun catmullRom(y0: Short, y1: Short, y2: Short, y3: Short, t: Float): Float {
+        val p0 = y0.toFloat()
+        val p1 = y1.toFloat()
+        val p2 = y2.toFloat()
+        val p3 = y3.toFloat()
+        val a = -0.5f * p0 + 1.5f * p1 - 1.5f * p2 + 0.5f * p3
+        val b = p0 - 2.5f * p1 + 2.0f * p2 - 0.5f * p3
+        val c = -0.5f * p0 + 0.5f * p2
+        return ((a * t + b) * t + c) * t + p1
     }
 
     companion object {

@@ -111,8 +111,9 @@ object StftProcessor {
                 val center = t * HOP
                 val start = center - half
                 for (n in 0 until N_FFT) {
-                    val idx = start + n
-                    val sample = if (idx in 0 until sampleCount) src[idx] else 0f
+                    val idx = reflectIndex(start + n, sampleCount)
+                    val raw = if (idx >= 0) src[idx] else 0f
+                    val sample = if (raw.isFinite()) raw else 0f
                     fftRe[n] = sample * hannWindow[n]
                     fftIm[n] = 0f
                 }
@@ -186,14 +187,16 @@ object StftProcessor {
                     val mv = if (vocalMagnitude == null || mixMag <= MASK_EPS) {
                         0f
                     } else {
-                        val vMag = vocalMagnitude[idx].coerceAtLeast(0f)
+                        val rawV = vocalMagnitude[idx]
+                        val vMag = if (rawV.isFinite() && rawV > 0f) rawV else 0f
                         if (!usePower) {
                             (vMag / (mixMag + MASK_EPS)).coerceIn(0f, 1f)
                         } else {
                             val rMag = (mixMag - vMag).coerceAtLeast(0f)
                             val vp = vMag.toDouble().pow(maskPower.toDouble()).toFloat()
                             val rp = rMag.toDouble().pow(maskPower.toDouble()).toFloat()
-                            (vp / (vp + rp + MASK_EPS)).coerceIn(0f, 1f)
+                            val ratio = vp / (vp + rp + MASK_EPS)
+                            if (ratio.isFinite()) ratio.coerceIn(0f, 1f) else 0f
                         }
                     }
                     val mi = 1f - mv
@@ -231,8 +234,13 @@ object StftProcessor {
                 val denom = norm[i]
                 if (denom > NORM_EPS) {
                     val inv = 1f / denom
-                    vOut[i] *= inv
-                    iOut[i] *= inv
+                    val v = vOut[i] * inv
+                    val ins = iOut[i] * inv
+                    vOut[i] = if (v.isFinite()) v else 0f
+                    iOut[i] = if (ins.isFinite()) ins else 0f
+                } else {
+                    vOut[i] = 0f
+                    iOut[i] = 0f
                 }
             }
         }
@@ -243,6 +251,20 @@ object StftProcessor {
             instLeft = instLeft,
             instRight = instRight,
         )
+    }
+
+    /**
+     * Reflect-padding index matching `torch.stft(..., center=True, pad_mode="reflect")`
+     * and `native/analyzer/vocal_spectrogram.cpp`.
+     */
+    private fun reflectIndex(idx: Int, length: Int): Int {
+        if (length <= 0) return -1
+        if (length == 1) return 0
+        var i = idx
+        while (i < 0 || i >= length) {
+            i = if (i < 0) -i else (2 * length - 2 - i)
+        }
+        return i
     }
 
     /**
