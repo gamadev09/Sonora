@@ -5,7 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
@@ -19,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  *  - [LrcRed] — Apple Music TTML filed by ISRC, and the catalogue
  *    [BiniLyrics] itself answers from.
- *  - [BetterLyrics], [PaxSenix] and [BiniLyrics] — Apple Music TTML,
+ *  - [BetterLyrics] and [BiniLyrics] — Apple Music TTML,
  *    per-syllable, from three independent hosts so one having a bad day
  *    doesn't cost the timing.
  *  - [LyricsPlus] — the YouLy+ backend; finest timing of the lot, flakiest hosting.
@@ -162,10 +164,10 @@ object LyricsRepository {
         }
 
         try {
-            pick(
-                racing.map { (source, job) -> source to suspend { job.await() } },
-                prioritizeSyllableSync,
-                onPreliminaryResult,
+            pickConcurrent(
+                racing = racing,
+                prioritizeSyllableSync = prioritizeSyllableSync,
+                onPreliminaryResult = onPreliminaryResult,
             )
         } finally {
             // Whoever lost the race is no longer worth waiting on, and
@@ -173,6 +175,133 @@ object LyricsRepository {
             racing.forEach { it.second.cancel() }
             documents.cancel()
         }
+    }
+
+    /**
+     * Completion-order progressive selection: as soon as any concurrent provider
+     * returns a valid result with a strictly better timing tier than what has been
+     * shown so far, [onPreliminaryResult] fires immediately without waiting on
+     * slower higher-priority providers.
+     *
+     * Final selection still honours exact priority tie-breaking (highest tier wins;
+     * ties go to the earliest provider in [racing]) and early-cancels remaining
+     * providers as soon as no pending higher-priority provider can beat the current
+     * winner. Lazy [LyricsSource.GENIUS] is only started if all eager providers miss.
+     */
+    internal suspend fun pickConcurrent(
+        racing: List<Pair<LyricsSource, Deferred<Result?>>>,
+        prioritizeSyllableSync: Boolean,
+        onPreliminaryResult: ((Result) -> Unit)? = null,
+    ): Result? = coroutineScope {
+        val eager = racing.filter { it.first != LyricsSource.GENIUS }
+        val lazyGenius = racing.firstOrNull { it.first == LyricsSource.GENIUS }
+
+        if (eager.isNotEmpty()) {
+            val completions = Channel<Pair<Int, Result?>>(Channel.UNLIMITED)
+            val collectors = eager.mapIndexed { idx, (_, deferred) ->
+                launch {
+                    val res = runCatching { deferred.await() }.getOrNull()
+                    completions.send(idx to res)
+                }
+            }
+            val completed = BooleanArray(eager.size)
+            val results = arrayOfNulls<Result>(eager.size)
+            val tiers = Array(eager.size) { LyricsTimingTier.INVALID }
+            var emittedTier = LyricsTimingTier.INVALID
+            var remaining = eager.size
+
+            try {
+                while (remaining > 0) {
+                    val (idx, found) = completions.receive()
+                    remaining--
+                    completed[idx] = true
+
+                    if (found != null) {
+                        val quality = assessLyricsQuality(found.lines)
+                        if (quality.tier != LyricsTimingTier.INVALID) {
+                            results[idx] = found
+                            tiers[idx] = quality.tier
+                            if (quality.tier.rank > emittedTier.rank) {
+                                emittedTier = quality.tier
+                                onPreliminaryResult?.invoke(found)
+                            }
+                        }
+                    }
+
+                    // Early-exit when no pending provider can beat or out-prioritize our current winner.
+                    val earlyWinner = findUnbeatableWinner(
+                        completed = completed,
+                        results = results,
+                        tiers = tiers,
+                        prioritizeSyllableSync = prioritizeSyllableSync,
+                    )
+                    if (earlyWinner != null) return@coroutineScope earlyWinner
+                }
+            } finally {
+                collectors.forEach { it.cancel() }
+                completions.close()
+            }
+
+            selectFinalWinner(results, tiers, prioritizeSyllableSync)?.let { return@coroutineScope it }
+        }
+
+        // Only start lazy Genius plain-text fallback when every eager provider missed.
+        val genius = lazyGenius?.second?.let { runCatching { it.await() }.getOrNull() }
+        if (genius != null && assessLyricsQuality(genius.lines).tier != LyricsTimingTier.INVALID) {
+            return@coroutineScope genius
+        }
+        null
+    }
+
+    private fun findUnbeatableWinner(
+        completed: BooleanArray,
+        results: Array<Result?>,
+        tiers: Array<LyricsTimingTier>,
+        prioritizeSyllableSync: Boolean,
+    ): Result? {
+        if (!prioritizeSyllableSync) {
+            for (i in completed.indices) {
+                if (!completed[i]) return null
+                if (tiers[i].rank >= LyricsTimingTier.LINE_SYNCED.rank) {
+                    return results[i]
+                }
+            }
+            return null
+        }
+        // When prioritizing syllable sync, the first provider in priority order with
+        // COMPLETE_SYLLABLE is unbeatable once every higher-priority provider has finished.
+        for (i in completed.indices) {
+            if (!completed[i]) return null
+            if (tiers[i] == LyricsTimingTier.COMPLETE_SYLLABLE) {
+                return results[i]
+            }
+        }
+        return null
+    }
+
+    private fun selectFinalWinner(
+        results: Array<Result?>,
+        tiers: Array<LyricsTimingTier>,
+        prioritizeSyllableSync: Boolean,
+    ): Result? {
+        if (!prioritizeSyllableSync) {
+            for (i in results.indices) {
+                if (tiers[i].rank >= LyricsTimingTier.LINE_SYNCED.rank) return results[i]
+            }
+            for (i in results.indices) {
+                if (tiers[i] != LyricsTimingTier.INVALID) return results[i]
+            }
+            return null
+        }
+        var best: Result? = null
+        var bestTier = LyricsTimingTier.INVALID
+        for (i in results.indices) {
+            if (tiers[i].rank > bestTier.rank) {
+                best = results[i]
+                bestTier = tiers[i]
+            }
+        }
+        return best
     }
 
     /**
@@ -248,9 +377,6 @@ object LyricsRepository {
             LyricsSource.YOUTUBE_MUSIC -> YouTubeMusicLyrics.lyrics(videoId)
             LyricsSource.LRCLIB -> LrcLib.lyrics(title, artist, durationMs)
             LyricsSource.MUSIXMATCH -> Musixmatch.lyrics(title, artist, durationMs)
-            LyricsSource.PAXSENIX -> PaxSenix.lyrics(title, artist, durationMs, album)
-            LyricsSource.PAXSENIX_SPOTIFY -> PaxSenix.spotifyLyrics(title, artist, durationMs)
-            LyricsSource.PAXSENIX_MUSIXMATCH -> PaxSenix.musixmatchLyrics(title, artist, durationMs)
             LyricsSource.KUGOU -> KuGou.lyrics(title, artist, durationMs, album)
             LyricsSource.MEGALOBIZ -> Megalobiz.lyrics(title, artist)
             LyricsSource.GENIUS -> Genius.lyrics(title, artist)

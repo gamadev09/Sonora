@@ -1023,6 +1023,7 @@ class PlaybackService : MediaLibraryService() {
                 // say the queue is not simply unplayable end to end.
                 audibleMediaId = exoPlayer.currentMediaItem?.mediaId
                 consecutiveErrorSkips = 0
+                PlaybackFailureMonitor.recordSuccess()
             }
             if (isPlaying) registerCurrentPlay()
             // Nothing to read ahead for while paused, and a pause is often
@@ -4591,6 +4592,7 @@ class PlaybackService : MediaLibraryService() {
             // advance would leave every track looking like it never started.
             audibleMediaId = mediaItem?.mediaId
             consecutiveErrorSkips = 0
+            PlaybackFailureMonitor.recordSuccess()
         }
         // And the same instant on the wall clock, which is the one
         // logcat stamps its lines with — see [TrackLog].
@@ -4997,6 +4999,22 @@ class PlaybackService : MediaLibraryService() {
             // the middle of the last one. Releasing the choice without dropping
             // the bytes would trade one stuck track for a corrupt one.
             if (givingUp) {
+                val isLocal = uri?.scheme == "file" || uri?.scheme == "content"
+                val failedBuiltInProvider = when {
+                    isLocal -> null
+                    uri?.authority == "source" -> null
+                    uri?.getQueryParameter("source")?.contains("jiosaavn", ignoreCase = true) == true ->
+                        com.music.bitchord.data.sources.SourceKind.JIOSAAVN
+                    else -> com.music.bitchord.data.sources.SourceKind.YOUTUBE
+                }
+                if (failedBuiltInProvider != null) {
+                    PlaybackFailureMonitor.recordFailure(
+                        provider = failedBuiltInProvider,
+                        isNetworkFault = networkFault,
+                        isLocalFile = isLocal,
+                        isUserAction = false,
+                    )
+                }
                 // A track nobody can play must not leave the player parked in
                 // IDLE on it. Nothing else in this service calls prepare() again,
                 // so before this the queue simply stopped: the notification kept

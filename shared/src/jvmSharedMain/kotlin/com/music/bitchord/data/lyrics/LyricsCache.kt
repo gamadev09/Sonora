@@ -3,6 +3,8 @@ package com.music.bitchord.data.lyrics
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.Collections
 import kotlin.math.abs
@@ -10,10 +12,14 @@ import kotlin.math.abs
 /**
  * Bounded persistent cache for successful lyrics lookups.
  *
- * - Stores recording identity, provider, timing tier, duration, and retrieval time.
+ * - Stores recording identity (videoId + normalized title & artist), provider,
+ *   timing tier, duration, and retrieval time.
+ * - Uses atomic, thread-safe disk writes (temp file + atomic move).
  * - Never persists transient network failures or invalid/empty lyrics.
- * - Never overwrites a higher-tier cached result with a lower-tier one.
- * - Enforces a bounded LRU capacity on both memory and disk.
+ * - Never overwrites a higher-tier cached result from an enabled provider with
+ *   a lower-tier one; allows overwriting if the cached provider is disabled or removed.
+ * - Respects provider caching restrictions (e.g., web-scraped Genius stays memory-only).
+ * - Preserves word timing, syllables, background vocals, and duet alignment.
  */
 object LyricsCache {
     private const val MAX_MEMORY_ENTRIES = 64
@@ -21,9 +27,14 @@ object LyricsCache {
     private const val CACHE_TTL_MS = 30L * 24L * 60L * 60L * 1000L // 30 days
     private const val MAX_DURATION_DRIFT_MS = 4_000L
 
+    /** Web-scraped providers are kept in memory only, never written to disk. */
+    private val NON_PERSISTABLE_SOURCES: Set<LyricsSource> = setOf(LyricsSource.GENIUS)
+
     /** Set by the host application (e.g. Android `cacheDir`). Null = memory-only. */
     @Volatile
     var cacheDir: File? = null
+
+    private val diskLock = Any()
 
     private val memory: MutableMap<String, CachedLyricsRecord> = Collections.synchronizedMap(
         object : LinkedHashMap<String, CachedLyricsRecord>(MAX_MEMORY_ENTRIES, 0.75f, true) {
@@ -70,6 +81,7 @@ object LyricsCache {
         artist: String,
         durationMs: Long,
         result: LyricsRepository.Result,
+        allowedSources: Set<LyricsSource> = LyricsSource.offered.toSet(),
         nowMs: Long = System.currentTimeMillis(),
     ) {
         val quality = assessLyricsQuality(result.lines)
@@ -78,10 +90,16 @@ object LyricsCache {
         val key = buildCacheKey(videoId, title, artist)
         val existing = memory[key] ?: readFromDisk(key)
         if (existing != null && (nowMs - existing.retrievedAtMs <= CACHE_TTL_MS)) {
-            val existingTier = runCatching { LyricsTimingTier.valueOf(existing.tier) }
-                .getOrDefault(LyricsTimingTier.INVALID)
-            // Never downgrade superior cached lyrics with an inferior timing tier.
-            if (existingTier.rank > quality.tier.rank) return
+            val existingSource = runCatching { LyricsSource.valueOf(existing.source) }.getOrNull()
+            val existingStillUsable = existingSource != null &&
+                existingSource in allowedSources &&
+                !existingSource.hidden
+            if (existingStillUsable) {
+                val existingTier = runCatching { LyricsTimingTier.valueOf(existing.tier) }
+                    .getOrDefault(LyricsTimingTier.INVALID)
+                // Never downgrade superior cached lyrics from an active provider.
+                if (existingTier.rank > quality.tier.rank) return
+            }
         }
 
         val record = CachedLyricsRecord(
@@ -93,21 +111,36 @@ object LyricsCache {
             lines = result.lines.map { it.toCached() },
         )
         memory[key] = record
-        writeToDisk(key, record)
+        if (result.source !in NON_PERSISTABLE_SOURCES) {
+            writeToDiskAtomically(key, record)
+        }
+    }
+
+    /** Clears only the in-memory LRU (useful for testing real disk reloads). */
+    internal fun clearMemoryOnly() {
+        memory.clear()
     }
 
     fun clear() {
         memory.clear()
-        runCatching {
-            storeDir()?.listFiles()?.forEach { it.delete() }
+        synchronized(diskLock) {
+            runCatching {
+                storeDir()?.listFiles()?.forEach { it.delete() }
+            }
         }
     }
 
+    /**
+     * Includes normalized title & artist alongside videoId so corrected track
+     * metadata never collides with stale videoId-only cached lyrics.
+     */
     internal fun buildCacheKey(videoId: String, title: String, artist: String): String {
+        val normTitle = title.forLyricsSearch().lowercase().trim()
+        val normArtist = artist.artistForLyricsSearch().lowercase().trim()
         val raw = if (videoId.isNotBlank()) {
-            "vid:${videoId.trim()}"
+            "vid:${videoId.trim()}|t:$normTitle|a:$normArtist"
         } else {
-            "meta:${title.forLyricsSearch().lowercase()}|${artist.artistForLyricsSearch().lowercase()}"
+            "meta:t:$normTitle|a:$normArtist"
         }
         val digest = MessageDigest.getInstance("SHA-256").digest(raw.toByteArray(Charsets.UTF_8))
         return digest.take(16).joinToString("") { "%02x".format(it) }
@@ -115,31 +148,46 @@ object LyricsCache {
 
     private fun storeDir(): File? = cacheDir?.let { File(it, "sonora_lyrics_cache") }
 
-    private fun readFromDisk(key: String): CachedLyricsRecord? {
+    private fun readFromDisk(key: String): CachedLyricsRecord? = synchronized(diskLock) {
         val file = storeDir()?.let { File(it, "$key.json") } ?: return null
         if (!file.isFile) return null
-        return runCatching {
+        runCatching {
             file.setLastModified(System.currentTimeMillis())
             lyricsJson.decodeFromString<CachedLyricsRecord>(file.readText())
         }.getOrNull()
     }
 
-    private fun writeToDisk(key: String, record: CachedLyricsRecord) {
-        val dir = storeDir() ?: return
-        runCatching {
-            if (!dir.exists()) dir.mkdirs()
-            val file = File(dir, "$key.json")
-            file.writeText(lyricsJson.encodeToString(record))
-            trimDiskCache(dir)
+    private fun writeToDiskAtomically(key: String, record: CachedLyricsRecord) {
+        synchronized(diskLock) {
+            val dir = storeDir() ?: return
+            runCatching {
+                if (!dir.exists()) dir.mkdirs()
+                val target = File(dir, "$key.json")
+                val tmp = File(dir, "$key.${Thread.currentThread().id}.tmp")
+                tmp.writeText(lyricsJson.encodeToString(record))
+                try {
+                    Files.move(
+                        tmp.toPath(),
+                        target.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING,
+                    )
+                } catch (_: Exception) {
+                    Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }
+                trimDiskCache(dir)
+            }
         }
     }
 
     private fun deleteFromDisk(key: String) {
-        runCatching { storeDir()?.let { File(it, "$key.json").delete() } }
+        synchronized(diskLock) {
+            runCatching { storeDir()?.let { File(it, "$key.json").delete() } }
+        }
     }
 
     private fun trimDiskCache(dir: File) {
-        val files = dir.listFiles() ?: return
+        val files = dir.listFiles { f -> f.isFile && f.name.endsWith(".json") } ?: return
         if (files.size <= MAX_DISK_ENTRIES) return
         files.sortedBy { it.lastModified() }
             .take(files.size - MAX_DISK_ENTRIES)

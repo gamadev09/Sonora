@@ -538,7 +538,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             if (found != null) {
                 withContext(Dispatchers.IO) {
-                    LyricsCache.put(videoId, title, artist, durationMs, found)
+                    LyricsCache.put(videoId, title, artist, durationMs, found, allowedSources = sources)
                 }
             }
 

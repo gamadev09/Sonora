@@ -94,8 +94,6 @@ fun LyricsSourcesDialog(
     val selected by AppSettings.lyricsSources.collectAsStateWithLifecycle()
     val savedOrder by AppSettings.lyricsSourceOrder.collectAsStateWithLifecycle()
     val prioritizeSyllableSync by AppSettings.prioritizeSyllableSync.collectAsStateWithLifecycle()
-    val paxSenixApiKey by AppSettings.paxSenixApiKey.collectAsStateWithLifecycle()
-    var showPaxSenixKeyDialog by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(ALERT_CORNER)
 
     Box(
@@ -186,11 +184,6 @@ fun LyricsSourcesDialog(
             )
 
             AlertRule()
-            PaxSenixApiKeyRow(
-                configured = paxSenixApiKey.isNotBlank(),
-                onClick = { showPaxSenixKeyDialog = true },
-            )
-            AlertRule()
             SyllableSyncToggle(
                 checked = prioritizeSyllableSync,
                 onToggle = { AppSettings.setPrioritizeSyllableSync(!prioritizeSyllableSync) },
@@ -204,78 +197,6 @@ fun LyricsSourcesDialog(
             )
             AlertRule()
             AlertAction(label = stringResource(R.string.done), emphasised = true, onClick = onDismiss)
-        }
-    }
-
-    if (showPaxSenixKeyDialog) {
-        var input by remember(paxSenixApiKey) { mutableStateOf(paxSenixApiKey) }
-        AlertDialog(
-            onDismissRequest = { showPaxSenixKeyDialog = false },
-            title = { Text(stringResource(R.string.paxsenix_api_key)) },
-            text = {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    AppSettings.setPaxSenixApiKey(input)
-                    showPaxSenixKeyDialog = false
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPaxSenixKeyDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-}
-
-/** The PaxSenix key: its name, and under it whether one is set. */
-@Composable
-private fun PaxSenixApiKeyRow(configured: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = ACTION_HEIGHT)
-            .background(
-                if (pressed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f) else Color.Transparent,
-            )
-            .clickable(
-                indication = null,
-                interactionSource = interactionSource,
-                onClick = onClick,
-            )
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.paxsenix_api_key),
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(
-                    if (configured) R.string.paxsenix_api_key_configured
-                    else R.string.paxsenix_api_key_missing,
-                ),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 15.sp),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }

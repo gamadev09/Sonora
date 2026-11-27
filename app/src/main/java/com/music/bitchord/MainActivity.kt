@@ -971,6 +971,7 @@ private fun BitChordApp(
     val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
     val lyricsSource by viewModel.lyricsSource.collectAsStateWithLifecycle()
     val lyricsChecked by viewModel.lyricsChecked.collectAsStateWithLifecycle()
+    val playbackFailureWarning by com.music.bitchord.playback.PlaybackFailureMonitor.activeWarning.collectAsStateWithLifecycle()
     val lyricsProviderStates by viewModel.lyricsProviderStates.collectAsStateWithLifecycle()
     val lyricsProviderTiers by viewModel.lyricsProviderTiers.collectAsStateWithLifecycle()
     val isManualLyricsActive by viewModel.isManualLyricsActive.collectAsStateWithLifecycle()
@@ -5145,6 +5146,61 @@ private fun BitChordApp(
                     menuFromHistory = false
                 }
             }
+        }
+
+        playbackFailureWarning?.let { warning ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { com.music.bitchord.playback.PlaybackFailureMonitor.dismissWarning() },
+                containerColor = Color(0xFF141416),
+                titleContentColor = Color.White,
+                textContentColor = Color.White.copy(alpha = 0.78f),
+                title = {
+                    Text(
+                        text = "Having trouble playing music?",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "The selected music source (${warning.providerName}) is currently unable to provide playback. External music services may temporarily restrict access or become unavailable.\n\nYou can retry playback, switch music sources or review your source settings.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                confirmButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                com.music.bitchord.playback.PlaybackFailureMonitor.dismissWarning()
+                                dismissPlayer()
+                                navigator.push(AppRoute.Sources)
+                            },
+                        ) {
+                            Text("Manage Sources", color = Color.White.copy(alpha = 0.85f))
+                        }
+                        TextButton(
+                            onClick = {
+                                com.music.bitchord.playback.PlaybackFailureMonitor.dismissWarning()
+                                controller?.let { c ->
+                                    c.prepare()
+                                    c.play()
+                                }
+                            },
+                        ) {
+                            Text("Try Again", color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            com.music.bitchord.playback.PlaybackFailureMonitor.dismissWarning()
+                        },
+                    ) {
+                        Text("Dismiss", color = Color.White.copy(alpha = 0.6f))
+                    }
+                },
+            )
         }
 
         queuePlaylistSongs?.let { targets ->

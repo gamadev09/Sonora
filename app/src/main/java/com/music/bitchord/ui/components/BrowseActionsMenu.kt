@@ -173,25 +173,62 @@ fun BrowseActionsMenu(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState()),
         ) {
-            if (!target.fromCard) {
-                onAddToPlaylists?.let {
-                    ActionRow(
-                        icon = SfIcons.AddToPlaylist,
-                        label = stringResource(R.string.add_to_playlist),
-                        onClick = it,
-                    )
-                }
-            }
+            // Group 1 — Primary playback, library, download, and queue actions in consistent hierarchy.
             onPlay?.let { ActionRow(SfIcons.Play, stringResource(R.string.play), onClick = it) }
             onShuffle?.let { ActionRow(SfIcons.Shuffle, stringResource(R.string.shuffle), onClick = it) }
-            if (target.fromCard) {
-                onAddToPlaylists?.let {
-                    ActionRow(
-                        icon = SfIcons.AddToPlaylist,
-                        label = stringResource(R.string.add_to_playlist),
-                        onClick = it,
-                    )
+            onAddToPlaylists?.let {
+                ActionRow(
+                    icon = SfIcons.AddToPlaylist,
+                    label = stringResource(R.string.add_to_playlist),
+                    onClick = it,
+                )
+            }
+            onDownloadAll?.let { download ->
+                val active by Downloads.active.collectAsStateWithLifecycle()
+                val requested by Downloads.requested.collectAsStateWithLifecycle()
+                val saved by Downloads.saved.collectAsStateWithLifecycle()
+                val requestedIds = target.browseId?.let { requested[it] }.orEmpty()
+                val trackedIds = remember(target.songs, requestedIds) {
+                    if (target.songs.isNotEmpty()) {
+                        target.songs.mapTo(LinkedHashSet()) { it.videoId }
+                    } else {
+                        requestedIds.toCollection(LinkedHashSet())
+                    }
                 }
+                val runningStates = requestedIds.mapNotNull { id ->
+                    active[id] as? DownloadState.Running
+                }
+                val waiting = requestedIds.any { id ->
+                    when (active[id]) {
+                        is DownloadState.Queued, is DownloadState.Running -> true
+                        else -> false
+                    }
+                }
+                val completedCount = trackedIds.count { it in saved }
+                val downloaded = !waiting && trackedIds.isNotEmpty() && completedCount == trackedIds.size
+                val progressText = when {
+                    waiting && trackedIds.isNotEmpty() -> {
+                        val runningFraction = runningStates.sumOf { it.fraction.toDouble() }
+                        val overallPct = (((completedCount + runningFraction) / trackedIds.size) * 100)
+                            .toInt()
+                            .coerceIn(0, 99)
+                        if (overallPct > 0) "$completedCount/${trackedIds.size} · $overallPct%"
+                        else "$completedCount/${trackedIds.size}"
+                    }
+                    waiting -> stringResource(R.string.downloading)
+                    downloaded -> stringResource(R.string.downloaded)
+                    else -> null
+                }
+                ActionRow(
+                    icon = when {
+                        waiting -> SfIcons.Clock
+                        downloaded -> SfIcons.Downloaded
+                        else -> SfIcons.Download
+                    },
+                    label = stringResource(R.string.download_all),
+                    value = progressText,
+                    onClick = download,
+                )
             }
             ActionRow(
                 SfIcons.PlayNext,
@@ -203,46 +240,12 @@ fun BrowseActionsMenu(
                 stringResource(R.string.add_to_queue),
                 onClick = onAddToQueue,
             )
-            onDownloadAll?.let { download ->
-                // Saying which of the three it is, rather than offering the same row
-                // whatever the state — this is where a release is asked for now that
-                // its page's header spends that spot on the search, and a menu that
-                // can't say "already on the device" leaves the question open. The
-                // tap is left live in every state: [Downloads.enqueue] leaves a
-                // track that is saved, queued or running alone.
-                val active by Downloads.active.collectAsStateWithLifecycle()
-                val requested by Downloads.requested.collectAsStateWithLifecycle()
-                val saved by Downloads.saved.collectAsStateWithLifecycle()
-                // Only the tracks *this release* asked for — two releases can share
-                // a track, and reading the whole queue would show this release
-                // waiting on a download some other one started. Failed entries stay
-                // in [Downloads.active] until dismissed, and a failure is not a wait.
-                val waiting = target.browseId?.let { requested[it] }.orEmpty().any { id ->
-                    when (active[id]) {
-                        is DownloadState.Queued, is DownloadState.Running -> true
-                        else -> false
-                    }
-                }
-                // The same reading [DownloadedBadge] does per row: a release counts
-                // as downloaded once every one of its tracks is in the saved set,
-                // not from any record of the release itself. Empty for a card whose
-                // page was never opened, which is not an answer either way.
-                val ids = remember(target.songs) { target.songs.mapTo(HashSet()) { it.videoId } }
-                val downloaded = !waiting && ids.isNotEmpty() && ids.all { it in saved }
-                ActionRow(
-                    icon = when {
-                        waiting -> SfIcons.Clock
-                        downloaded -> SfIcons.Downloaded
-                        else -> SfIcons.Download
-                    },
-                    label = stringResource(R.string.download_all),
-                    value = when {
-                        waiting -> stringResource(R.string.downloading)
-                        downloaded -> stringResource(R.string.downloaded)
-                        else -> null
-                    },
-                    onClick = download,
-                )
+
+            // Group 2 — Secondary navigation, sharing, and collection management actions.
+            val hasSecondary = onOpen != null || onShare != null || onTogglePin != null ||
+                onRename != null || onReorder != null || onDelete != null || onDeleteDownload != null
+            if (hasSecondary) {
+                IosMenuSeparator()
             }
             onOpen?.let {
                 ActionRow(

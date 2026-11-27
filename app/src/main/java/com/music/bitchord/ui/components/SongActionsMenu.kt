@@ -211,19 +211,16 @@ fun SongActionsMenu(
         val canRate = isOffline || signedIn
         val shareAction = onShare?.takeIf { !isOffline }
 
-        // Leads with the actions it is opened for most, as tiles: the rating
-        // — kept up after a tap, so the new state shows in place — and Share.
-        if (canRate || shareAction != null) {
+        // Group 1 — Quick rating actions (prominent top tiles).
+        if (canRate) {
             if (startsGroup()) IosMenuSeparator()
             IosMenuQuickActions {
-                if (canRate) {
-                    IosMenuQuickAction(
-                        icon = if (liked) SfIcons.StarFill else SfIcons.Star,
-                        label = stringResource(R.string.like),
-                        tint = if (liked) palette.accent else null,
-                        onClick = onToggleLike,
-                    )
-                }
+                IosMenuQuickAction(
+                    icon = if (liked) SfIcons.StarFill else SfIcons.Star,
+                    label = stringResource(R.string.like),
+                    tint = if (liked) palette.accent else null,
+                    onClick = onToggleLike,
+                )
                 // No dislike for a device file: there is no recommendation
                 // feed on the device for one to steer.
                 if (signedIn && !isOffline) {
@@ -234,95 +231,29 @@ fun SongActionsMenu(
                         onClick = onToggleDislike,
                     )
                 }
-                shareAction?.let {
-                    IosMenuQuickAction(icon = SfIcons.Share, label = stringResource(R.string.share), onClick = it)
-                }
             }
         }
 
-        // Leads the list whenever it's available: which recording is playing
-        // is the one question that has to be answered before any of the rows
-        // below mean anything — there is no point rating, queueing or
-        // downloading the wrong version of a song.
-        //
-        // The two are never both present — one is offered for a track playing
-        // a substituted copy, the other for a track held on YouTube's own —
-        // and between them they are the whole of the choice, which is why they
-        // sit in the same group.
-        if (onRollbackToOriginal != null || onUpgradeQuality != null || onToggleAudioVersion != null) {
-            if (startsGroup()) IosMenuSeparator()
-            (onRollbackToOriginal ?: onUpgradeQuality)?.let {
-                ActionRow(
-                    icon = if (onRollbackToOriginal != null) SfIcons.Revert else SfIcons.Upgrade,
-                    label = stringResource(
-                        if (onRollbackToOriginal != null) {
-                            R.string.revert_to_original
-                        } else {
-                            R.string.upgrade_quality
-                        },
-                    ),
-                    accent = palette.accent,
-                    enabled = onRollbackToOriginal != null || !upgradeQualityInProgress,
-                    onClick = it,
-                )
-            }
-            // Which recording, not which quality — a different question from
-            // the row above, so it sits right under it rather than merged
-            // into it.
-            onToggleAudioVersion?.let {
-                ActionRow(
-                    icon = if (isAudioVersion) SfIcons.Video else SfIcons.MusicNote,
-                    label = stringResource(
-                        when {
-                            audioVersionMissing && isAudioVersion -> R.string.no_video_version
-                            audioVersionMissing -> R.string.no_audio_version
-                            isAudioVersion -> R.string.convert_to_video
-                            else -> R.string.convert_to_audio
-                        },
-                    ),
-                    accent = palette.accent,
-                    enabled = !audioVersionMissing,
-                    onClick = it,
-                )
-            }
-        }
-
-        // The account's rows, or for a local file or download the offline
-        // player's own pair: a heart that files the track under this device's
-        // Liked playlist, and the device's playlists. [likeStatus] is that
-        // playlist's answer there, not YouTube's, and neither needs an account.
-        // Remove stands without an account too: a playlist imported onto
-        // this device is the user's to edit while signed out.
-        if (canRate || onRemoveFromPlaylist != null) {
-            if (startsGroup()) IosMenuSeparator()
-            if (canRate) {
-                ActionRow(
-                    icon = SfIcons.AddToPlaylist,
-                    label = stringResource(R.string.add_to_playlist),
-                    accent = palette.accent,
-                    onClick = onAddToPlaylist,
-                )
-            }
-            onRemoveFromPlaylist?.let {
-                ActionRow(
-                    icon = SfIcons.RemoveFromPlaylist,
-                    label = stringResource(R.string.remove_from_playlist),
-                    accent = palette.accent,
-                    onClick = it,
-                )
-            }
-        }
-
-        // Where the track goes next, and what is kept of it. The file rows
-        // ride in this group rather than one of their own because for a
-        // device file they can all be absent, and a group may not be empty.
+        // Group 2 — Primary library, download, and queue actions in consistent hierarchy:
+        // Add to playlist -> Download -> Play next -> Add to queue.
         if (startsGroup()) IosMenuSeparator()
-        ActionRow(
-            icon = SfIcons.Radio,
-            label = stringResource(R.string.start_radio),
-            accent = palette.accent,
-            onClick = onStartRadio,
-        )
+        if (canRate) {
+            ActionRow(
+                icon = SfIcons.AddToPlaylist,
+                label = stringResource(R.string.add_to_playlist),
+                accent = palette.accent,
+                onClick = onAddToPlaylist,
+            )
+        }
+        onRemoveFromPlaylist?.let {
+            ActionRow(
+                icon = SfIcons.RemoveFromPlaylist,
+                label = stringResource(R.string.remove_from_playlist),
+                accent = palette.accent,
+                onClick = it,
+            )
+        }
+        DownloadRow(song, palette, isOffline, onDownload)
         if (!fromQueue) {
             ActionRow(
                 icon = SfIcons.PlayNext,
@@ -337,7 +268,54 @@ fun SongActionsMenu(
                 onClick = onAddToQueue,
             )
         }
-        DownloadRow(song, palette, isOffline, onDownload)
+
+        // Group 3 — Secondary discovery, sharing, recording quality, and storage actions.
+        if (startsGroup()) IosMenuSeparator()
+        ActionRow(
+            icon = SfIcons.Radio,
+            label = stringResource(R.string.start_radio),
+            accent = palette.accent,
+            onClick = onStartRadio,
+        )
+        shareAction?.let {
+            ActionRow(
+                icon = SfIcons.Share,
+                label = stringResource(R.string.share),
+                accent = palette.accent,
+                onClick = it,
+            )
+        }
+        (onRollbackToOriginal ?: onUpgradeQuality)?.let {
+            ActionRow(
+                icon = if (onRollbackToOriginal != null) SfIcons.Revert else SfIcons.Upgrade,
+                label = stringResource(
+                    if (onRollbackToOriginal != null) {
+                        R.string.revert_to_original
+                    } else {
+                        R.string.upgrade_quality
+                    },
+                ),
+                accent = palette.accent,
+                enabled = onRollbackToOriginal != null || !upgradeQualityInProgress,
+                onClick = it,
+            )
+        }
+        onToggleAudioVersion?.let {
+            ActionRow(
+                icon = if (isAudioVersion) SfIcons.Video else SfIcons.MusicNote,
+                label = stringResource(
+                    when {
+                        audioVersionMissing && isAudioVersion -> R.string.no_video_version
+                        audioVersionMissing -> R.string.no_audio_version
+                        isAudioVersion -> R.string.convert_to_video
+                        else -> R.string.convert_to_audio
+                    },
+                ),
+                accent = palette.accent,
+                enabled = !audioVersionMissing,
+                onClick = it,
+            )
+        }
         onRemoveFromCache?.let {
             ActionRow(
                 icon = SfIcons.Trash,
