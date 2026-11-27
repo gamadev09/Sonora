@@ -150,121 +150,7 @@ internal fun AudioOutputSheet(
     onOpenListenTogetherMembers: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val outputs = rememberAudioOutputs()
-    val cast by PlayerPlatform.host.castState.collectAsStateWithLifecycle()
-    val airplay by PlayerPlatform.host.airPlayState.collectAsStateWithLifecycle()
-    val dlna by PlayerPlatform.host.dlnaState.collectAsStateWithLifecycle()
-    val watch by PlayerPlatform.host.watchOutput.collectAsStateWithLifecycle()
-    // A watch comes and goes; ask again each time the drawer opens.
-    LaunchedEffect(Unit) { PlayerPlatform.host.refreshWatchOutput() }
-
-    PlayerDrawer(
-        hazeState = hazeState,
-        title = stringResource(Res.string.audio_output),
-        onDismiss = onDismiss,
-        modifier = modifier,
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            outputs.forEach { device ->
-                OutputRow(
-                    device = device,
-                    accountName = accountName,
-                    onSelect = { PlayerPlatform.host.selectAudioOutput(device.id) },
-                )
-            }
-            if (watch.available || watch.active) {
-                WatchRow(watch = watch, onClick = { PlayerPlatform.host.selectWatchOutput() })
-            }
-            if (cast.supported) {
-                NetworkCastRow(
-                    state = cast,
-                    titleRes = Res.string.cast,
-                    subtitleRes = Res.string.cast_row_subtitle,
-                    connectingRes = Res.string.cast_connecting,
-                    activeRes = Res.string.cast_casting,
-                    icon = if (cast.connectedName != null) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
-                    onClick = onOpenCast,
-                )
-            }
-            if (airplay.supported) {
-                NetworkCastRow(
-                    state = airplay,
-                    titleRes = Res.string.airplay_output,
-                    subtitleRes = Res.string.airplay_row_subtitle,
-                    connectingRes = Res.string.cast_connecting,
-                    activeRes = Res.string.airplay_streaming,
-                    icon = Icons.Rounded.Airplay,
-                    onClick = onOpenAirPlay,
-                )
-            }
-            if (dlna.supported) {
-                NetworkCastRow(
-                    state = dlna,
-                    titleRes = Res.string.dlna_output,
-                    subtitleRes = Res.string.dlna_row_subtitle,
-                    connectingRes = Res.string.cast_connecting,
-                    activeRes = Res.string.dlna_streaming,
-                    icon = DlnaIcon,
-                    onClick = onOpenDlna,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        VolumeRow(routeKey = outputs)
-
-        if (onListenTogether != null) {
-            val party by PlayerPlatform.host.party.collectAsStateWithLifecycle()
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.White.copy(alpha = if (party.inParty) 0.14f else 0.08f))
-                    .clickable {
-                        onDismiss()
-                        if (party.inParty && onOpenListenTogetherMembers != null) {
-                            onOpenListenTogetherMembers()
-                        } else {
-                            onListenTogether()
-                        }
-                    }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Groups,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp),
-                )
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(Res.string.listen_together),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (party.inParty) {
-                        Text(
-                            text = party.code?.let { "$it · ${party.members.size}" } ?: party.members.size.toString(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.65f),
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-        AudioPipelineRow(onClick = onOpenPipeline)
-    }
+    UnifiedAudioOutputSheet(hazeState, accountName, onDismiss, onOpenAirPlay, onListenTogether, onOpenListenTogetherMembers, modifier)
 }
 
 /**
@@ -624,7 +510,7 @@ private fun VolumeRow(routeKey: Any) {
     }
 }
 
-private fun iconFor(device: AudioOutputDevice): ImageVector = when (device.kind) {
+internal fun iconFor(device: AudioOutputDevice): ImageVector = when (device.kind) {
     AudioOutputKind.PHONE -> Icons.Rounded.PhoneAndroid
     AudioOutputKind.WIRED -> Icons.Rounded.Headphones
     AudioOutputKind.USB -> Icons.Rounded.Usb

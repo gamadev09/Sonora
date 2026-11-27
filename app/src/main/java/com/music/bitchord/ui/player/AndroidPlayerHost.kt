@@ -298,6 +298,59 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
             .stateIn(scope, SharingStarted.Eagerly, CastUi(supported = true))
     }
 
+    override val discoveredOutputs: StateFlow<List<DiscoveredOutputUi>> by lazy {
+        CastController.ensureStarted(app)
+        AirPlayController.ensureStarted(app)
+        DlnaController.ensureStarted(app)
+        combine(CastController.state, AirPlayController.state, DlnaController.state) { cast, airplay, dlna ->
+            buildList {
+                cast.devices.forEach { add(DiscoveredOutputUi(OutputProtocol.CAST, it.id, it.name, it.connected, it.connecting)) }
+                airplay.devices.forEach { add(DiscoveredOutputUi(OutputProtocol.AIRPLAY, it.id, it.name,
+                    airplay.connectedHost == it.host, airplay.connectingHost == it.host, it.requiresPassword)) }
+                dlna.devices.forEach { add(DiscoveredOutputUi(OutputProtocol.DLNA, it.udn, it.name,
+                    dlna.connectedUdn == it.udn, dlna.connectingUdn == it.udn)) }
+            }.distinctBy { it.protocol to it.id }
+        }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+    }
+
+    override fun beginOutputDiscovery(): () -> Unit {
+        CastController.ensureStarted(app)
+        AirPlayController.ensureStarted(app)
+        DlnaController.ensureStarted(app)
+        val stopCast = CastController.discover(active = true)
+        val stopAirPlay = AirPlayController.discover(app)
+        val stopDlna = DlnaController.discover(app)
+        return { stopCast(); stopAirPlay(); stopDlna() }
+    }
+
+    override fun connectNetworkOutput(protocol: OutputProtocol, id: String) {
+        when (protocol) {
+            OutputProtocol.CAST -> {
+                if (AirPlayController.state.value.connected) AirPlayController.disconnect(resumeHere = false)
+                if (DlnaController.state.value.connected) DlnaController.disconnect(resumeHere = false)
+                CastController.connect(id)
+            }
+            OutputProtocol.AIRPLAY -> AirPlayController.state.value.devices.firstOrNull { it.id == id }?.let { device ->
+                if (CastController.state.value.casting) CastController.disconnect(resumeHere = false)
+                if (DlnaController.state.value.connected) DlnaController.disconnect(resumeHere = false)
+                AirPlayController.connect(device)
+            }
+            OutputProtocol.DLNA -> DlnaController.state.value.devices.firstOrNull { it.udn == id }?.let { device ->
+                if (CastController.state.value.casting) CastController.disconnect(resumeHere = false)
+                if (AirPlayController.state.value.connected) AirPlayController.disconnect(resumeHere = false)
+                DlnaController.connect(device)
+            }
+        }
+    }
+
+    override fun returnToPhone() {
+        when {
+            CastController.state.value.casting -> CastController.disconnect(resumeHere = true)
+            AirPlayController.state.value.connected -> AirPlayController.disconnect(resumeHere = true)
+            DlnaController.state.value.connected -> DlnaController.disconnect(resumeHere = true)
+        }
+    }
+
     @Composable
     override fun CastDialog(hazeState: HazeState, onDismiss: () -> Unit) =
         com.music.bitchord.ui.components.CastDialog(hazeState = hazeState, onDismiss = onDismiss)

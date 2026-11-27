@@ -4235,6 +4235,12 @@ fun NowPlayingScreen(
                                 hazeState = playerHaze,
                                 overlayOpen = { overlayOpen.value },
                             ) {
+                                CircleGlyph(
+                                    icon = BitChordIcons.Queue,
+                                    contentDescription = stringResource(Res.string.up_next),
+                                    onClick = toggleQueue,
+                                )
+                                Spacer(Modifier.width(8.dp))
                                 if (signedIn || song.localUri != null) {
                                     val liked = likeStatus == LikeStatus.LIKE
                                     CircleGlyph(
@@ -4607,13 +4613,6 @@ fun NowPlayingScreen(
                                         )
                                     }
                                 }
-                                UtilityDiscButton(
-                                    icon = BitChordIcons.Queue,
-                                    contentDescription = stringResource(Res.string.up_next),
-                                    active = false,
-                                    accentColor = playerAccent,
-                                    onClick = toggleQueue,
-                                )
                             }
                         }
                     }
@@ -4638,7 +4637,9 @@ fun NowPlayingScreen(
                         )
                     }
 
-                    Spacer(Modifier.height(6.dp))
+                    // One shared inset raises metadata, scrubber and transport together
+                    // in artwork, lyrics, chord and queue modes.
+                    Spacer(Modifier.height(18.dp))
                     SingleRowPlaybackControls(
                         isPlaying = isPlaying,
                         isLoading = isLoading || audioVersionSwitching,

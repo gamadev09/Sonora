@@ -493,7 +493,7 @@ internal fun ChordControls(
                                 }
                             }
                         } else {
-                            Spacer(Modifier.weight(1f, fill = false))
+                            Spacer(Modifier.weight(1f))
                         }
                         if (state.guitar && !inlineCapoFits) {
                             val badgeShape = RoundedCornerShape(percent = 50)
@@ -753,7 +753,7 @@ private fun ChordOptionsPopover(
     ) {
         Column(
             modifier = Modifier
-                .width(248.dp)
+                .width(272.dp)
                 .graphicsLayer {
                     val t = progress.value.coerceIn(0f, 1f)
                     val s = 0.88f + 0.12f * t

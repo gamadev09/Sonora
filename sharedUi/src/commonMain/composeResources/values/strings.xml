@@ -5,6 +5,14 @@
     <string name="analysis_refining">analysed, refining…</string>
     <string name="audio_output">Audio output</string>
     <string name="audio_output_playing">Playing here</string>
+    <string name="output_discovery_protocols">AirPlay, Google Cast, Chromecast or DLNA</string>
+    <string name="output_searching">Searching for devices…</string>
+    <string name="output_available_devices">Available devices</string>
+    <string name="output_no_devices">No nearby devices found</string>
+    <string name="output_this_phone">This phone</string>
+    <string name="output_session_active">Session active · %1$d listeners</string>
+    <string name="output_remote_connected">%1$s · Connected</string>
+    <string name="output_connecting">%1$s · Connecting…</string>
     <string name="audio_pipeline">Audio Pipeline</string>
     <string name="automix_analysis_status">Automix · this song: %1$s · next: %2$s</string>
     <string name="automix_not_supported_video">Automix not supported on video songs</string>

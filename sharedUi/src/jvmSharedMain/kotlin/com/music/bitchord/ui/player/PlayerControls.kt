@@ -1354,6 +1354,10 @@ internal fun GlassDiscPair(
 private val DiscPairShape = GenericShape { size, _ ->
     val d = size.height
     addOval(Rect(0f, 0f, d, d))
+    if (size.width >= d * 2.5f) {
+        val middle = (size.width - d) / 2f
+        addOval(Rect(middle, 0f, middle + d, d))
+    }
     if (size.width >= d * 1.5f) addOval(Rect(size.width - d, 0f, size.width, d))
 }
 

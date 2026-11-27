@@ -157,6 +157,12 @@ interface PlayerHost {
     /** Streaming to a DLNA / UPnP speaker. */
     val dlnaState: StateFlow<CastUi> get() = NoCast
 
+    /** Discovery belongs to the open sheet; the returned callback stops only its scans. */
+    val discoveredOutputs: StateFlow<List<DiscoveredOutputUi>> get() = NoDiscoveredOutputs
+    fun beginOutputDiscovery(): () -> Unit = { }
+    fun connectNetworkOutput(protocol: OutputProtocol, id: String) = Unit
+    fun returnToPhone() = Unit
+
     /**
      * The BitChord watch app as an output: the watch plays the queue the way a
      * Cast receiver does. Absent, and so never drawn, where there is no watch.
@@ -204,6 +210,18 @@ interface PlayerHost {
 }
 
 private val NoCast = MutableStateFlow(CastUi())
+private val NoDiscoveredOutputs = MutableStateFlow<List<DiscoveredOutputUi>>(emptyList())
+
+enum class OutputProtocol { CAST, AIRPLAY, DLNA }
+
+data class DiscoveredOutputUi(
+    val protocol: OutputProtocol,
+    val id: String,
+    val name: String,
+    val connected: Boolean = false,
+    val connecting: Boolean = false,
+    val requiresPairing: Boolean = false,
+)
 
 private val DefaultVideoAspect = MutableStateFlow(16f / 9f)
 
