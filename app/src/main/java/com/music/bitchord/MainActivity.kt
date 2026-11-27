@@ -63,6 +63,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.LocalOverscrollFactory
@@ -3653,12 +3655,7 @@ private fun BitChordApp(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .let { m ->
-                                                        androidx.compose.foundation.horizontalScroll(
-                                                            m,
-                                                            androidx.compose.foundation.rememberScrollState(),
-                                                        )
-                                                    },
+                                                    .horizontalScroll(rememberScrollState()),
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
                                                 com.music.bitchord.data.recommendations.TastePreferences.SUGGESTED_GENRES.forEach { genre ->
