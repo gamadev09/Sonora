@@ -234,7 +234,7 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
                     chain.request().newBuilder()
                         .header(
                             "User-Agent",
-                            "Sonora/${BuildConfig.VERSION_NAME} (Android; +https://github.com/kushagrasinghx/BitChord)",
+                            "Sonora/${BuildConfig.VERSION_NAME} (Android; +https://github.com/gamadev09/Sonora)",
                         )
                         .build(),
                 )

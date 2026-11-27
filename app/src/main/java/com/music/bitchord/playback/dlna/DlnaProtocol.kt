@@ -147,8 +147,8 @@ object DlnaProtocol {
         "DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
 
     fun createDidlMetadata(streamUrl: String, metadata: TrackMetadata?): String {
-        val title = metadata?.title?.takeIf { it.isNotBlank() } ?: "BitChord Live Stream"
-        val artist = metadata?.artist?.takeIf { it.isNotBlank() } ?: "BitChord"
+        val title = metadata?.title?.takeIf { it.isNotBlank() } ?: "Sonora Live Stream"
+        val artist = metadata?.artist?.takeIf { it.isNotBlank() } ?: "Sonora"
         val album = metadata?.album.orEmpty()
         val artwork = metadata?.artworkUrl.orEmpty()
         val artworkTag = if (artwork.isNotBlank()) {

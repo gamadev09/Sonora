@@ -57,11 +57,27 @@ Further Rust migration and speculative micro-optimisations should remain **suspe
 - **Severity:** **Low** | **Regression Risk:** **Low** | **Complexity:** Low
 - **Recommended Solution:** Track these keys for proper localization and ensure Android's native `values/strings.xml` fallback is used or translations are contributed per locale.
 
-### S-8. Untrimmed Upstream Brand & Service Endpoint References
-- **Files:** `app/build.gradle.kts:53, 65, 111`, `tv/build.gradle.kts:113`, `tv/src/main/res/drawable*/tv_banner.png`, `app/src/main/java/com/music/bitchord/BitChordApplication.kt:233`
-- **Finding:** Release update prefixes (`BitChord-`, `BitChordTV-`), default API/auth URLs (`api.bitchord.kushagrasingh.in`, `bitchord-auth.kushagrasingh.in`), Coil's User-Agent repo URL, and raster TV banners (`tv_banner.png`) still reference BitChord.
-- **Severity:** **Low** | **Regression Risk:** **Low** | **Complexity:** Low
-- **Recommended Solution:** Update once Sonora's own hosting/release domains and TV banner artwork are finalized (keeping `com.music.bitchord` namespace and Listen Together protocol compatibility intact).
+### S-8. Branding Cleanup & Intentionally Retained Compatibility Identifiers
+- **Updated to Sonora:**
+  - **Android & TV app:** Update notification strings (`update_available_body`, `update_downloading_body`, `update_ready_body`, `update_failed_body`) across all 20 locales; Discord Rich Presence default button (`Visit Sonora`) and `PROJECT_URL` (`https://github.com/gamadev09/Sonora`); user-visible backup import error messages in `Backup.kt`; `LastFM` and Coil `User-Agent` headers; DLNA stream headers (`Server: Sonora-DLNA/1.0`, `ICY-NAME: Sonora Stream`); `AppUpdateChecker` release API (`https://api.github.com/repos/gamadev09/Sonora/releases/latest`), cached APK filename (`sonora-${info.version}.apk`), and TV update prefix (`SonoraTV-`, matching phone `Sonora-`).
+  - **Web & Browser Extension:** Extension manifest name/description, popup/connect/grant pages, `SpotifyPage` / `SpotifyPlaylistPage` user-facing copy, web Discord RPC (`APP_NAME = 'Sonora'`, `Visit Sonora`, `https://github.com/gamadev09/Sonora`), `androidAppUrl` pointing to `https://github.com/gamadev09/Sonora`, and packaged extension archives/folders (`sonora-extension-chrome` / `sonora-extension-firefox`).
+  - **Listen Together & Wear OS:** Invite landing page title, subtitle, join button, download link (`https://github.com/gamadev09/Sonora`), startup log in `backend/main.go`, systemd unit description, `backend/README.md`, `wearos/README.md`, and Wireless ADB companion `getDeviceName()` (`"Sonora"`).
+- **Intentionally Retained for Compatibility & Upstream Attribution:**
+  - Application IDs and Kotlin/Java namespaces (`com.music.bitchord*`, `com.dev.bitchord*`, `com.gamadev09.sonora`), `@bitchord/*` workspace package names, and Go module path.
+  - Deep-link schemes and Wearable Data Layer paths (`bitchord://`, `bitchord-wear://`, `/bitchord/*`, `bitchord_watch` capability, `wear/BitChordWear.apk` asset names, and ADB pairing certificate `CN=BitChord`).
+  - Backup schema tag (`APP_TAG = "bitchord"`) and backup filename (`bitchord-backup-YYYY-MM-DD.json`) so existing backups import cleanly.
+  - SharedPreferences, DataStore, database, widget (`widget_open_bitchord`), IndexedDB (`bitchord-automix`), and web `localStorage` (`bitchord:*`) keys.
+  - Listen Together WebSocket subprotocols (`bitchord.v1`, `bitchord.token.*`), service health identifier (`bitchord-listen-together`), addon auth headers/proof identifiers, Discord `APPLICATION_ID`, Firefox add-on ID (`extension@bitchord.kushagrasingh.in`), and existing deployed server domains/service users/origin allowlists.
+  - Upstream BitChord attribution in `README.md` and copyright/license headers across source files.
+- **Migration Work Required Before Replacing Retained Identifiers:**
+  - **Application IDs & Kotlin Namespace (`com.music.bitchord*`, `com.dev.bitchord*`):** Requires coordinated upgrade/migration planning across existing installed TV/Wear apps, Wearable Data Layer companion pairing (which requires matching package IDs and signing certificates), AndroidManifest authorities (`FileProvider`, receivers, services), build flavors, JNI symbol exports (`Java_com_music_bitchord_*`), and ProGuard/R8 rules.
+  - **Deep-Link & Wearable Schemes (`bitchord://`, `bitchord-wear://`):** Introduce `sonora://` / `sonora-wear://` alongside the legacy schemes and continue accepting both during a compatibility transition period so shared links and watch handoffs keep working.
+  - **Backups & Stored Data (`APP_TAG`, `bitchord-backup-*.json`, SharedPreferences, DataStore, IndexedDB, `localStorage`):** Write new Sonora identifiers only once a dual-read migration layer is in place that transparently reads/migrates existing `bitchord` preferences, caches, widget snapshots, and backup files without data loss.
+  - **Protocols & Integrations (`bitchord.v1`, `bitchord.token.*`, addon auth headers/proofs, Wear paths):** Coordinate app, Go backend, web client, and compatible addons using version negotiation or dual-protocol support rather than an abrupt rename.
+  - **Hosting & Infrastructure (`bitchord.in`, `api.bitchord.*`, addon auth service, systemd units):** Stand up and verify replacement Sonora domains, TLS, CORS/origin allowlists, and Linux service units before switching default client endpoints.
+- **Remaining Manual / Release Actions:**
+  - **Release Updater:** `gamadev09/Sonora` currently has no published GitHub Releases, so `AppUpdateChecker` will safely remain idle until a release with `Sonora-*.apk` and `SonoraTV-*.apk` assets is published (it never falls back to upstream BitChord releases).
+  - **Android TV Banner Artwork:** Raster TV banners (`tv/src/main/res/drawable*/tv_banner.png`) still require visual verification and should only be replaced once finalized Sonora TV banner artwork is ready.
 
 ---
 

@@ -447,7 +447,7 @@ object DlnaController {
     ) {
         val request = Request.Builder()
             .url(controlUrl)
-            .header("User-Agent", "BitChord/1.0 UPnP/1.0 DLNADOC/1.50")
+            .header("User-Agent", "Sonora/1.0 UPnP/1.0 DLNADOC/1.50")
             .header("SOAPACTION", "\"$service#$action\"")
             .post(body.toRequestBody(SOAP_XML_MEDIA_TYPE))
             .build()
