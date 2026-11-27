@@ -806,8 +806,53 @@ internal fun SingleRowPlaybackControls(
 }
 
 /**
+ * Shared translucent glass disc container used by [CircleGlyph], [UtilityDiscButton],
+ * [ChordAnalysisToggleButton], [RomanizationToggleButton], and [TranslationToggleButton],
+ * guaranteeing identical `vibrantChrome`, [discFill], and `glassRim` rendering.
+ */
+@Composable
+internal fun CircleGlyphContainer(
+    active: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    haptic: Haptic? = Haptic.Tap,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val haptics = rememberHaptics()
+    val discAlpha by animateFloatAsState(
+        targetValue = if (active) 0.34f else CIRCLE_DISC_ALPHA,
+        label = "glyphDisc",
+    )
+    val chrome = LocalPlayerChrome.current
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .clickable(
+                enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {
+                if (haptic != null) haptics.play(haptic)
+                onClick()
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .vibrantChrome(chrome)
+                .background(discFill(chrome, discAlpha)),
+        )
+        Box(Modifier.matchParentSize().glassRim(CircleShape))
+        content()
+    }
+}
+
+/**
  * Circular utility disc button placed in the utility row above the seekbar,
- * matching [RomanizationToggleButton], [ChordAnalysisToggleButton], and [TranslationToggleButton].
+ * reusing [CircleGlyphContainer] (`vibrantChrome`, [discFill], `glassRim`).
  */
 @Composable
 internal fun UtilityDiscButton(
@@ -818,30 +863,16 @@ internal fun UtilityDiscButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val chrome = LocalPlayerChrome.current
-    val tint = if (active) accentColor else chromeWhite(0.82f)
-    val discAlpha = animateFloatAsState(
-        targetValue = if (active) 0.34f else 0.18f,
-        label = "utilityDiscAlpha",
-    )
-    Box(
-        modifier = modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .additiveChrome(chrome)
-            .drawBehind { drawRect(Color.White.copy(alpha = discAlpha.value)) }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
+    CircleGlyphContainer(
+        active = active,
+        onClick = onClick,
+        modifier = modifier,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(18.dp),
+            tint = if (active) accentColor else Color.White,
+            modifier = Modifier.size(19.dp),
         )
     }
 }
@@ -1227,36 +1258,12 @@ internal fun CircleGlyph(
     haptic: Haptic = Haptic.Tap,
     modifier: Modifier = Modifier,
 ) {
-    val haptics = rememberHaptics()
-    val discAlpha by animateFloatAsState(
-        targetValue = if (active) 0.34f else CIRCLE_DISC_ALPHA,
-        label = "glyphDisc",
-    )
-    val chrome = LocalPlayerChrome.current
-    Box(
-        modifier = modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                haptics.play(haptic)
-                onClick()
-            },
-        contentAlignment = Alignment.Center,
+    CircleGlyphContainer(
+        active = active,
+        onClick = onClick,
+        haptic = haptic,
+        modifier = modifier,
     ) {
-        // The disc carries the blend, dodged as the bottom row's glyphs are, and
-        // the glyph sits on it in plain white. The ink is mixed in at a few times
-        // the plain disc's strength: a dodge laid on this thinly is next to nothing.
-        Box(
-            Modifier
-                .matchParentSize()
-                .vibrantChrome(chrome)
-                .background(discFill(chrome, discAlpha)),
-        )
-        // Outside the blend: the rim is light catching the edge, not ink.
-        Box(Modifier.matchParentSize().glassRim(CircleShape))
         Crossfade(
             targetState = icon,
             animationSpec = tween(durationMillis = 180),

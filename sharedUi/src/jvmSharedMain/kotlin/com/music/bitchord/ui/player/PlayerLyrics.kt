@@ -1548,29 +1548,14 @@ internal fun TranslationToggleButton(
     onClick: () -> Unit,
 ) {
     val active = showingTranslation || state is LyricsTranslationUiState.Loading
-    val chrome = LocalPlayerChrome.current
     val tint = when {
         !enabled || state is LyricsTranslationUiState.SameLanguage -> chromeWhite(0.42f)
-        active -> Color.White.copy(alpha = if (chrome) CHROME_FULL_ALPHA else 1f)
-        else -> chromeWhite(0.78f)
+        else -> Color.White
     }
-    val discAlpha by animateFloatAsState(
-        targetValue = if (active) 0.34f else 0.18f,
-        label = "translateDisc",
-    )
-    Box(
-        modifier = Modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .additiveChrome(chrome)
-            .background(Color.White.copy(alpha = discAlpha))
-            .clickable(
-                enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
+    CircleGlyphContainer(
+        active = active,
+        enabled = enabled,
+        onClick = onClick,
     ) {
         if (state is LyricsTranslationUiState.Loading) {
             CircularProgressIndicator(
@@ -1601,29 +1586,14 @@ internal fun RomanizationToggleButton(
     onClick: () -> Unit,
 ) {
     val active = showingRomanization || state is LyricsTranslationUiState.Loading
-    val chrome = LocalPlayerChrome.current
     val tint = when {
         !enabled || state is LyricsTranslationUiState.SameLanguage -> chromeWhite(0.42f)
-        active -> Color.White.copy(alpha = if (chrome) CHROME_FULL_ALPHA else 1f)
-        else -> chromeWhite(0.78f)
+        else -> Color.White
     }
-    val discAlpha by animateFloatAsState(
-        targetValue = if (active) 0.34f else 0.18f,
-        label = "romanizeDisc",
-    )
-    Box(
-        modifier = Modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .additiveChrome(chrome)
-            .background(Color.White.copy(alpha = discAlpha))
-            .clickable(
-                enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
+    CircleGlyphContainer(
+        active = active,
+        enabled = enabled,
+        onClick = onClick,
     ) {
         if (state is LyricsTranslationUiState.Loading) {
             CircularProgressIndicator(

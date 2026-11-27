@@ -224,37 +224,24 @@ internal fun ChordAnalysisToggleButton(
     modifier: Modifier = Modifier,
 ) {
     val active = (state.events != null && state.show) || state.loading
-    val chrome = LocalPlayerChrome.current
     val tint = when {
         !enabled -> chromeWhite(0.42f)
-        active -> Color.White.copy(alpha = if (chrome) CHROME_FULL_ALPHA else 1f)
-        else -> chromeWhite(0.78f)
+        active -> state.accentColor
+        else -> Color.White
     }
-    val discAlpha = animateFloatAsState(
-        targetValue = if (active) 0.34f else 0.18f,
-        label = "chordDiscAlpha",
-    )
-    Box(
-        modifier = modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .additiveChrome(chrome)
-            .drawBehind { drawRect(Color.White.copy(alpha = discAlpha.value)) }
-            .clickable(
-                enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
-                    if (state.loading) {
-                        state.cancelAnalysis(song, source)
-                    } else if (state.events == null) {
-                        state.startAnalysis(song, source)
-                    } else {
-                        state.show = !state.show
-                    }
-                },
-            ),
-        contentAlignment = Alignment.Center,
+    CircleGlyphContainer(
+        active = active,
+        enabled = enabled,
+        onClick = {
+            if (state.loading) {
+                state.cancelAnalysis(song, source)
+            } else if (state.events == null) {
+                state.startAnalysis(song, source)
+            } else {
+                state.show = !state.show
+            }
+        },
+        modifier = modifier,
     ) {
         if (state.loading) {
             CircularProgressIndicator(
