@@ -58,6 +58,7 @@ internal fun LyricsPanel(
     centerFocus: Boolean = false,
     chordState: ChordUiState? = null,
     hazeState: HazeState? = null,
+    showChordControls: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val source = PlayerPlatform.host.chordAnalysis
@@ -92,7 +93,7 @@ internal fun LyricsPanel(
             modifier = bodyModifier,
         )
     }
-    if (source == null || chordSong == null || internalChordState == null) {
+    if (source == null || chordSong == null || internalChordState == null || !showChordControls) {
         content(modifier)
     } else {
         val showControls = active && !picking &&

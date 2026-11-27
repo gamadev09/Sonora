@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Button
@@ -196,8 +197,85 @@ internal fun PartyLanding(
     enabled: Boolean,
     onCreate: () -> Unit,
     onJoin: () -> Unit,
+    compact: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    if (compact) {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Groups,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.listen_together_landing_title),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                ),
+                color = Color.White,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.listen_together_landing_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.72f),
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(18.dp))
+            Button(
+                onClick = onCreate,
+                enabled = enabled,
+                shape = RoundedCornerShape(percent = 50),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.listen_together_create_action),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = onJoin,
+                enabled = enabled,
+                shape = RoundedCornerShape(percent = 50),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White.copy(alpha = 0.14f),
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.White.copy(alpha = 0.06f),
+                    disabledContentColor = Color.White.copy(alpha = 0.38f),
+                ),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.listen_together_join_existing),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+        return
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -313,16 +391,17 @@ internal fun CreatePartySheet(
     enabled: Boolean,
     error: String?,
     onCreate: () -> Unit,
+    compact: Boolean = false,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = if (compact) 4.dp else 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         SheetHeader(
             title = stringResource(R.string.listen_together_create),
             subtitle = stringResource(R.string.listen_together_create_sheet_subtitle),
         )
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(if (compact) 14.dp else 22.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             PartySheetAvatar(url = avatarUrl)
             Spacer(Modifier.width(ICON_GAP))
@@ -335,7 +414,7 @@ internal fun CreatePartySheet(
                 keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
             )
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -366,12 +445,12 @@ internal fun CreatePartySheet(
                 onMaxMembersChange(maxMembers + 1)
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(if (compact) 16.dp else 24.dp))
         Button(
             onClick = onCreate,
             enabled = enabled && !busy,
             shape = RoundedCornerShape(percent = 50),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier.fillMaxWidth().height(if (compact) 48.dp else 52.dp),
         ) {
             Text(
                 text = stringResource(
@@ -382,7 +461,7 @@ internal fun CreatePartySheet(
             )
         }
         SheetError(error)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(if (compact) 6.dp else 12.dp))
     }
 }
 
@@ -434,28 +513,29 @@ internal fun JoinPartySheet(
     enabled: Boolean,
     error: String?,
     onSubmit: () -> Unit,
+    compact: Boolean = false,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = if (compact) 4.dp else 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         SheetHeader(
             title = stringResource(R.string.listen_together_join),
             subtitle = stringResource(R.string.listen_together_code_hint),
         )
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(if (compact) 14.dp else 22.dp))
         PartyCodeField(
             code = code,
             onCodeChange = onCodeChange,
             enabled = enabled && !busy,
             onSubmit = onSubmit,
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(if (compact) 14.dp else 20.dp))
         Button(
             onClick = onSubmit,
             enabled = enabled && !busy && code.length == ListenTogether.CODE_LENGTH,
             shape = RoundedCornerShape(percent = 50),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier.fillMaxWidth().height(if (compact) 48.dp else 52.dp),
         ) {
             Text(
                 text = stringResource(
@@ -466,7 +546,7 @@ internal fun JoinPartySheet(
             )
         }
         SheetError(error)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(if (compact) 8.dp else 16.dp))
     }
 }
 
@@ -550,16 +630,18 @@ internal fun JoinConfirmSheet(
     error: String?,
     onJoin: () -> Unit,
     onDismiss: () -> Unit,
+    compact: Boolean = false,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = if (compact) 4.dp else 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         MemberAvatarStack(
             members = preview.members.map { it.displayName to it.avatarUrl },
             total = preview.memberCount,
+            faceSize = if (compact) 44.dp else 52.dp,
         )
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
         Text(
             text = preview.hostName.takeIf { it.isNotBlank() }
                 ?.let { stringResource(R.string.listen_together_join_question, it) }
@@ -664,17 +746,18 @@ internal fun InviteSheet(
     link: String,
     onShareLink: () -> Unit,
     onCopyCode: () -> Unit,
+    compact: Boolean = false,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = if (compact) 4.dp else 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         SheetHeader(title = stringResource(R.string.listen_together_invite_title))
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(if (compact) 12.dp else 20.dp))
         Button(
             onClick = onShareLink,
             shape = RoundedCornerShape(percent = 50),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier.fillMaxWidth().height(if (compact) 48.dp else 52.dp),
         ) {
             Icon(Icons.Rounded.Link, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))

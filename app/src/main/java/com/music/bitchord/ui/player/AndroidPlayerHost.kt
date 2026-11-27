@@ -489,7 +489,25 @@ private class CastAwareVolume(
     }
         .stateIn(scope, SharingStarted.Eagerly, system.level.value)
 
+    override val adjustable: StateFlow<Boolean> = combine(
+        system.adjustable,
+        CastController.state.map { it.casting },
+        AirPlayController.state.map { it.connected },
+        DlnaController.state.map { it.connected },
+        WearBridge.watchOutput,
+    ) { sysAdj, casting, airConnected, dlnaConnected, watch ->
+        when {
+            casting -> true
+            airConnected -> true
+            dlnaConnected -> true
+            watch.active -> true
+            DacVolume.level.value != null -> true
+            else -> sysAdj
+        }
+    }.stateIn(scope, SharingStarted.Eagerly, system.adjustable.value)
+
     override fun set(level: Float) {
+        if (!adjustable.value) return
         when {
             CastController.state.value.casting -> CastController.setVolume(level)
             AirPlayController.state.value.connected -> AirPlayController.setVolume(level)
@@ -511,6 +529,7 @@ private class MusicStreamVolume(private val context: Context) : SystemVolume {
     private val manager = context.getSystemService(AudioManager::class.java)
     private val _level = MutableStateFlow(read())
     override val level: StateFlow<Float> = _level.asStateFlow()
+    override val adjustable: StateFlow<Boolean> = MutableStateFlow(manager?.isVolumeFixed != true).asStateFlow()
 
     init {
         context.contentResolver.registerContentObserver(

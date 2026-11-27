@@ -172,26 +172,44 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
         val prevPriority = Process.getThreadPriority(Process.myTid())
         Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
         try {
-            val source = input.open() ?: error("This audio file cannot be opened.")
             val coroutine = currentCoroutineContext()
-            source.use {
-                val duration = AudioDecoder.containerDurationSeconds(it)
-                    ?.takeIf { seconds -> seconds.isFinite() && seconds > 0 && seconds <= 1800 }
-                    ?: error("Use a supported audio file no longer than 30 minutes.")
-                val analyzer = ChordAnalyzer()
-                var nextProgress = 0.0
-                val decoded = AudioDecoder.streamRegion(it, 0.0, duration, abort = { !coroutine.isActive }) {
-                        samples, at, rate ->
-                    coroutine.ensureActive()
-                    analyzer.accept(samples, at, rate)
-                    if (at >= nextProgress) {
-                        updates.trySend((at / duration).toFloat().coerceIn(0f, 0.99f))
-                        nextProgress = at + 0.5
-                    }
-                }
+            val duration = AudioDecoder.containerDurationSecondsWithFallback(input.open)
+                ?.takeIf { seconds -> seconds.isFinite() && seconds > 0 && seconds <= 1800 }
+                ?: error("Use a supported audio file no longer than 30 minutes.")
+            var analyzer = ChordAnalyzer()
+            var nextProgress = 0.0
+            val outcome = AudioDecoder.streamRegionWithFallback(
+                openSource = input.open,
+                startSeconds = 0.0,
+                endSeconds = duration,
+                abort = { !coroutine.isActive },
+                onReset = {
+                    analyzer = ChordAnalyzer()
+                    nextProgress = 0.0
+                    updates.trySend(0f)
+                },
+            ) { samples, at, rate ->
                 coroutine.ensureActive()
-                check(decoded != null) { "Android could not decode this audio format." }
-                analyzer.finish((duration * 1000).toLong())
+                analyzer.accept(samples, at, rate)
+                if (at >= nextProgress) {
+                    updates.trySend((at / duration).toFloat().coerceIn(0f, 0.99f))
+                    nextProgress = at + 0.5
+                }
+            }
+            coroutine.ensureActive()
+            when (outcome) {
+                is AudioDecoder.DecodeOutcome.Success -> analyzer.finish((duration * 1000).toLong())
+                is AudioDecoder.DecodeOutcome.Failure -> when (outcome.reason) {
+                    AudioDecoder.DecodeFailure.ABORTED -> throw CancellationException("Chord analysis cancelled")
+                    AudioDecoder.DecodeFailure.INCOMPLETE_SOURCE ->
+                        error("Download this song, or let it finish caching, then try again.")
+                    AudioDecoder.DecodeFailure.CORRUPT_MEDIA ->
+                        error("This audio file appears corrupt or incomplete.")
+                    AudioDecoder.DecodeFailure.UNSUPPORTED_FORMAT ->
+                        error("This audio format is not supported for chord analysis.")
+                    AudioDecoder.DecodeFailure.DECODER_ERROR ->
+                        error("Unable to decode this recording for chord analysis.")
+                }
             }
         } finally {
             Process.setThreadPriority(prevPriority)

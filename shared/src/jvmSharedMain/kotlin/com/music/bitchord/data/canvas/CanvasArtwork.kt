@@ -7,9 +7,7 @@ import java.util.Locale
  * Which provider a clip came from — read in one place, by
  * [CanvasArtworkPlayer][com.music.bitchord.ui.player.CanvasArtworkPlayer]'s
  * caller, to decide whether the backdrop should keep re-tinting itself off
- * the clip as it loops rather than settling on its first frame. See that
- * call site for why Spotify's Canvas gets the periodic re-tint and the other
- * three don't.
+ * the clip as it loops rather than settling on its first frame.
  */
 enum class CanvasSource { SPOTIFY, APPLE, OTHER }
 
@@ -19,9 +17,8 @@ enum class CanvasSource { SPOTIFY, APPLE, OTHER }
  *
  * [url] is what the player mounts; [fallbackUrl] is tried once if that errors,
  * which is how the Apple provider hands over a second rendition of the same
- * clip when the preferred one won't decode. The three metadata fields are not
- * decoration: providers search by free text and will happily return the wrong
- * album's clip, so [matches] re-checks the answer against what's playing.
+ * clip when the preferred one won't decode. The metadata fields let [matches]
+ * re-check free-text provider answers against what is actually playing.
  */
 data class CanvasArtwork(
     val url: String,
@@ -36,47 +33,129 @@ data class CanvasArtwork(
      * else keeps the square [url].
      */
     val portraitUrl: String? = null,
+    /** Verified provider album identifier when known (e.g. Apple Music catalog album id). */
+    val albumId: String? = null,
+    /** Storefront code where the clip was resolved, when applicable. */
+    val storefront: String? = null,
 ) {
     /**
-     * Whether this clip really belongs to the track we asked about.
+     * Whether this clip really belongs to the track or release we asked about.
      *
-     * Title and artists must match exactly once punctuation, case and accents
-     * are stripped — a near miss here is a different song by the same artist,
-     * which is the one failure mode users notice. The album is only held to
-     * that standard when both sides know it: BitChord resolves a track's album
-     * asynchronously after the player opens, and a track queued from search
-     * may never get one, so requiring it outright would mean no canvas at all
-     * for most of a session.
+     * Uses Unicode-aware normalization so multilingual titles, accents, punctuation,
+     * featured-artist formatting, and harmless edition markers (Deluxe/Remastered/Expanded)
+     * do not falsely reject valid matches, while still rejecting distinct recording
+     * versions (Live, Acoustic, Remix, Sped Up, Slowed, Instrumental, etc.).
      */
     fun matches(wantTitle: String, wantArtist: String, wantAlbum: String?): Boolean {
         val titleOk = title == null || wantTitle.isBlank() ||
-            title.normalizeForMatch() == wantTitle.normalizeForMatch()
+            titlesEquivalent(title, wantTitle)
 
-        val titleArtists = splitArtists(wantArtist)
-        val ourArtists = splitArtists(artist.orEmpty())
         val artistOk = artist == null || wantArtist.isBlank() ||
-            (titleArtists.isNotEmpty() && ourArtists.isNotEmpty() &&
-                titleArtists.all { want -> ourArtists.any { it == want } })
+            artistsCompatible(wantArtist, artist)
 
         val albumOk = album.isNullOrBlank() || wantAlbum.isNullOrBlank() ||
-            album.normalizeForMatch() == wantAlbum.normalizeForMatch()
+            albumsEquivalent(album, wantAlbum)
 
         return titleOk && artistOk && albumOk
     }
 }
 
 /**
- * Case, accents and punctuation all differ between YouTube Music, Apple and
- * Tidal for the same release — "Beyoncé - CRAZY IN LOVE (feat. JAY-Z)" against
- * "Beyonce Crazy in Love feat Jay Z". Fold all three away before comparing.
+ * Unicode-aware normalization that preserves non-Latin scripts (CJK, Cyrillic,
+ * Arabic, Greek, Devanagari, etc.) while folding case, accents/diacritics, and
+ * punctuation.
  */
 fun String.normalizeForMatch(): String =
-    Normalizer.normalize(this, Normalizer.Form.NFD)
-        .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+    Normalizer.normalize(this, Normalizer.Form.NFKD)
+        .replace(COMBINING_MARKS, "")
         .lowercase(Locale.ROOT)
-        .replace(Regex("[^a-z0-9\\s]"), " ")
-        .replace(Regex("\\s+"), " ")
+        .replace(NON_LETTER_OR_DIGIT, " ")
+        .replace(WHITESPACE, " ")
         .trim()
+
+/**
+ * Strips featured-artist credits and harmless release-packaging suffixes
+ * (Deluxe, Remastered, Expanded, Explicit, Single, EP) while keeping the core
+ * title or album name intact.
+ */
+fun String.canonicalReleaseBase(): String {
+    var s = this
+        .replace(PARENS_FEAT, " ")
+        .replace(INLINE_FEAT, " ")
+        .replace(EDITION_SUFFIX_PARENS, " ")
+        .replace(EDITION_SUFFIX_DASH, " ")
+        .replace(TRAILING_EP_SINGLE, " ")
+    return s.normalizeForMatch()
+}
+
+/**
+ * Recording-version qualifiers that denote a meaningfully different recording
+ * rather than a repackaged edition of the same master.
+ */
+fun String.recordingQualifiers(): Set<String> {
+    val norm = normalizeForMatch()
+    if (norm.isBlank()) return emptySet()
+    return RECORDING_QUALIFIERS.filterTo(HashSet()) { qualifier ->
+        Regex("(?:^|\\s)${Regex.escape(qualifier)}(?:$|\\s)").containsMatchIn(norm)
+    }
+}
+
+fun titlesEquivalent(candidate: String, wanted: String): Boolean {
+    val normCand = candidate.normalizeForMatch()
+    val normWant = wanted.normalizeForMatch()
+    if (normCand.isBlank() || normWant.isBlank()) return false
+    if (normCand == normWant) return true
+
+    // Preserve meaningful recording/version differences.
+    if (candidate.recordingQualifiers() != wanted.recordingQualifiers()) return false
+
+    val baseCand = candidate.canonicalReleaseBase()
+    val baseWant = wanted.canonicalReleaseBase()
+    if (baseCand.isBlank() || baseWant.isBlank()) return false
+    return baseCand == baseWant
+}
+
+fun albumsEquivalent(candidate: String, wanted: String): Boolean {
+    val normCand = candidate.normalizeForMatch()
+    val normWant = wanted.normalizeForMatch()
+    if (normCand.isBlank() || normWant.isBlank()) return false
+    if (normCand == normWant) return true
+
+    val baseCand = candidate.canonicalReleaseBase()
+    val baseWant = wanted.canonicalReleaseBase()
+    if (baseCand.isBlank() || baseWant.isBlank()) return false
+    if (baseCand == baseWant) return true
+
+    // Reject if recording qualifiers conflict (e.g. Live album vs Studio album).
+    if (candidate.recordingQualifiers() != wanted.recordingQualifiers()) return false
+
+    // Allow a slightly longer edition name if one cleanly prefixes the other on a word boundary.
+    return (baseCand.startsWith("$baseWant ") || baseWant.startsWith("$baseCand ")) &&
+        minOf(baseCand.length, baseWant.length) >= 4
+}
+
+fun artistsCompatible(wantedRaw: String, candidateRaw: String): Boolean {
+    val wanted = splitArtists(wantedRaw)
+    val credited = splitArtists(candidateRaw)
+    if (wanted.isEmpty() || credited.isEmpty()) return false
+
+    // Exact match on all wanted artists (best case).
+    if (wanted.all { want -> credited.any { it == want } }) return true
+
+    // Primary artist matches (handles cases where YouTube Music appends or omits a featured artist).
+    val wantedPrimary = wanted.first()
+    val creditedPrimary = credited.first()
+    if (wantedPrimary == creditedPrimary) return true
+    if (credited.any { it == wantedPrimary } && wanted.any { it == creditedPrimary }) return true
+
+    // Handle "The X" vs "X" on primary artist.
+    val stripThe = { s: String -> s.removePrefix("the ").trim() }
+    if (stripThe(wantedPrimary).isNotBlank() && stripThe(wantedPrimary) == stripThe(creditedPrimary)) {
+        return true
+    }
+
+    return false
+}
 
 /**
  * One credit string into its individual artists. Every service picks its own
@@ -88,7 +167,56 @@ fun splitArtists(raw: String): List<String> =
         .map { it.normalizeForMatch() }
         .filter { it.isNotBlank() }
 
+private val COMBINING_MARKS = Regex("\\p{M}+")
+private val NON_LETTER_OR_DIGIT = Regex("[^\\p{L}\\p{N}\\s]")
+private val WHITESPACE = Regex("\\s+")
+
 private val ARTIST_SEPARATORS = Regex(
-    "(?:\\s*,\\s*|\\s*&\\s*|\\s+×\\s+|\\s+x\\s+|\\bfeat\\.?\\b|\\bft\\.?\\b|\\bfeaturing\\b|\\bwith\\b)",
+    "(?:\\s*,\\s*|\\s*&\\s*|\\s+×\\s+|\\s+x\\s+|\\s+•\\s+|\\bfeat\\.?\\b|\\bft\\.?\\b|\\bfeaturing\\b|\\bwith\\b)",
     RegexOption.IGNORE_CASE,
+)
+
+private val PARENS_FEAT = Regex(
+    """[\(\[]\s*(?:feat\.?|ft\.?|featuring|with)\s+[^\)\]]+[\)\]]""",
+    RegexOption.IGNORE_CASE,
+)
+
+private val INLINE_FEAT = Regex(
+    """\s+(?:feat\.?|ft\.?|featuring)\s+.+$""",
+    RegexOption.IGNORE_CASE,
+)
+
+private val EDITION_SUFFIX_PARENS = Regex(
+    """[\(\[]\s*(?:deluxe|super deluxe|expanded|remaster(?:ed)?|anniversary|collector'?s?|special|bonus|explicit|clean|standard|complete|platinum|gold|legacy|digital|apple music|international|japan(?:ese)?|uk|us|limited|\d{4}\s*remaster(?:ed)?|\d{2}(?:th|st|nd|rd)\s*anniversary)(?:\s+[^\)\]]*)?[\)\]]""",
+    RegexOption.IGNORE_CASE,
+)
+
+private val EDITION_SUFFIX_DASH = Regex(
+    """\s+[-–—]\s+(?:deluxe|super deluxe|expanded|remaster(?:ed)?|anniversary|special|bonus|explicit|clean|single|ep|\d{4}\s*remaster(?:ed)?)(?:\s+.*)?$""",
+    RegexOption.IGNORE_CASE,
+)
+
+private val TRAILING_EP_SINGLE = Regex(
+    """\s*[\(\[]\s*(?:single|ep)\s*[\)\]]\s*$""",
+    RegexOption.IGNORE_CASE,
+)
+
+private val RECORDING_QUALIFIERS = listOf(
+    "live",
+    "acoustic",
+    "remix",
+    "instrumental",
+    "karaoke",
+    "sped up",
+    "slowed",
+    "demo",
+    "a cappella",
+    "acapella",
+    "unplugged",
+    "orchestral",
+    "chopped",
+    "nightcore",
+    "8d",
+    "cover",
+    "radio edit",
 )

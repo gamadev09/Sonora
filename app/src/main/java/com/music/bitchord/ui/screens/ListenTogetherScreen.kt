@@ -362,6 +362,7 @@ fun ListenTogetherScreen(
                     busy = busy,
                     enabled = signedIn && ListenTogether.hasServer,
                     error = failure,
+                    compact = embedded,
                     onCreate = {
                         busy = true
                         failure = null
@@ -380,14 +381,12 @@ fun ListenTogetherScreen(
                         codeInput = typed.filter(Char::isLetterOrDigit)
                             .uppercase()
                             .take(ListenTogether.CODE_LENGTH)
-                        // Typing is the retry. Keeping "no party with that
-                        // code" on screen while the code is being corrected
-                        // makes it read as a verdict on what is there now.
                         failure = null
                     },
                     busy = busy,
                     enabled = signedIn && ListenTogether.hasServer,
                     error = failure,
+                    compact = embedded,
                     onSubmit = { openPartyPreview(codeInput, null) },
                 )
 
@@ -401,6 +400,7 @@ fun ListenTogetherScreen(
                     },
                     busy = busy,
                     error = failure,
+                    compact = embedded,
                     onDismiss = {
                         sheet = null
                         failure = null
@@ -409,13 +409,6 @@ fun ListenTogetherScreen(
                         busy = true
                         failure = null
                         scope.launch {
-                            // A server named on the invite itself always wins,
-                            // whether this device is idle or already live: it
-                            // is the one place the target the preview came
-                            // from is actually known. Otherwise, already being
-                            // in a party means a switch, which keeps this
-                            // device where it is if the new party turns it
-                            // away.
                             val problem = if (open.server != null || state.inParty) {
                                 val target = ListenTogether.resolveSwitchTarget(open.server, customServer)
                                 when (
@@ -448,6 +441,7 @@ fun ListenTogetherScreen(
                 PartySheet.Invite -> InviteSheet(
                     code = state.code.orEmpty(),
                     link = inviteLinkFor(state.code.orEmpty()),
+                    compact = embedded,
                     onShareLink = {
                         sheet = null
                         shareInvite()
@@ -478,7 +472,7 @@ fun ListenTogetherScreen(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (embedded) Modifier else Modifier.verticalScroll(rememberScrollState()))
+            .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
         if (!embedded) SettingsPageTitle(stringResource(R.string.listen_together))
@@ -502,7 +496,7 @@ fun ListenTogetherScreen(
             PartyLanding(
                 avatarUrl = ListenTogether.myAvatarUrl(),
                 enabled = signedIn && ListenTogether.hasServer && !busy,
-                // The last attempt's message does not belong on the next one.
+                compact = embedded,
                 onCreate = {
                     failure = null
                     sheet = PartySheet.Create
@@ -523,72 +517,86 @@ fun ListenTogetherScreen(
                 onSetHostOnlyControl = ListenTogether::setHostOnlyControl,
                 onKick = ListenTogether::kick,
             )
-            // Inside the party branch on purpose. A log of who skipped what is
-            // a thing to look back over while a party is running; on the page
-            // that offers to start one it is a list of somebody else's evening,
-            // under a button that has not been pressed yet.
             PartyActivityList(activity)
         }
 
-        // Only when nothing is covering it. A sheet is a drawer over the bottom
-        // of this page, and every failure it can produce is already shown
-        // inside it — printing the same line down here as well means printing
-        // it where it cannot be read.
         if (sheet == null) {
             (failure ?: state.error)?.let { message ->
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(start = GROUP_INSET + 4.dp, end = GROUP_INSET + 4.dp, top = 12.dp),
+                    modifier = Modifier.padding(
+                        start = if (embedded) 4.dp else GROUP_INSET + 4.dp,
+                        end = if (embedded) 4.dp else GROUP_INSET + 4.dp,
+                        top = 10.dp,
+                    ),
                 )
             }
         }
 
-        // Last, and empty by default. Nobody setting up a party needs to think
-        // about an address — there is one built in — so this is where somebody
-        // running their own server comes looking, rather than the first thing
-        // everybody else has to read past.
-        //
-        // A row and a dialog rather than a box sitting open on the page. An
-        // address is typed once and then never again, and a field left on
-        // screen has to explain itself continuously: what the Save beside it
-        // applies to, why it greys out, what becomes of a half-typed address
-        // when the page is scrolled away from. Behind a row there is nothing
-        // half-typed to explain — the same shape as the ListenBrainz token.
-        SettingsGroup(
-            header = stringResource(R.string.listen_together_custom_server),
-            footer = stringResource(R.string.listen_together_custom_server_footer),
-        ) {
-            SettingsRow(
-                icon = SfIcons.Dns,
-                title = stringResource(R.string.listen_together_custom_server),
-                subtitleContent = {
-                    Text(
-                        text = customServer.ifBlank {
-                            stringResource(R.string.listen_together_using_default)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (customServer.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        ServerConnectionLine(connectionState)
-                    }
-                },
-                // Locked while in a party: changing the address under a live
-                // membership would leave this device holding a token for a
-                // server it no longer talks to, and the party unable to say
-                // why it went quiet.
-                enabled = !state.inParty && !busy,
-                onClick = onEditServer,
-                trailing = if (busy) ({ Spinner() }) else null,
-            )
+        if (embedded) {
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White.copy(alpha = 0.08f)),
+            ) {
+                SettingsRow(
+                    icon = SfIcons.Dns,
+                    title = stringResource(R.string.listen_together_custom_server),
+                    subtitleContent = {
+                        Text(
+                            text = customServer.ifBlank {
+                                stringResource(R.string.listen_together_using_default)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (customServer.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            ServerConnectionLine(connectionState)
+                        }
+                    },
+                    enabled = !state.inParty && !busy,
+                    onClick = onEditServer,
+                    trailing = if (busy) ({ Spinner() }) else null,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        } else {
+            SettingsGroup(
+                header = stringResource(R.string.listen_together_custom_server),
+                footer = stringResource(R.string.listen_together_custom_server_footer),
+            ) {
+                SettingsRow(
+                    icon = SfIcons.Dns,
+                    title = stringResource(R.string.listen_together_custom_server),
+                    subtitleContent = {
+                        Text(
+                            text = customServer.ifBlank {
+                                stringResource(R.string.listen_together_using_default)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (customServer.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            ServerConnectionLine(connectionState)
+                        }
+                    },
+                    enabled = !state.inParty && !busy,
+                    onClick = onEditServer,
+                    trailing = if (busy) ({ Spinner() }) else null,
+                )
+            }
+            Spacer(Modifier.height(32.dp))
         }
-
-        Spacer(Modifier.height(32.dp))
     }
 }
 

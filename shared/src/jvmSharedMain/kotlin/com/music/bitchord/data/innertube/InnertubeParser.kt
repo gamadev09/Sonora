@@ -71,7 +71,7 @@ object InnertubeParser {
                         ?: parseCardShelfBrowse(card)?.let(SearchResult::Browse)
                 }
         }
-        val rows = collectRenderers(response, "musicResponsiveListItemRenderer")
+        val rows = collectMusicSearchRows(response)
 
         // The rows tucked inside an artist's promoted card, paired with the
         // credit that card bills them to — see [cardShelfCredit]. Matched by
@@ -182,11 +182,51 @@ object InnertubeParser {
         return out
     }
 
+    /**
+     * Collects `musicResponsiveListItemRenderer` rows for search while skipping
+     * entire non-music shelves (Podcasts, Episodes, Profiles, Shows, Audiobooks)
+     * so non-musical items without explicit item-level pageType cannot leak in.
+     */
+    private fun collectMusicSearchRows(root: JsonElement): List<JsonObject> {
+        val out = mutableListOf<JsonObject>()
+        fun walk(node: JsonElement) {
+            when (node) {
+                is JsonObject -> {
+                    val shelf = node["musicShelfRenderer"] as? JsonObject
+                    if (shelf != null) {
+                        val shelfTitle = shelf.o("title").runs().trim().lowercase(Locale.ROOT)
+                        if (shelfTitle in EXCLUDED_SEARCH_SHELVES) return
+                    }
+                    (node["musicResponsiveListItemRenderer"] as? JsonObject)?.let(out::add)
+                    node.values.forEach(::walk)
+                }
+                is JsonArray -> node.forEach(::walk)
+                else -> Unit
+            }
+        }
+        walk(root)
+        return out
+    }
+
+    private fun isExcludedMusicBrowse(browseId: String, pageType: String): Boolean {
+        if (browseId.startsWith("MPSP") || browseId.startsWith("MPED") ||
+            browseId.startsWith("FEmusic_podcasts") || browseId.startsWith("FEmusic_non_music")
+        ) return true
+        return "PODCAST" in pageType ||
+            "EPISODE" in pageType ||
+            "NON_MUSIC" in pageType ||
+            "USER" in pageType ||
+            "PROFILE" in pageType ||
+            "AUDIOBOOK" in pageType
+    }
+
     private fun parseBrowseItem(renderer: JsonObject): BrowseItem? {
         val endpoint = renderer.o("navigationEndpoint").o("browseEndpoint") ?: return null
         val browseId = endpoint.s("browseId") ?: return null
         val pageType = endpoint.o("browseEndpointContextSupportedConfigs")
             .o("browseEndpointContextMusicConfig").s("pageType").orEmpty()
+
+        if (isExcludedMusicBrowse(browseId, pageType)) return null
 
         val columns = renderer.a("flexColumns").orEmpty()
         val title = columns.getOrNull(0)
@@ -195,12 +235,6 @@ object InnertubeParser {
 
         val subtitle = columns.getOrNull(1)
             .o("musicResponsiveListItemFlexColumnRenderer").o("text").runs()
-        // A playlist/album billed as a video chart/compilation — "N videos"
-        // in the subtitle, or "video" right in the title, e.g. "Daily Top
-        // Music Videos" — would have every row dropped by
-        // parseResponsiveListItem anyway, so skip the dead-end card rather
-        // than link to an empty page.
-        if ("PODCAST" in pageType || "NON_MUSIC" in pageType || "USER" in pageType) return null
         if ("PLAYLIST" in pageType && VIDEO_WORD.containsMatchIn(subtitle)) return null
 
         return BrowseItem(
@@ -217,6 +251,10 @@ object InnertubeParser {
             },
         )
     }
+
+    private val EXCLUDED_SEARCH_SHELVES = setOf(
+        "podcasts", "episodes", "profiles", "shows", "audiobooks", "community podcasts",
+    )
 
     // ---- Home feed ----------------------------------------------------------
 
@@ -963,7 +1001,7 @@ object InnertubeParser {
         // big song's own title promotes — "tum hi ho", "o maahi" — while the
         // real track sits in the rows below, so it doesn't get the top slot.
         // Read off the page type rather than the word, which is translated.
-        if ("NON_MUSIC_AUDIO_TRACK" in pageType || "PODCAST" in pageType || "USER" in pageType) return null
+        if (isExcludedMusicBrowse(browseId, pageType)) return null
         val title = renderer.o("title").runs()
         if (title.isBlank()) return null
         val subtitle = renderer.o("subtitle").runs()

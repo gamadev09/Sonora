@@ -84,21 +84,24 @@ fun LyricsSidePanel(
                 },
                 status = lyricsTranslation.status,
                 onStatusClick = { showLyricsProviders = true },
-                romanizationToggle = {
-                    RomanizationToggleButton(
-                        state = lyricsTranslation.romanizationState,
-                        showingRomanization = lyricsTranslation.showingRomanization,
-                        enabled = !lyrics.isNullOrEmpty(),
-                        onClick = lyricsTranslation.toggleRomanization,
-                    )
-                },
-                translationToggle = {
-                    TranslationToggleButton(
-                        state = lyricsTranslation.translationState,
-                        showingTranslation = lyricsTranslation.showingTranslation,
-                        enabled = !lyrics.isNullOrEmpty(),
-                        onClick = lyricsTranslation.toggleTranslation,
-                    )
+                utilityButtons = {
+                    androidx.compose.foundation.layout.Row(
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(androidx.compose.ui.unit.Dp(8f)),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        RomanizationToggleButton(
+                            state = lyricsTranslation.romanizationState,
+                            showingRomanization = lyricsTranslation.showingRomanization,
+                            enabled = !lyrics.isNullOrEmpty(),
+                            onClick = lyricsTranslation.toggleRomanization,
+                        )
+                        TranslationToggleButton(
+                            state = lyricsTranslation.translationState,
+                            showingTranslation = lyricsTranslation.showingTranslation,
+                            enabled = !lyrics.isNullOrEmpty(),
+                            onClick = lyricsTranslation.toggleTranslation,
+                        )
+                    }
                 },
             ) { panelModifier ->
                 LyricsTranslationMotion(

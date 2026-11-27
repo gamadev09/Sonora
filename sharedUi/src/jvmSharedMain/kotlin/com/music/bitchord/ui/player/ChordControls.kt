@@ -704,7 +704,7 @@ private fun chordAccentFromPalette(palette: MeshPalette): Color {
  * [GlassCapsuleSelector] for notation).
  */
 @Composable
-private fun ChordOptionsPopover(
+internal fun ChordOptionsPopover(
     expanded: Boolean,
     onDismiss: () -> Unit,
     state: ChordUiState,
@@ -712,6 +712,7 @@ private fun ChordOptionsPopover(
     source: ChordAnalysisSource,
     showCapoInMenu: Boolean,
     hazeState: HazeState?,
+    showInstrumentSelector: Boolean = false,
 ) {
     var mounted by remember { mutableStateOf(expanded) }
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
@@ -776,6 +777,39 @@ private fun ChordOptionsPopover(
                 .then(menuSurface)
                 .padding(vertical = 6.dp),
         ) {
+            if (showInstrumentSelector) {
+                val instruments = remember {
+                    listOf(ChordInstrument.INLINE, ChordInstrument.GUITAR, ChordInstrument.PIANO)
+                }
+                val instrumentLabels = listOf(
+                    stringResource(Res.string.chord_inline),
+                    stringResource(Res.string.chord_guitar),
+                    stringResource(Res.string.chord_piano),
+                )
+                Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    GlassCapsuleSelector(
+                        options = instrumentLabels,
+                        selectedIndex = instruments.indexOf(state.instrument).coerceAtLeast(0),
+                        onSelect = { idx ->
+                            val chosen = instruments[idx]
+                            if (chosen == ChordInstrument.GUITAR && !state.capoManuallySet) {
+                                val raw = state.events.orEmpty()
+                                val basis = if (state.simplify) simplifyChordEvents(raw) else raw
+                                state.capo = suggestedCapo(basis)
+                            }
+                            state.instrument = chosen
+                            state.show = true
+                        },
+                        accentColor = state.accentColor,
+                        hazeState = null,
+                        itemHeight = 32.dp,
+                        innerInset = 3.dp,
+                        useBackdropFrost = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            }
             if (showCapoInMenu) {
                 Row(
                     Modifier
@@ -951,7 +985,129 @@ private fun ChordDurationProgressBar(
 }
 
 @Composable
-private fun InstrumentChordPanel(state: ChordUiState) {
+internal fun LandscapeChordPanel(
+    song: Song,
+    source: ChordAnalysisSource,
+    state: ChordUiState,
+    hazeState: HazeState?,
+    modifier: Modifier = Modifier,
+) {
+    val activeChords = (state.events != null && state.show) || state.loading || state.error != null
+    if (!activeChords) return
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when {
+                state.loading -> {
+                    Text(
+                        text = stringResource(Res.string.chord_analyzing),
+                        color = chromeWhite(0.78f),
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (state.canCancel || state.job != null) {
+                        ChordGlassButton(
+                            label = stringResource(Res.string.chord_cancel),
+                            onClick = { state.cancelAnalysis(song, source) },
+                        )
+                    }
+                }
+                state.events == null -> {
+                    Text(
+                        text = state.error ?: stringResource(Res.string.chord_find),
+                        color = chromeWhite(0.78f),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ChordGlassButton(
+                        label = stringResource(Res.string.chord_find),
+                        onClick = { state.startAnalysis(song, source) },
+                    )
+                }
+                else -> {
+                    val heading = when (state.instrument) {
+                        ChordInstrument.INLINE -> stringResource(Res.string.chord_inline)
+                        ChordInstrument.GUITAR -> stringResource(Res.string.chord_guitar)
+                        ChordInstrument.PIANO -> stringResource(Res.string.chord_piano)
+                    }
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = heading,
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                        )
+                        if (state.guitar) {
+                            Text(
+                                text = stringResource(Res.string.chord_capo_value, state.capo),
+                                color = state.accentColor,
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                    Box(contentAlignment = Alignment.Center) {
+                        CircleGlyphContainer(
+                            active = state.options,
+                            onClick = { state.options = !state.options },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Tune,
+                                contentDescription = stringResource(Res.string.chord_options),
+                                tint = if (state.options) state.accentColor else Color.White,
+                                modifier = Modifier.size(19.dp),
+                            )
+                        }
+                        ChordOptionsPopover(
+                            expanded = state.options,
+                            onDismiss = { state.options = false },
+                            state = state,
+                            song = song,
+                            source = source,
+                            showCapoInMenu = state.guitar,
+                            hazeState = hazeState,
+                            showInstrumentSelector = true,
+                        )
+                    }
+                }
+            }
+        }
+        if (state.loading) {
+            Spacer(Modifier.height(4.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.15f)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = state.progress.coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(0f, 0.5f)
+                        }
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.85f)),
+                )
+            }
+        }
+        if (state.events != null && state.show && (state.guitar || state.piano) && state.diagramsExpanded) {
+            InstrumentChordPanel(state)
+        }
+    }
+}
+
+@Composable
+internal fun InstrumentChordPanel(state: ChordUiState) {
     val events = remember(state.events, state.simplify, state.notation, state.guitar, state.capo) { state.displayEvents() }
     val position = state.positionMs
     val window = chordFollowWindow(events, position)

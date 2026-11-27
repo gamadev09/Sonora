@@ -391,6 +391,8 @@ const val MAX_LYRICS_OFFSET_MS = 5_000
 interface SystemVolume {
     /** The level as the system reports it, following hardware keys and other apps. */
     val level: StateFlow<Float>
+    /** Whether the currently active output supports programmatic volume adjustment. */
+    val adjustable: StateFlow<Boolean> get() = kotlinx.coroutines.flow.MutableStateFlow(true)
     fun set(level: Float)
 
     /**

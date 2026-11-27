@@ -2294,19 +2294,26 @@ object AudioCache {
     ) : MediaDataSource() {
         private var isOpen = false
         private var openPosition = -1L
+        private var cachedSize = Long.MIN_VALUE
 
+        @Synchronized
         override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+            if (position < 0 || size < 0) return -1
             if (size == 0) return 0
             if (!isOpen || position != openPosition) {
                 closeUpstream()
                 val available = try {
                     dataSource.open(DataSpec.Builder().setUri(uri).setPosition(position).build())
                 } catch (error: IOException) {
+                    runCatching { dataSource.close() }
                     return -1
                 }
                 isOpen = true
                 openPosition = position
-                if (available == 0L) return -1
+                if (available == 0L) {
+                    closeUpstream()
+                    return -1
+                }
             }
             val count = try {
                 dataSource.read(buffer, offset, size)
@@ -2322,17 +2329,25 @@ object AudioCache {
             return count
         }
 
+        @Synchronized
         override fun getSize(): Long {
+            if (cachedSize != Long.MIN_VALUE) return cachedSize
             closeUpstream()
-            return try {
-                dataSource.open(DataSpec(uri))
+            val resolved = try {
+                val length = dataSource.open(DataSpec(uri))
+                if (length == C.LENGTH_UNSET.toLong()) -1L else length
             } catch (error: IOException) {
                 -1L
             } finally {
-                closeUpstream()
+                runCatching { dataSource.close() }
+                isOpen = false
+                openPosition = -1L
             }
+            cachedSize = resolved
+            return resolved
         }
 
+        @Synchronized
         override fun close() {
             closeUpstream()
         }
@@ -2341,6 +2356,7 @@ object AudioCache {
             if (isOpen) {
                 runCatching { dataSource.close() }
                 isOpen = false
+                openPosition = -1L
             }
         }
     }

@@ -169,29 +169,27 @@ internal fun UnifiedAudioOutputSheet(
                 }
             },
         )
+        val hasAvailableDevices = remoteName != null || candidates.isNotEmpty() ||
+            outputs.any { !it.isActive } || (watch.available && !watch.active)
         Spacer(Modifier.height(10.dp))
         Text(
             stringResource(Res.string.output_discovery_protocols),
             style = MaterialTheme.typography.labelMedium,
             color = Color.White,
         )
-        Text(
-            stringResource(
-                when {
-                    candidates.isNotEmpty() || outputs.count { !it.isActive } > 0 -> Res.string.output_available_devices
-                    searching -> Res.string.output_searching
-                    else -> Res.string.output_no_devices
-                },
-            ),
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White.copy(alpha = 0.64f),
-        )
+        if (hasAvailableDevices) {
+            Text(
+                stringResource(Res.string.output_available_devices),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.64f),
+            )
+        }
         Spacer(Modifier.height(8.dp))
         Box(
             Modifier.fillMaxWidth().height(252.dp).clip(ROW_SHAPE)
                 .background(Color.White.copy(alpha = 0.08f)),
         ) {
-            if (remoteName == null && candidates.isEmpty() && outputs.none { !it.isActive } && !watch.available) {
+            if (!hasAvailableDevices) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center) {
                     if (searching) CircularProgressIndicator(Modifier.size(22.dp),
@@ -248,37 +246,58 @@ internal fun UnifiedAudioOutputSheet(
 private fun ActiveOutputRow(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     val volume = PlayerPlatform.host.volume
     val reported by volume.level.collectAsStateWithLifecycle()
+    val adjustable by volume.adjustable.collectAsStateWithLifecycle()
     var level by remember(volume) { mutableFloatStateOf(reported) }
     var dragging by remember { mutableStateOf(false) }
     var width by remember { mutableIntStateOf(1) }
     LaunchedEffect(reported) { if (!dragging) level = reported }
-    LaunchedEffect(title) { volume.refresh() }
+    LaunchedEffect(title, subtitle) { volume.refresh() }
+    val clampedLevel = level.coerceIn(0f, 1f)
     Box(
         Modifier.fillMaxWidth().height(58.dp).clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(Color.White.copy(alpha = 0.08f))
             .onSizeChanged { width = it.width.coerceAtLeast(1) }
-            .pointerInput(volume, width) {
-                detectHorizontalDragGestures(
-                    onDragEnd = { dragging = false },
-                    onHorizontalDrag = { change, amount ->
-                        change.consume()
-                        dragging = true
-                        level = (level + amount / width).coerceIn(0f, 1f)
-                        volume.set(level)
-                    },
-                )
-            }
-            .semantics {
-                progressBarRangeInfo = ProgressBarRangeInfo(level, 0f..1f)
-                setProgress { requested ->
-                    level = requested.coerceIn(0f, 1f)
-                    volume.set(level)
-                    true
-                }
-            },
+            .then(
+                if (adjustable) {
+                    Modifier
+                        .pointerInput(volume, width) {
+                            detectHorizontalDragGestures(
+                                onDragEnd = { dragging = false },
+                                onDragCancel = { dragging = false },
+                                onHorizontalDrag = { change, amount ->
+                                    change.consume()
+                                    dragging = true
+                                    level = (level + amount / width).coerceIn(0f, 1f)
+                                    volume.set(level)
+                                },
+                            )
+                        }
+                        .semantics {
+                            progressBarRangeInfo = ProgressBarRangeInfo(clampedLevel, 0f..1f)
+                            setProgress { requested ->
+                                level = requested.coerceIn(0f, 1f)
+                                volume.set(level)
+                                true
+                            }
+                        }
+                } else {
+                    Modifier
+                },
+            ),
     ) {
-        Box(Modifier.fillMaxWidth(level.coerceIn(0f, 1f)).height(58.dp)
-            .background(Color.White.copy(alpha = 0.21f)))
+        if (adjustable) {
+            Box(
+                Modifier.fillMaxWidth(clampedLevel).height(58.dp)
+                    .background(Color.White.copy(alpha = 0.28f)),
+            ) {
+                if (clampedLevel > 0.02f && clampedLevel < 0.99f) {
+                    Box(
+                        Modifier.align(Alignment.CenterEnd).width(1.dp).height(58.dp)
+                            .background(Color.White.copy(alpha = 0.36f)),
+                    )
+                }
+            }
+        }
         Row(Modifier.fillMaxSize().padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
             OutputIcon(icon)

@@ -139,13 +139,19 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
 @Composable
 internal fun LandscapePlayerLayout(
     pane: PlayerPane,
+    /** True when Guitar or Piano diagrams are shown in the left panel, shrinking artwork to compact beside metadata. */
+    compactArtworkMode: Boolean = false,
     background: @Composable (Modifier) -> Unit,
     /** The sleeve; handed a modifier that already fixes its square size. */
     artwork: @Composable (Modifier) -> Unit,
-    /** The row under the sleeve, emitted into its column. */
-    actions: @Composable () -> Unit,
-    /** Credits and transport. [compact] is a phone-height window. */
-    mainPane: @Composable (compact: Boolean) -> Unit,
+    /** Metadata + grouped track controls (Queue, Favourite, Overflow). */
+    credits: @Composable () -> Unit,
+    /** Optional contextual chord heading / diagrams shown in the left panel during Lyrics+Chords. */
+    chordPanel: (@Composable () -> Unit)? = null,
+    /** Seek bar + audio quality label. */
+    scrubber: @Composable () -> Unit,
+    /** Shared SingleRowPlaybackControls (Lyrics, Previous, Play/Pause, Next, Audio Output). */
+    playbackControls: @Composable () -> Unit,
     lyricsPane: @Composable () -> Unit,
     queuePane: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -156,8 +162,6 @@ internal fun LandscapePlayerLayout(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                // The status bar counted whether or not it is showing, so the
-                // layout holds still when the player hides it.
                 .windowInsetsPadding(WindowInsets.safeDrawing.union(stableStatusBarInsets())),
             contentAlignment = Alignment.TopCenter,
         ) {
@@ -170,7 +174,7 @@ internal fun LandscapePlayerLayout(
                     .fillMaxSize()
                     .padding(
                         top = LANDSCAPE_HANDLE_STRIP,
-                        bottom = if (compact) 8.dp else 20.dp,
+                        bottom = if (compact) 8.dp else 16.dp,
                     ),
             ) {
                 Column(
@@ -180,21 +184,58 @@ internal fun LandscapePlayerLayout(
                         .padding(horizontal = gutter),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    // The sleeve is square and takes whichever of the two axes
-                    // runs out first once the row below has had its height —
-                    // the column's width on a big tablet, the height on
-                    // anything shorter. Measured here rather than estimated,
-                    // so the row under it can never be pushed off the bottom.
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                    if (pane == PlayerPane.Main) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                        }
+                    } else {
+                        if (compactArtworkMode) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                artwork(Modifier.size(if (compact) 56.dp else 68.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Box(Modifier.weight(1f)) { credits() }
+                            }
+                            if (chordPanel != null) {
+                                Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.TopStart,
+                                ) {
+                                    chordPanel()
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+                        } else {
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                            }
+                            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
+                            credits()
+                            if (chordPanel != null) {
+                                Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+                                chordPanel()
+                            }
+                        }
+                        Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+                        scrubber()
+                        Spacer(Modifier.height(if (compact) 0.dp else 4.dp))
+                        playbackControls()
                     }
-                    Spacer(Modifier.height(if (compact) 12.dp else 24.dp))
-                    actions()
                 }
 
                 AnimatedContent(
@@ -220,24 +261,29 @@ internal fun LandscapePlayerLayout(
                                 .padding(horizontal = gutter),
                             contentAlignment = Alignment.Center,
                         ) {
-                            mainPane(compact)
+                            Column(
+                                modifier = Modifier
+                                    .widthIn(max = PLAYER_MAX_WIDTH)
+                                    .fillMaxWidth(),
+                            ) {
+                                credits()
+                                Spacer(Modifier.height(if (compact) 10.dp else 16.dp))
+                                scrubber()
+                                Spacer(Modifier.height(if (compact) 4.dp else 10.dp))
+                                playbackControls()
+                            }
                         }
-                        // The lyric sheet and the queue both reach back across
-                        // [PLAYER_GUTTER] on their own (see
-                        // [bleedHorizontally]), so that is the padding they
-                        // get: their scroll areas then run exactly to the
-                        // column's edges.
                         PlayerPane.Lyrics -> Box(
                             Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = PLAYER_GUTTER),
+                                .padding(horizontal = gutter),
                         ) {
                             lyricsPane()
                         }
                         PlayerPane.Queue -> Box(
                             Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = PLAYER_GUTTER),
+                                .padding(horizontal = gutter),
                         ) {
                             queuePane()
                         }
@@ -245,8 +291,6 @@ internal fun LandscapePlayerLayout(
                 }
             }
 
-            // The sheet closes from a downward drag anywhere nothing else
-            // claims, as it does in portrait; this is only the promise.
             Box(
                 Modifier
                     .align(Alignment.TopCenter)
@@ -456,6 +500,8 @@ internal fun LandscapeCredits(
     infoTransition: SongInfoTransition,
     signedIn: Boolean,
     likeStatus: LikeStatus,
+    queueOpen: Boolean,
+    onToggleQueue: () -> Unit,
     /** The menu glyph is briefly the undo arrow after a quality upgrade. */
     showRevertCue: Boolean,
     onToggleLike: () -> Unit,
@@ -464,7 +510,7 @@ internal fun LandscapeCredits(
     /** Null browse id for anyone but the lead credit — see [NowPlayingScreen]. */
     onOpenArtist: (browseId: String?, name: String) -> Unit,
     modifier: Modifier = Modifier,
-    /** Blurred behind the star and ⋯ — see [GlassDiscPair]. */
+    /** Blurred behind the queue, star and ⋯ — see [GlassDiscPair]. */
     hazeState: HazeState? = null,
     overlayOpen: () -> Boolean = { false },
 ) {
@@ -483,7 +529,6 @@ internal fun LandscapeCredits(
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.White,
                     onOverflowChange = { titleOverflowing = it },
-                    // Before the title, in the artist line's colour.
                     leading = if (song.isExplicit == true) {
                         { ExplicitBadge(artistColor) }
                     } else {
@@ -499,18 +544,21 @@ internal fun LandscapeCredits(
                     },
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W500),
                     color = artistColor,
-                    // A title that's also scrolling gets to go first — starting
-                    // together reads as clutter, so the artist waits a beat.
                     startDelayMillis = if (titleOverflowing) MARQUEE_ARTIST_STAGGER_MS else 0L,
                     onOpenArtist = onOpenArtist,
                 )
             }
         }
         Spacer(Modifier.width(10.dp))
-        // Same gate as the portrait player's: no account to like against for a
-        // guest — but a local file or a finished download is liked on the
-        // device, which needs none.
         GlassDiscPair(hazeState = hazeState, overlayOpen = overlayOpen) {
+            CircleGlyph(
+                icon = BitChordIcons.Queue,
+                contentDescription = stringResource(Res.string.up_next),
+                onClick = onToggleQueue,
+                active = queueOpen,
+                haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
+            )
+            Spacer(Modifier.width(8.dp))
             if (signedIn || song.localUri != null) {
                 val liked = likeStatus == LikeStatus.LIKE
                 CircleGlyph(
@@ -534,28 +582,15 @@ internal fun LandscapeCredits(
     }
 }
 
-/**
- * The landscape player's right column with the lyrics open: the sheet, and
- * under it the romanize / source / translate bar.
- *
- * The bar is where the portrait player's status line and its two floating
- * toggles went. There the line sits over the scrubber and the toggles float
- * over the foot of the words; here there is no scrubber beside the lyrics, and
- * the bar gives all three a place of their own that costs the sheet no lines.
- */
 @Composable
 internal fun LandscapeLyricsPane(
     hasLyrics: Boolean,
-    /** Shown in place of the sheet while there are no lines to draw. */
     placeholder: String,
     status: String,
     onStatusClick: () -> Unit,
-    /** Whether lines are being picked, which is what the bar stands in for. */
     picking: Boolean = false,
-    /** The pick bar itself, drawn in place of the row below. */
     pickBar: @Composable () -> Unit = {},
-    romanizationToggle: @Composable () -> Unit,
-    translationToggle: @Composable () -> Unit,
+    utilityButtons: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     panel: @Composable (Modifier) -> Unit,
 ) {
@@ -568,10 +603,6 @@ internal fun LandscapeLyricsPane(
             if (hasLyrics) {
                 panel(Modifier.fillMaxSize())
             } else {
-                // Held at a fixed line rather than through
-                // [LyricsUnavailableLine] or [LyricsLoadingLine]: those fade
-                // out after a few seconds, which here would leave the whole
-                // column blank for as long as the track keeps playing.
                 Text(
                     text = placeholder,
                     style = MaterialTheme.typography.titleMedium,
@@ -581,35 +612,73 @@ internal fun LandscapeLyricsPane(
                 )
             }
         }
-        // While a pick is open the row below gives way to the bar: the two
-        // toggles in it would redraw the very lines the pick is indexing, and
-        // the status line is the one thing the bar's own Cancel and Share sit
-        // where.
         if (picking) {
             Box(Modifier.fillMaxWidth()) { pickBar() }
         } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    LyricsStatusWithChange(
+                        status = status,
+                        onStatusClick = onStatusClick,
+                    )
+                }
+                utilityButtons()
+            }
+        }
+    }
+}
+
+@Composable
+internal fun LandscapeQueuePane(
+    remainingCount: Int,
+    modeButtons: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    queueList: @Composable (Modifier) -> Unit,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        Text(
+            text = stringResource(Res.string.queue),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = Color.White,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            queueList(Modifier.fillMaxSize())
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Slots either side for toggles (romanization and translation/chords), so
-            // the status line stays centred as lyrics arrive.
-            Box(Modifier.height(34.dp)) { if (hasLyrics) romanizationToggle() }
+            modeButtons()
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.Center,
+                    .padding(start = 12.dp),
+                contentAlignment = Alignment.CenterEnd,
             ) {
-                LyricsStatusWithChange(
-                    status = status,
-                    onStatusClick = onStatusClick,
+                Text(
+                    text = if (remainingCount == 1) "1 track left" else "$remainingCount tracks left",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = chromeWhite(0.68f),
+                    maxLines = 1,
                 )
             }
-            Box(Modifier.height(34.dp)) { if (hasLyrics) translationToggle() }
-        }
         }
     }
 }

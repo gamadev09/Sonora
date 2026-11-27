@@ -1564,7 +1564,7 @@ fun NowPlayingScreen(
     val queueShowing by remember { derivedStateOf { queueSlide.floatValue > 0.01f } }
     val chordSource = remember { PlayerPlatform.host.chordAnalysis }
     val chordState = if (chordSource != null) {
-        rememberChordState(song, chordSource, lyricsPlayhead, lyricsOpen && collapseDone)
+        rememberChordState(song, chordSource, lyricsPlayhead, lyricsOpen && (sideways || collapseDone))
     } else null
     val overlayOpen = remember(chordState) {
         derivedStateOf {
@@ -2446,12 +2446,20 @@ fun NowPlayingScreen(
             }
 
             Box(modifier = Modifier.fillMaxSize().then(dockHost)) {
+                val landscapePane = when {
+                    lyricsOpen -> PlayerPane.Lyrics
+                    queueOpen -> PlayerPane.Queue
+                    else -> PlayerPane.Main
+                }
+                val landscapeChordActive = lyricsOpen && chordSource != null && chordState != null &&
+                    ((chordState.events != null && chordState.show) || chordState.loading || chordState.error != null)
+                val landscapeCompactArt = landscapeChordActive && chordState != null &&
+                    chordState.events != null && chordState.show && (chordState.guitar || chordState.piano) &&
+                    chordState.diagramsExpanded
+                val landscapeAccent = chordState?.accentColor ?: Color.White
                 LandscapePlayerLayout(
-                    pane = when {
-                        lyricsOpen -> PlayerPane.Lyrics
-                        queueOpen -> PlayerPane.Queue
-                        else -> PlayerPane.Main
-                    },
+                    pane = landscapePane,
+                    compactArtworkMode = landscapeCompactArt,
                     background = { backgroundModifier ->
                         // The whole screen is the sheets' frost source: there is
                         // no full-bleed banner here to be it instead.
@@ -2591,87 +2599,85 @@ fun NowPlayingScreen(
                             )
                         }
                     },
-                    actions = playerActions,
-                    mainPane = { compact ->
-                        LandscapeMainPane(
-                            compact = compact,
-                            caption = if (hideSongStatus) null else playbackOriginText(song, playedBy),
-                            onOpenCaption = openPlaybackOrigin,
-                            credits = {
-                                LandscapeCredits(
-                                    song = song,
-                                    infoTransition = infoTransition,
-                                    signedIn = signedIn,
-                                    likeStatus = likeStatus,
-                                    showRevertCue = showRevertCue,
-                                    onToggleLike = onToggleLike,
-                                    onOpenMenu = onOpenMenu,
-                                    onOpenAlbum = onOpenAlbum,
-                                    onOpenArtist = onOpenArtist,
-                                    hazeState = playerHaze,
-                                    overlayOpen = { overlayOpen.value },
-                                )
-                            },
-                            lyricStrip = if (syncedLyricsEnabled && !hideLyricsPreview) {
-                                {
-                                    CurrentLyricStrip(
-                                        lines = lyricsTranslation.displayedLyrics,
-                                        trackKey = song.videoId,
-                                        playhead = lyricsPlayhead,
-                                        isPlaying = isPlaying && position.advancing,
-                                        durationMs = durationMs,
-                                        lyricsUnavailable = lyricsUnavailable,
-                                        loadingText = lyricsLoadingText,
-                                        onClick = openLyrics,
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            scrubber = {
-                                PlayerScrubber(
-                                    shown = shown,
-                                    durationMs = durationMs,
-                                    loading = versionAligning || audioVersionSwitching,
-                                    mixing = mixing && !scrub.scrubbing,
-                                    transitionWindow = transitionWindow
-                                        ?.takeIf { !scrub.scrubbing && it.end > it.start }
-                                        ?.let { it.start..it.end },
-                                    onScrub = onScrub,
-                                    onScrubFinished = onScrubFinished,
-                                ) {
-                                    PlaybackQualityLabel(
-                                        song = song,
-                                        isLoading = isLoading,
-                                        modifier = Modifier
-                                            .align(Alignment.Center)
-                                            .padding(horizontal = 8.dp),
-                                    )
+                    credits = {
+                        LandscapeCredits(
+                            song = song,
+                            infoTransition = infoTransition,
+                            signedIn = signedIn,
+                            likeStatus = likeStatus,
+                            queueOpen = queueOpen,
+                            onToggleQueue = {
+                                if (queueOpen) {
+                                    queueOpen = false
+                                } else {
+                                    closeLyrics()
+                                    queueOpen = true
                                 }
                             },
-                            transport = {
-                                TransportRow(
-                                    isPlaying = isPlaying,
-                                    isLoading = isLoading || audioVersionSwitching,
-                                    previousEnabled = !controlsLocked &&
-                                        (hasPrevious || pastRestartPoint),
-                                    nextEnabled = !controlsLocked && hasNext,
-                                    onPrevious = onPrevious,
-                                    onPlayPause = onPlayPause,
-                                    onNext = onNext,
-                                    compact = compact,
-                                    animationsActive = !panelOpen,
-                                )
+                            showRevertCue = showRevertCue,
+                            onToggleLike = onToggleLike,
+                            onOpenMenu = onOpenMenu,
+                            onOpenAlbum = onOpenAlbum,
+                            onOpenArtist = onOpenArtist,
+                            hazeState = playerHaze,
+                            overlayOpen = { overlayOpen.value },
+                        )
+                    },
+                    chordPanel = if (landscapeChordActive && chordSource != null && chordState != null) {
+                        {
+                            LandscapeChordPanel(
+                                song = song,
+                                source = chordSource,
+                                state = chordState,
+                                hazeState = playerHaze,
+                            )
+                        }
+                    } else null,
+                    scrubber = {
+                        PlayerScrubber(
+                            shown = shown,
+                            durationMs = durationMs,
+                            loading = versionAligning || audioVersionSwitching,
+                            mixing = mixing && !scrub.scrubbing,
+                            transitionWindow = transitionWindow
+                                ?.takeIf { !scrub.scrubbing && it.end > it.start }
+                                ?.let { it.start..it.end },
+                            onScrub = onScrub,
+                            onScrubFinished = onScrubFinished,
+                        ) {
+                            PlaybackQualityLabel(
+                                song = song,
+                                isLoading = isLoading,
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .padding(horizontal = 8.dp),
+                            )
+                        }
+                    },
+                    playbackControls = {
+                        SingleRowPlaybackControls(
+                            isPlaying = isPlaying,
+                            isLoading = isLoading || audioVersionSwitching,
+                            previousEnabled = !controlsLocked && (hasPrevious || pastRestartPoint),
+                            nextEnabled = !controlsLocked && hasNext,
+                            lyricsOpen = lyricsOpen,
+                            accentColor = landscapeAccent,
+                            onToggleLyrics = {
+                                if (lyricsOpen) {
+                                    closeLyrics()
+                                } else {
+                                    queueOpen = false
+                                    openLyrics()
+                                }
                             },
-                            // Volume lives in the Audio Output menu across all player modes.
-                            volume = null,
+                            onPrevious = onPrevious,
+                            onPlayPause = onPlayPause,
+                            onNext = onNext,
+                            onOpenOutput = openAudioOutput,
+                            animationsActive = !overlayOpen.value,
                         )
                     },
                     lyricsPane = {
-                        val chordSource = remember { PlayerPlatform.host.chordAnalysis }
-                        val chordState = if (chordSource != null) {
-                            rememberChordState(song, chordSource, lyricsPlayhead, true)
-                        } else null
                         LandscapeLyricsPane(
                             hasLyrics = lyricsTranslation.displayedLyrics.isNotEmpty(),
                             placeholder = if (lyricsUnavailable) {
@@ -2691,19 +2697,17 @@ fun NowPlayingScreen(
                                     hazeState = queueHaze,
                                 )
                             },
-                            romanizationToggle = {
-                                RomanizationToggleButton(
-                                    state = lyricsTranslation.romanizationState,
-                                    showingRomanization = lyricsTranslation.showingRomanization,
-                                    enabled = !lyrics.isNullOrEmpty(),
-                                    onClick = lyricsTranslation.toggleRomanization,
-                                )
-                            },
-                            translationToggle = {
+                            utilityButtons = {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
+                                    RomanizationToggleButton(
+                                        state = lyricsTranslation.romanizationState,
+                                        showingRomanization = lyricsTranslation.showingRomanization,
+                                        enabled = !lyrics.isNullOrEmpty(),
+                                        onClick = lyricsTranslation.toggleRomanization,
+                                    )
                                     if (chordSource != null && chordState != null) {
                                         ChordAnalysisToggleButton(
                                             song = song,
@@ -2726,18 +2730,13 @@ fun NowPlayingScreen(
                                 reduceMotion = lyricsTranslation.reduceMotion,
                                 modifier = panelModifier,
                             ) { particleProgress ->
-                                // [controlsOpen] is a constant `true`: that flag
-                                // exists because the portrait player hides its
-                                // transport behind the lyrics and needs a tap to
-                                // bring it back. Here there is nothing hidden for
-                                // a tap to reveal, and leaving the reveal gesture
-                                // armed would only eat taps meant for the lines.
                                 LyricsPanel(
                                     lines = lyrics.orEmpty(),
                                     subLines = lyricsTranslation.subLines,
                                     trackKey = song.videoId,
                                     chordSong = song,
                                     chordState = chordState,
+                                    showChordControls = false,
                                     playhead = lyricsPlayhead,
                                     looking = !lyricsUnavailable,
                                     isPlaying = isPlaying && position.advancing,
@@ -2758,27 +2757,68 @@ fun NowPlayingScreen(
                         }
                     },
                     queuePane = {
-                        InlineQueue(
-                            queue = queue,
-                            currentIndex = queueIndex,
-                            autoplayEnabled = autoplayEnabled,
-                            controlsLocked = controlsLocked,
-                            hazeState = queueHaze,
-                            onJumpTo = onJumpTo,
-                            onRemove = onRemoveFromQueue,
-                            onMove = onMoveInQueue,
-                            onClear = onClearQueue,
-                            onSongMenu = onQueueSongMenu,
-                            onDragActiveChange = onQueueDragActiveChange,
-                            onSwipeToQueue = onQueueSwipeToQueue,
-                            gesturesEnabled = queueOpen && !lyricsOpen && !queueDragging,
-                            undoNotice = queueUndoNotice,
-                            selection = queueSelection,
-                            onBulkAction = onQueueBulkAction,
-                            onRemoveSelected = onQueueRemoveEntries,
-                            modifier = Modifier.fillMaxSize(),
-                            onAddAllToPlaylist = onQueueAddAllToPlaylist,
-                        )
+                        val remainingTracks = (queue.size - queueIndex - 1).coerceAtLeast(0)
+                        LandscapeQueuePane(
+                            remainingCount = remainingTracks,
+                            modeButtons = {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    UtilityDiscButton(
+                                        icon = BitChordIcons.Shuffle,
+                                        contentDescription = stringResource(
+                                            if (shuffleEnabled) Res.string.shuffle_on else Res.string.shuffle_off,
+                                        ),
+                                        active = shuffleEnabled,
+                                        accentColor = landscapeAccent,
+                                        onClick = onToggleShuffle,
+                                    )
+                                    UtilityDiscButton(
+                                        icon = BitChordIcons.Repeat,
+                                        contentDescription = when (repeatMode) {
+                                            RepeatModes.ONE -> stringResource(Res.string.repeat_one)
+                                            RepeatModes.ALL -> stringResource(Res.string.repeat_all)
+                                            else -> stringResource(Res.string.repeat_off)
+                                        },
+                                        active = repeatMode != RepeatModes.OFF,
+                                        accentColor = landscapeAccent,
+                                        onClick = onCycleRepeat,
+                                    )
+                                    UtilityDiscButton(
+                                        icon = BitChordIcons.Infinity,
+                                        contentDescription = stringResource(
+                                            if (autoplayEnabled) Res.string.autoplay_on else Res.string.autoplay_off,
+                                        ),
+                                        active = autoplayEnabled,
+                                        accentColor = landscapeAccent,
+                                        onClick = onToggleAutoplay,
+                                    )
+                                }
+                            },
+                        ) { listModifier ->
+                            InlineQueue(
+                                queue = queue,
+                                currentIndex = queueIndex,
+                                autoplayEnabled = autoplayEnabled,
+                                controlsLocked = controlsLocked,
+                                hazeState = queueHaze,
+                                onJumpTo = onJumpTo,
+                                onRemove = onRemoveFromQueue,
+                                onMove = onMoveInQueue,
+                                onClear = onClearQueue,
+                                onSongMenu = onQueueSongMenu,
+                                onDragActiveChange = onQueueDragActiveChange,
+                                onSwipeToQueue = onQueueSwipeToQueue,
+                                gesturesEnabled = queueOpen && !lyricsOpen && !queueDragging,
+                                undoNotice = queueUndoNotice,
+                                selection = queueSelection,
+                                onBulkAction = onQueueBulkAction,
+                                onRemoveSelected = onQueueRemoveEntries,
+                                modifier = listModifier,
+                                onAddAllToPlaylist = onQueueAddAllToPlaylist,
+                            )
+                        }
                     },
                 )
             }
@@ -3266,23 +3306,8 @@ fun NowPlayingScreen(
                                 .additiveChrome(LocalPlayerChrome.current)
                                 .background(chromeWhite(0.70f)),
                         )
-                        // [p] is the shared album-to-panel transition. Keeping this in
-                        // composition until its final frame gives the caption a real
-                        // fade on both entry and exit, but removes its click target
-                        // entirely once lyrics or the queue owns the player.
-                        if (!hideSongStatus) {
-                            WhileShown({ !collapseAlmostDone }) {
-                                PlaybackOriginCaption(
-                                    text = playbackOriginText(song, playedBy),
-                                    onClick = openPlaybackOrigin,
-                                    textAlign = TextAlign.Center,
-                                    contentPadding = PaddingValues(start = PLAYER_GUTTER, end = PLAYER_GUTTER, bottom = 1.dp),
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .graphicsLayer { alpha = (1f - p()) * spotifyChromeAlpha },
-                                )
-                            }
-                        }
+                        // Playing from attribution removed from Now Playing presentation;
+                        // underlying playback-source metadata and provenance remain preserved.
                     }
 
                     // The queue measures against this host, not the shrinking space
