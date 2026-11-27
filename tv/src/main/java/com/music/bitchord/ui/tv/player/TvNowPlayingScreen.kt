@@ -13,14 +13,14 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,6 +32,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.music.bitchord.data.LikeState
@@ -44,8 +45,10 @@ import com.music.bitchord.playback.toggleShuffle
 import com.music.bitchord.ui.MainViewModel
 import com.music.bitchord.ui.tv.dialogs.TvSongActionMenuDialog
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** How long the transport stays up after the last key press. */
 private const val ControlsTimeoutMs = 5_000L
@@ -97,22 +100,26 @@ fun TvNowPlayingScreen(
     val position = playerState.position
     val durationMs = playerState.durationMs
 
-    val lyrics by viewModel.lyrics.collectAsState()
-    val lyricsChecked by viewModel.lyricsChecked.collectAsState()
-    val likeOverrides by LikeState.overrides.collectAsState()
+    val lyrics by viewModel.lyrics.collectAsStateWithLifecycle()
+    val lyricsChecked by viewModel.lyricsChecked.collectAsStateWithLifecycle()
+    val likeOverrides by LikeState.overrides.collectAsStateWithLifecycle()
     val isLiked = likeOverrides[song.videoId] == LikeStatus.LIKE
-    val shuffle by com.music.bitchord.playback.QueueShuffle.enabled.collectAsState()
-    val autoplay by AppSettings.autoplay.collectAsState()
-    val playerStyle by TvSettings.tvPlayerStyle.collectAsState()
+    val shuffle by com.music.bitchord.playback.QueueShuffle.enabled.collectAsStateWithLifecycle()
+    val autoplay by AppSettings.autoplay.collectAsStateWithLifecycle()
+    val playerStyle by TvSettings.tvPlayerStyle.collectAsStateWithLifecycle()
 
-    LaunchedEffect(song.videoId, durationMs) {
-        viewModel.loadLyrics(
-            videoId = song.videoId,
-            title = song.title,
-            artist = song.artist,
-            durationMs = durationMs.coerceAtLeast(0L),
-            album = song.albumName,
-        )
+    // Avoid restarting lyrics fetches on minor duration updates during buffering/DASH adaptation.
+    val hasDuration = durationMs > 0L
+    LaunchedEffect(song.videoId, hasDuration) {
+        if (hasDuration || lyrics == null) {
+            viewModel.loadLyrics(
+                videoId = song.videoId,
+                title = song.title,
+                artist = song.artist,
+                durationMs = durationMs.coerceAtLeast(0L),
+                album = song.albumName,
+            )
+        }
     }
 
     var lyricsHidden by rememberSaveable { mutableStateOf(false) }
@@ -122,58 +129,90 @@ fun TvNowPlayingScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var upNextOpen by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf<PlayerSheet?>(null) }
-    var lastInput by remember { mutableLongStateOf(0L) }
+    // Signal idle timer without triggering full-screen recomposition on every D-pad key press.
+    val inputSignals = remember { Channel<Unit>(Channel.CONFLATED) }
     var flash by remember { mutableStateOf<TvFlash?>(null) }
     var flashTick by remember { mutableIntStateOf(0) }
     // A scrub in progress: where the playhead will go once the presses stop.
     var scrubTarget by remember { mutableStateOf<Long?>(null) }
     var scrubJob by remember { mutableStateOf<Job?>(null) }
 
+    // Cancel any pending scrub if the active song changes or this screen leaves composition.
+    DisposableEffect(song.videoId) {
+        onDispose {
+            scrubJob?.cancel()
+            scrubJob = null
+            scrubTarget = null
+        }
+    }
+
     val stageFocus = remember { FocusRequester() }
     val scrubberFocus = remember { FocusRequester() }
     val upNextFocus = remember { FocusRequester() }
 
-    val togglePlay: () -> Unit = {
-        mediaController?.let { if (it.isPlaying) it.pause() else it.play() }
+    val currentController by rememberUpdatedState(mediaController)
+    val currentDurationMs by rememberUpdatedState(durationMs)
+    val currentPosition by rememberUpdatedState(position)
+
+    val togglePlay: () -> Unit = remember {
+        { currentController?.let { if (it.isPlaying) it.pause() else it.play() } }
     }
-    val showFlash: (TvFlash) -> Unit = {
-        flash = it
-        flashTick++
-    }
-    val skipNext: () -> Unit = {
-        mediaController?.seekToNextMediaItem()
-        if (!controlsVisible) showFlash(TvFlash.Next)
-    }
-    val skipPrevious: () -> Unit = {
-        mediaController?.seekToPrevious()
-        if (!controlsVisible) showFlash(TvFlash.Previous)
-    }
-    val commitScrub: () -> Unit = {
-        scrubJob?.cancel()
-        scrubTarget?.let { mediaController?.seekTo(it) }
-        scrubTarget = null
-    }
-    val scrubBy: (Long) -> Unit = { delta ->
-        val from = scrubTarget ?: position.positionMs
-        scrubTarget = (from + delta).coerceIn(0L, durationMs.coerceAtLeast(0L))
-        scrubJob?.cancel()
-        scrubJob = scope.launch {
-            delay(ScrubCommitDelayMs)
-            commitScrub()
+    val showFlash: (TvFlash) -> Unit = remember {
+        {
+            flash = it
+            flashTick++
         }
     }
-    val revealControls: () -> Unit = { controlsVisible = true }
-    val hideControls: () -> Unit = {
-        upNextOpen = false
-        controlsVisible = false
+    val skipNext: () -> Unit = remember {
+        {
+            currentController?.seekToNextMediaItem()
+            if (!controlsVisible) showFlash(TvFlash.Next)
+        }
     }
+    val skipPrevious: () -> Unit = remember {
+        {
+            currentController?.seekToPrevious()
+            if (!controlsVisible) showFlash(TvFlash.Previous)
+        }
+    }
+    val commitScrub: () -> Unit = remember {
+        {
+            scrubJob?.cancel()
+            scrubTarget?.let { currentController?.seekTo(it) }
+            scrubTarget = null
+        }
+    }
+    val scrubBy: (Long) -> Unit = remember(scope) {
+        { delta ->
+            val from = scrubTarget ?: currentPosition.positionMs
+            scrubTarget = (from + delta).coerceIn(0L, currentDurationMs.coerceAtLeast(0L))
+            scrubJob?.cancel()
+            scrubJob = scope.launch {
+                delay(ScrubCommitDelayMs)
+                commitScrub()
+            }
+        }
+    }
+    val revealControls: () -> Unit = remember { { controlsVisible = true } }
+    val hideControls: () -> Unit = remember {
+        {
+            upNextOpen = false
+            controlsVisible = false
+        }
+    }
+    val onSeek: (Long) -> Unit = remember { { ms -> currentController?.seekTo(ms) } }
 
     // The transport steps away after a few idle seconds — never while Up Next
     // or a sheet is open, a scrub is pending, or the music is paused.
-    LaunchedEffect(controlsVisible, lastInput, upNextOpen, sheet, isPlaying, scrubTarget) {
+    LaunchedEffect(controlsVisible, upNextOpen, sheet, isPlaying, scrubTarget) {
         if (controlsVisible && !upNextOpen && sheet == null && isPlaying && scrubTarget == null) {
-            delay(ControlsTimeoutMs)
-            hideControls()
+            while (true) {
+                val received = withTimeoutOrNull(ControlsTimeoutMs) { inputSignals.receive() }
+                if (received == null) {
+                    hideControls()
+                    break
+                }
+            }
         }
     }
     // Focus follows what's on screen: the scrubber when the transport rises,
@@ -204,7 +243,7 @@ fun TvNowPlayingScreen(
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                lastInput = System.nanoTime()
+                inputSignals.trySend(Unit)
                 when (event.nativeKeyEvent.keyCode) {
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> {
                         togglePlay()
@@ -242,7 +281,7 @@ fun TvNowPlayingScreen(
                 .focusable(),
         )
 
-        val dim by animateFloatAsState(if (upNextOpen) 0.12f else 1f, tween(280), label = "stageDim")
+        val dim = animateFloatAsState(if (upNextOpen) 0.12f else 1f, tween(280), label = "stageDim")
         TvNowPlayingStage(
             song = song,
             isPlaying = isPlaying,
@@ -251,8 +290,8 @@ fun TvNowPlayingScreen(
             showLyrics = showLyrics,
             lyricsLoading = !lyricsChecked && lyrics == null && !lyricsHidden,
             controlsVisible = controlsVisible,
-            onSeek = { mediaController?.seekTo(it) },
-            modifier = Modifier.graphicsLayer { alpha = dim },
+            onSeek = onSeek,
+            modifier = Modifier.graphicsLayer { alpha = dim.value },
         )
 
         AnimatedVisibility(

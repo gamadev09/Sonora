@@ -1,12 +1,16 @@
 package com.music.bitchord
 
+import android.content.ComponentCallbacks2
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.DisposableEffect
 import androidx.core.view.WindowCompat
+import androidx.media3.session.MediaController
+import coil3.SingletonImageLoader
 import com.music.bitchord.data.listentogether.JamInviteLink
 import com.music.bitchord.playback.MusicLink
 import com.music.bitchord.playback.PlayerDeepLink
@@ -15,6 +19,7 @@ import com.music.bitchord.playback.rememberPlayerState
 import com.music.bitchord.ui.MainViewModel
 import com.music.bitchord.ui.theme.BitChordTheme
 import com.music.bitchord.ui.tv.TvApp
+import com.music.bitchord.ui.tv.components.clearTvCardColorCache
 import com.music.bitchord.ui.tv.display.TvRefreshRateController
 import com.music.bitchord.ui.tv.theme.BitChordTvTheme
 
@@ -25,9 +30,13 @@ import com.music.bitchord.ui.tv.theme.BitChordTvTheme
 class TvActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private var activeController: MediaController? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Handle cold-start deep links (notification taps, Listen Together invites, music links).
+        intent?.let(::consumeLinks)
 
         // Attach TV Refresh Rate and Display Controller
         TvRefreshRateController.attach(this)
@@ -42,6 +51,12 @@ class TvActivity : ComponentActivity() {
                 // it (lyrics, mood sleeves) are set in SF Pro on its type scale.
                 BitChordTheme(darkTheme = true) {
                     val mediaController = rememberMediaController()
+                    DisposableEffect(mediaController) {
+                        activeController = mediaController
+                        onDispose {
+                            if (activeController === mediaController) activeController = null
+                        }
+                    }
                     val playerState = rememberPlayerState(mediaController)
 
                     TvApp(
@@ -66,26 +81,26 @@ class TvActivity : ComponentActivity() {
         MusicLink.consume(intent)
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN ||
+            level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW
+        ) {
+            runCatching { SingletonImageLoader.get(applicationContext).memoryCache?.clear() }
+            clearTvCardColorCache()
+        }
+    }
+
     override fun onDestroy() {
         // Closing the app (back out of Home, or the task being swiped away)
         // pauses the music rather than leaving it playing behind the launcher.
         if (isFinishing) {
-            runCatching {
-                val future = androidx.media3.session.MediaController.Builder(
-                    applicationContext,
-                    androidx.media3.session.SessionToken(
-                        applicationContext,
-                        android.content.ComponentName(
-                            applicationContext,
-                            com.music.bitchord.playback.PlaybackService::class.java,
-                        ),
-                    ),
-                ).buildAsync()
-                future.addListener({
-                    runCatching { future.get().run { pause(); release() } }
-                }, androidx.core.content.ContextCompat.getMainExecutor(applicationContext))
+            val controller = activeController
+            if (controller != null) {
+                runCatching { controller.pause() }
             }
         }
+        activeController = null
         super.onDestroy()
         TvRefreshRateController.detach()
     }

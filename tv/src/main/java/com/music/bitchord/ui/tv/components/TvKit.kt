@@ -80,9 +80,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import com.music.bitchord.data.model.MoodGenre
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
@@ -389,10 +391,18 @@ fun TvArtwork(
     url: String?,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(10.dp),
-    px: Int = 544,
+    px: Int = 320,
     glyph: ImageVector = Icons.Rounded.MusicNote,
 ) {
-    val model = remember(url, px) { url.artworkAt(px) ?: url }
+    val context = LocalContext.current
+    val request = remember(context, url, px) {
+        val resolved = url.artworkAt(px) ?: url
+        if (resolved.isNullOrBlank()) null
+        else ImageRequest.Builder(context)
+            .data(resolved)
+            .size(px)
+            .build()
+    }
     Box(
         modifier = modifier
             .clip(shape)
@@ -405,9 +415,9 @@ fun TvArtwork(
             tint = Color.White.copy(alpha = 0.22f),
             modifier = Modifier.fillMaxSize(0.34f),
         )
-        if (!model.isNullOrBlank()) {
+        if (request != null) {
             AsyncImage(
-                model = model,
+                model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -453,6 +463,7 @@ fun TvLockup(
         ) {
             TvArtwork(
                 url = artworkUrl,
+                px = 256,
                 shape = shape,
                 modifier = Modifier.fillMaxSize(),
             )

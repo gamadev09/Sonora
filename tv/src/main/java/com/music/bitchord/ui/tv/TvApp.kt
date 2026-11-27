@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -189,7 +190,7 @@ fun TvApp(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .tvCanvas(playerState.song?.thumbnailUrl),
+            .tvCanvas(playerState.song?.thumbnailUrl, covered = isNowPlayingOpen),
     ) {
         AnimatedContent(
             targetState = isRunningSetup,
@@ -261,25 +262,31 @@ fun TvApp(
  * Drawn behind everything in one pass; the tint animates in the draw phase.
  */
 @Composable
-private fun Modifier.tvCanvas(artworkUrl: String?): Modifier {
+private fun Modifier.tvCanvas(artworkUrl: String?, covered: Boolean = false): Modifier {
     val palette = TvThemeColors.current
     val tintSource = rememberDominantCardColor(
-        artworkUrl = if (palette.tintsCanvas) artworkUrl else null,
+        artworkUrl = if (palette.tintsCanvas && !covered) artworkUrl else null,
         defaultColor = palette.canvasTop,
     )
     val tint = animateColorAsState(tintSource, tween(900), label = "canvasTint")
     val top = palette.canvasTop
     val bottom = palette.canvasBottom
-    return drawBehind {
-        drawRect(Brush.verticalGradient(listOf(top, bottom)))
-        if (palette.tintsCanvas) {
-            drawRect(
-                Brush.radialGradient(
-                    colors = listOf(tint.value.copy(alpha = 0.55f), Color.Transparent),
-                    center = Offset(size.width * 0.5f, -size.height * 0.15f),
-                    radius = size.width * 0.75f,
-                ),
-            )
+    return drawWithCache {
+        val baseBrush = Brush.verticalGradient(listOf(top, bottom))
+        val radialCenter = Offset(size.width * 0.5f, -size.height * 0.15f)
+        val radialRadius = size.width * 0.75f
+        onDrawBehind {
+            if (covered) return@onDrawBehind
+            drawRect(baseBrush)
+            if (palette.tintsCanvas) {
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(tint.value.copy(alpha = 0.55f), Color.Transparent),
+                        center = radialCenter,
+                        radius = radialRadius,
+                    ),
+                )
+            }
         }
     }
 }
@@ -408,7 +415,7 @@ private fun TvMainShell(
 
     // The bar floats over pushed pages too, stepping aside as they scroll.
     val barVisible = !chrome.contentScrolled || barHasFocus
-    val barProgress by animateFloatAsState(if (barVisible) 1f else 0f, tween(260), label = "barProgress")
+    val barProgress = animateFloatAsState(if (barVisible) 1f else 0f, tween(260), label = "barProgress")
 
     CompositionLocalProvider(LocalTvChrome provides chrome) {
         Box(
@@ -511,8 +518,9 @@ private fun TvMainShell(
                     .align(Alignment.TopCenter)
                     .zIndex(10f)
                     .graphicsLayer {
-                        alpha = barProgress
-                        translationY = -(1f - barProgress) * 72.dp.toPx()
+                        val p = barProgress.value
+                        alpha = p
+                        translationY = -(1f - p) * 72.dp.toPx()
                     }
                     .onFocusChanged { barHasFocus = it.hasFocus },
             )

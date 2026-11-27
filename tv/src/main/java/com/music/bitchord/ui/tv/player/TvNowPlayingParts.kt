@@ -41,7 +41,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -49,6 +48,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -168,15 +168,19 @@ internal fun TvNowPlayingStage(
     modifier: Modifier = Modifier,
 ) {
     // While the transport is up the lyrics fade out above it rather than run under it.
-    val underControls by animateFloatAsState(if (controlsVisible) 1f else 0f, tween(320), label = "lyricsFade")
-    val canvasEnabled by AppSettings.animatedCanvas.collectAsState()
-    val disableSpotifyCanvas by AppSettings.disableSpotifyCanvas.collectAsState()
+    // Keep animation States out of composition scope so transitions stay in draw/layer phase.
+    val underControls = animateFloatAsState(if (controlsVisible) 1f else 0f, tween(320), label = "lyricsFade")
+    val canvasEnabled by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
+    val disableSpotifyCanvas by AppSettings.disableSpotifyCanvas.collectAsStateWithLifecycle()
     var canvas by remember(song.videoId) { mutableStateOf<CanvasArtwork?>(null) }
     LaunchedEffect(song.videoId, canvasEnabled, disableSpotifyCanvas) {
         canvas = null
         canvas = if (canvasEnabled) CanvasRepository.canvasFor(song) else null
     }
-    val side by animateFloatAsState(if (showLyrics) 1f else 0f, tween(520), label = "artToSide")
+    val side = animateFloatAsState(if (showLyrics) 1f else 0f, tween(520), label = "artToSide")
+    val captionShown = animateFloatAsState(if (controlsVisible) 0f else 1f, tween(320), label = "captionFade")
+    val showCaption by remember { derivedStateOf { captionShown.value > 0.01f } }
+    val showLyricsSlot by remember(showLyrics) { derivedStateOf { showLyrics || side.value > 0.01f } }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val centredSize = (maxHeight * 0.62f).coerceAtMost(320.dp)
@@ -193,18 +197,20 @@ internal fun TvNowPlayingStage(
                 .offset(x = centredX, y = centredY)
                 .size(centredSize)
                 .graphicsLayer {
-                    val scale = lerp(1f, sideSize / centredSize, side)
+                    val s = side.value
+                    val scale = lerp(1f, sideSize / centredSize, s)
                     transformOrigin = TransformOrigin(0f, 0f)
                     scaleX = scale
                     scaleY = scale
-                    translationX = lerp(0f, (sideStart - centredX).toPx(), side)
-                    translationY = lerp(0f, (sideY - centredY).toPx(), side)
+                    translationX = lerp(0f, (sideStart - centredX).toPx(), s)
+                    translationY = lerp(0f, (sideY - centredY).toPx(), s)
                     shadowElevation = 29.dp.toPx()
                     this.shape = shape
                     clip = true
                 },
         ) {
-            TvArtwork(url = song.thumbnailUrl, px = 720, shape = RectangleShape, modifier = Modifier.fillMaxSize())
+            // 320dp at 240dpi is 480px physical; decoding 480px instead of 720px halves bitmap RAM on 1GB TVs.
+            TvArtwork(url = song.thumbnailUrl, px = 480, shape = RectangleShape, modifier = Modifier.fillMaxSize())
             canvas?.takeIf { !disableSpotifyCanvas || it.source != CanvasSource.SPOTIFY }?.let {
                 CanvasArtworkPlayer(canvas = it, isPlaying = isPlaying, modifier = Modifier.fillMaxSize())
             }
@@ -212,8 +218,7 @@ internal fun TvNowPlayingStage(
 
         // With the transport away, the song is named under the cover: the title and
         // artist the transport carries, riding the same glide to the side.
-        val captionShown by animateFloatAsState(if (controlsVisible) 0f else 1f, tween(320), label = "captionFade")
-        if (captionShown > 0f) {
+        if (showCaption) {
             val captionGap = 14.dp
             val sideCaptionY = sideY + sideSize + captionGap
             Column(
@@ -221,13 +226,14 @@ internal fun TvNowPlayingStage(
                     .offset(x = centredX, y = centredY + centredSize + captionGap)
                     .width(centredSize)
                     .graphicsLayer {
-                        val scale = lerp(1f, sideSize / centredSize, side)
+                        val s = side.value
+                        val scale = lerp(1f, sideSize / centredSize, s)
                         transformOrigin = TransformOrigin(0f, 0f)
                         scaleX = scale
                         scaleY = scale
-                        translationX = lerp(0f, (sideStart - centredX).toPx(), side)
-                        translationY = lerp(0f, (sideCaptionY - (centredY + centredSize + captionGap)).toPx(), side)
-                        alpha = captionShown
+                        translationX = lerp(0f, (sideStart - centredX).toPx(), s)
+                        translationY = lerp(0f, (sideCaptionY - (centredY + centredSize + captionGap)).toPx(), s)
+                        alpha = captionShown.value
                     },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -252,27 +258,33 @@ internal fun TvNowPlayingStage(
             }
         }
 
-        if (showLyrics || side > 0f) {
+        if (showLyricsSlot) {
             Box(
                 modifier = Modifier
                     .padding(start = sideStart + sideSize + 51.dp, end = 38.dp)
                     .fillMaxHeight()
                     .graphicsLayer {
-                        alpha = side
+                        alpha = side.value
                         // Offscreen only while the mask is in use; otherwise the
-                        // lyrics draw straight to the screen as usual.
-                        compositingStrategy = if (underControls > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+                        // lyrics draw straight to the screen with zero FBO overhead.
+                        compositingStrategy = if (underControls.value > 0.01f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
                     }
                     .drawWithContent {
                         drawContent()
-                        if (underControls > 0f) {
-                            drawRect(
-                                brush = Brush.verticalGradient(
+                        val u = underControls.value
+                        if (u > 0.01f) {
+                            val maskBrush = if (u >= 0.99f) {
+                                ControlsVisibleLyricsMask
+                            } else {
+                                Brush.verticalGradient(
                                     0f to Color.Black,
                                     0.56f to Color.Black,
-                                    0.74f to Color.Black.copy(alpha = 1f - underControls),
-                                    1f to Color.Black.copy(alpha = 1f - underControls),
-                                ),
+                                    0.74f to Color.Black.copy(alpha = 1f - u),
+                                    1f to Color.Black.copy(alpha = 1f - u),
+                                )
+                            }
+                            drawRect(
+                                brush = maskBrush,
                                 blendMode = BlendMode.DstIn,
                             )
                         }
@@ -308,6 +320,13 @@ internal fun TvNowPlayingStage(
 
 private const val LYRIC_FONT_SCALE = 0.8f
 
+private val ControlsVisibleLyricsMask = Brush.verticalGradient(
+    0f to Color.Black,
+    0.56f to Color.Black,
+    0.74f to Color.Transparent,
+    1f to Color.Transparent,
+)
+
 private val TransportScrim = Brush.verticalGradient(
     0f to Color.Transparent,
     0.4f to Color.Black.copy(alpha = 0.38f),
@@ -341,7 +360,7 @@ internal fun TvTransport(
     onMore: () -> Unit,
     upNext: @Composable () -> Unit,
 ) {
-    val showStats by AppSettings.showNerdStats.collectAsState()
+    val showStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -482,8 +501,20 @@ private fun TvScrubber(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val frame = remember { mutableLongStateOf(0L) }
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) while (true) withFrameNanos { frame.longValue = it }
+    // Scrubber advances ~1px every 100-150ms on 1080p TV; throttle redraws to ~12.5fps
+    // instead of 60fps so GPU/CPU stay dedicated to synced lyrics and animations.
+    LaunchedEffect(isPlaying, scrubTarget == null) {
+        if (isPlaying && scrubTarget == null) {
+            var lastEmittedNanos = 0L
+            while (true) {
+                withFrameNanos { now ->
+                    if (now - lastEmittedNanos >= 80_000_000L) {
+                        lastEmittedNanos = now
+                        frame.longValue = now
+                    }
+                }
+            }
+        }
     }
     val thickness by animateDpAsState(if (focused) 6.dp else 4.dp, tween(160), label = "scrubThickness")
 
@@ -594,7 +625,7 @@ internal fun formatClock(ms: Long): String {
  */
 @Composable
 private fun TvQualityLine(showStats: Boolean, modifier: Modifier = Modifier) {
-    val snapshot by NerdStats.current.collectAsState()
+    val snapshot by NerdStats.current.collectAsStateWithLifecycle()
     val stats = snapshot ?: return
     val label = when {
         stats.isDolbyAtmos -> "Dolby Atmos"

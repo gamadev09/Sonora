@@ -68,6 +68,10 @@ import kotlinx.coroutines.withContext
 
 private val cardColorCache = androidx.collection.LruCache<String, Color>(300)
 
+internal fun clearTvCardColorCache() {
+    cardColorCache.evictAll()
+}
+
 /**
  * A deep, saturated colour taken from the artwork — the footer of a Top Picks
  * card and the tint of the canvas behind everything. Decodes a 24px copy through
@@ -202,7 +206,7 @@ fun TvCard(
                     .fillMaxWidth()
                     .aspectRatio(aspectRatio),
             ) {
-                TvArtwork(url = artworkUrl, shape = RectangleShape, modifier = Modifier.fillMaxSize())
+                TvArtwork(url = artworkUrl, px = 320, shape = RectangleShape, modifier = Modifier.fillMaxSize())
                 if (isPlaying) {
                     Box(
                         modifier = Modifier
