@@ -260,7 +260,7 @@ internal fun PlayerScrubber(
             inactiveColor = ink?.inactive ?: Color.White.copy(alpha = 0.26f),
             markerColor = ink?.marker ?: Color.White.copy(alpha = 0.5f),
         )
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 // The slider's touch target extends well past the drawn bar,
@@ -271,30 +271,64 @@ internal fun PlayerScrubber(
             val chrome = LocalPlayerChrome.current
             val dodged = chrome && SCRUBBER_LABELS_DODGED
             val timeColor = if (dodged) brightRowInk() else chromeWhite(0.55f)
-            PlayerScrubberTimes(
-                shown = shown,
-                durationMs = durationMs,
-                totalDuration = totalDuration,
-                showTotalDuration = showTotalDuration,
-                timeColor = timeColor,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(if (dodged) Modifier.brightRowChrome(true) else Modifier.additiveChrome(chrome)),
-            )
-            // Pinned to the box's own centre rather than squeezed into the gap
-            // between the two timestamps: that gap's width changes by a digit's
-            // worth every time a minute rolls over. Cross-faded with "Mixing"
-            // for as long as a blend holds the bar.
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .graphicsLayer { alpha = 1f - mixPulse.cover },
-            ) {
-                centerLabel()
-            }
+            val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+            val stackQualityLine = maxWidth < 300.dp || fontScale > 1.15f
             val mixingShown by remember { derivedStateOf { mixPulse.cover > 0f } }
-            if (mixingShown) {
-                MixingLabel(mixPulse, Modifier.align(Alignment.Center))
+            if (stackQualityLine) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    PlayerScrubberTimes(
+                        shown = shown,
+                        durationMs = durationMs,
+                        totalDuration = totalDuration,
+                        showTotalDuration = showTotalDuration,
+                        timeColor = timeColor,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (dodged) Modifier.brightRowChrome(true) else Modifier.additiveChrome(chrome)),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(Modifier.graphicsLayer { alpha = 1f - mixPulse.cover }) {
+                            centerLabel()
+                        }
+                        if (mixingShown) {
+                            MixingLabel(mixPulse, Modifier.align(Alignment.Center))
+                        }
+                    }
+                }
+            } else {
+                PlayerScrubberTimes(
+                    shown = shown,
+                    durationMs = durationMs,
+                    totalDuration = totalDuration,
+                    showTotalDuration = showTotalDuration,
+                    timeColor = timeColor,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (dodged) Modifier.brightRowChrome(true) else Modifier.additiveChrome(chrome)),
+                )
+                // Pinned to the box's own centre with side clearance for elapsed/remaining
+                // timestamps so longer format labels (e.g. "Opus · 135 kbps · 48 kHz")
+                // never overlap the time figures.
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(horizontal = 48.dp)
+                        .graphicsLayer { alpha = 1f - mixPulse.cover },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    centerLabel()
+                }
+                if (mixingShown) {
+                    MixingLabel(mixPulse, Modifier.align(Alignment.Center))
+                }
             }
         }
     }

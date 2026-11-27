@@ -2177,7 +2177,7 @@ internal fun LyricsContent(
             top = if (centered) {
                 with(density) { viewportHeight.toDp() } * 0.5f
             } else {
-                40.dp - GLOW_ROOM
+                (16.dp - GLOW_ROOM).coerceAtLeast(0.dp)
             },
             bottom = with(density) { viewportHeight.toDp() } * 0.8f,
             start = PLAYER_GUTTER - GLOW_ROOM,

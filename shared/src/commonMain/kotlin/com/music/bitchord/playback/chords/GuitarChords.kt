@@ -130,3 +130,30 @@ fun chordFollowWindow(events: List<ChordEvent>, positionMs: Long): List<ChordEve
     }
     return events.subList(index, minOf(index + 3, events.size))
 }
+
+/**
+ * Computes the continuous 0..1 progress fraction through [event] at [audioPositionMs].
+ * Safe against zero/negative durations and out-of-bounds seeks.
+ */
+fun chordProgressFraction(event: ChordEvent, audioPositionMs: Long): Float {
+    val duration = (event.endMs - event.startMs).coerceAtLeast(1L)
+    return ((audioPositionMs - event.startMs).toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+}
+
+/**
+ * Estimates the current audio position between authoritative [sampledPositionMs] ticks
+ * using monotonic frame time [nowNanos], bounded to [maxExtrapolationMs] so progress
+ * stays smooth while playing, freezes immediately on pause, and never drifts on stalls.
+ */
+fun interpolatedChordPositionMs(
+    sampledPositionMs: Long,
+    sampledAtNanos: Long,
+    nowNanos: Long,
+    advancing: Boolean,
+    maxExtrapolationMs: Long = 500L,
+): Long {
+    if (!advancing || sampledAtNanos <= 0L) return sampledPositionMs
+    val elapsedMs = ((nowNanos - sampledAtNanos).coerceAtLeast(0L) / 1_000_000L)
+        .coerceAtMost(maxExtrapolationMs)
+    return sampledPositionMs + elapsedMs
+}

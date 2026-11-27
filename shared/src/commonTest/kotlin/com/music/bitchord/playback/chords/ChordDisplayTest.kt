@@ -74,4 +74,34 @@ class ChordDisplayTest {
         assertEquals("C", displayChordEvents(dEvent, simplify = false, notation = ChordNotation.SHARPS, capo = 2).single().label)
         assertEquals("D", displayChordEvents(dEvent, simplify = false, notation = ChordNotation.SHARPS, capo = 0).single().label)
     }
+
+    @Test fun chordProgressTracksDurationPauseSeekAndDiscontinuities() {
+        val chord = ChordEvent(startMs = 2000L, endMs = 6000L, label = "Am7")
+        // Starts at 0, fills smoothly across duration, clamps at 1
+        assertEquals(0f, chordProgressFraction(chord, 1500L), 0.0001f)
+        assertEquals(0f, chordProgressFraction(chord, 2000L), 0.0001f)
+        assertEquals(0.25f, chordProgressFraction(chord, 3000L), 0.0001f)
+        assertEquals(0.5f, chordProgressFraction(chord, 4000L), 0.0001f)
+        assertEquals(1f, chordProgressFraction(chord, 6000L), 0.0001f)
+        assertEquals(1f, chordProgressFraction(chord, 9000L), 0.0001f)
+
+        // Zero-duration chord never divides by zero
+        val zeroDur = ChordEvent(startMs = 1000L, endMs = 1000L, label = "C")
+        assertEquals(0f, chordProgressFraction(zeroDur, 1000L), 0.0001f)
+
+        // Interpolation advances while playing, freezes when paused, and bounds extrapolation
+        val baseNanos = 10_000_000_000L
+        assertEquals(
+            2250L,
+            interpolatedChordPositionMs(2000L, baseNanos, baseNanos + 250_000_000L, advancing = true),
+        )
+        assertEquals(
+            2000L,
+            interpolatedChordPositionMs(2000L, baseNanos, baseNanos + 250_000_000L, advancing = false),
+        )
+        assertEquals(
+            2500L,
+            interpolatedChordPositionMs(2000L, baseNanos, baseNanos + 2_000_000_000L, advancing = true),
+        )
+    }
 }

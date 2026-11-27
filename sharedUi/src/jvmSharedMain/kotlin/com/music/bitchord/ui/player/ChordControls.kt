@@ -94,7 +94,11 @@ internal class ChordUiState(private val scope: CoroutineScope) {
     }
 
     fun displayEvents(): List<ChordEvent> = cachedDisplayEvents
+    /** Discrete position updated on chord transitions and seeks so diagrams/lyrics avoid per-frame recomposition. */
     var positionMs by mutableLongStateOf(0L)
+    /** Authoritative audio playhead for isolated continuous chord-progress drawing. */
+    var playhead: LyricPlayhead? = null
+    var active by mutableStateOf(false)
     var job: Job? = null
     var canCancel by mutableStateOf(false)
     var appliedGeneration: Long = 0L
@@ -150,7 +154,11 @@ internal fun rememberChordState(
         targetValue = albumAccent,
         label = "chordAlbumAccent",
     )
-    SideEffect { state.accentColor = animatedAccent }
+    SideEffect {
+        state.accentColor = animatedAccent
+        state.playhead = playhead
+        state.active = active
+    }
     LaunchedEffect(state, song.videoId, source) {
         try {
             if (state.events == null) {
@@ -178,18 +186,25 @@ internal fun rememberChordState(
             }
         }
     }
-    LaunchedEffect(state, active, playhead, state.show, !state.events.isNullOrEmpty()) {
-        val currentEvents = state.events
-        if (!active || !state.show || currentEvents.isNullOrEmpty()) return@LaunchedEffect
+    // Discrete chord-selection watcher: tracks displayed chord intervals (respecting
+    // simplify/capo) and seek discontinuities so lyrics and diagram cards only recompose
+    // when the active chord actually changes, while [ChordDurationProgressBar] animates
+    // continuously off the authoritative playhead in its own isolated scope.
+    LaunchedEffect(state, active, playhead, state.show, state.events, state.simplify, state.notation, state.guitar, state.capo) {
+        val displayed = state.displayEvents()
+        if (!active || !state.show || displayed.isEmpty()) return@LaunchedEffect
         var lastChordIdx = Int.MIN_VALUE
+        var lastDiscontinuity = Long.MIN_VALUE
         while (true) {
             val nextPos = playhead.audioPositionMs
-            val nextChordIdx = chordIndexAt(currentEvents, nextPos)
-            if (nextChordIdx != lastChordIdx) {
+            val nextChordIdx = chordIndexAt(displayed, nextPos)
+            val discontinuity = playhead.discontinuity
+            if (nextChordIdx != lastChordIdx || discontinuity != lastDiscontinuity) {
                 lastChordIdx = nextChordIdx
+                lastDiscontinuity = discontinuity
                 state.positionMs = nextPos
             }
-            delay(100)
+            delay(50)
         }
     }
     return state
@@ -270,7 +285,7 @@ internal fun ChordControls(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(top = 2.dp, bottom = 4.dp)
             .animateContentSize()
     ) {
         // Single adaptive toolbar combining instrument selection, capo stepper
@@ -420,20 +435,21 @@ internal fun ChordControls(
                                 expanded = state.options,
                                 onDismissRequest = { state.options = false },
                                 containerColor = Color(0xFF1C1C1E),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.12f)),
                             ) {
                                 if (state.guitar && !inlineCapoFits) {
                                     Row(
                                         Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                                            .padding(horizontal = 14.dp, vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
                                         Text(
                                             text = stringResource(Res.string.chord_capo_value, state.capo),
                                             color = Color.White,
-                                            style = MaterialTheme.typography.labelLarge,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                         )
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(
@@ -461,56 +477,87 @@ internal fun ChordControls(
                                     HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                                 }
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(Res.string.chord_simplify), color = Color.White) },
+                                    text = {
+                                        Text(
+                                            stringResource(Res.string.chord_simplify),
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    },
                                     onClick = { state.simplify = !state.simplify },
                                     trailingIcon = {
-                                        Switch(
+                                        ChordOptionToggle(
                                             checked = state.simplify,
-                                            onCheckedChange = null,
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = state.accentColor,
-                                                checkedTrackColor = state.accentColor.copy(alpha = 0.5f),
-                                            ),
+                                            accent = state.accentColor,
                                         )
                                     },
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(Res.string.chord_show_diagrams), color = Color.White) },
-                                    onClick = { state.diagramsExpanded = !state.diagramsExpanded },
-                                    trailingIcon = {
-                                        Switch(
-                                            checked = state.diagramsExpanded,
-                                            onCheckedChange = null,
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = state.accentColor,
-                                                checkedTrackColor = state.accentColor.copy(alpha = 0.5f),
-                                            ),
-                                        )
-                                    },
-                                )
-                                listOf(
-                                    ChordNotation.AUTO to stringResource(Res.string.chord_notation_auto),
-                                    ChordNotation.SHARPS to stringResource(Res.string.chord_notation_sharps),
-                                    ChordNotation.FLATS to stringResource(Res.string.chord_notation_flats),
-                                ).forEach { (notation, label) ->
+                                if (state.guitar || state.piano) {
                                     DropdownMenuItem(
-                                        text = { Text(label, color = Color.White) },
-                                        onClick = { state.notation = notation; state.options = false },
+                                        text = {
+                                            Text(
+                                                stringResource(Res.string.chord_show_diagrams),
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                            )
+                                        },
+                                        onClick = { state.diagramsExpanded = !state.diagramsExpanded },
                                         trailingIcon = {
-                                            RadioButton(
-                                                selected = state.notation == notation,
-                                                onClick = null,
-                                                colors = RadioButtonDefaults.colors(
-                                                    selectedColor = state.accentColor,
-                                                    unselectedColor = Color.White.copy(alpha = 0.55f),
-                                                ),
+                                            ChordOptionToggle(
+                                                checked = state.diagramsExpanded,
+                                                accent = state.accentColor,
                                             )
                                         },
                                     )
                                 }
                                 HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White.copy(alpha = 0.08f))
+                                        .padding(3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                ) {
+                                    listOf(
+                                        ChordNotation.AUTO to stringResource(Res.string.chord_notation_auto),
+                                        ChordNotation.SHARPS to stringResource(Res.string.chord_notation_sharps),
+                                        ChordNotation.FLATS to stringResource(Res.string.chord_notation_flats),
+                                    ).forEach { (notation, label) ->
+                                        val selected = state.notation == notation
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 40.dp)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .background(if (selected) state.accentColor.copy(alpha = 0.34f) else Color.Transparent)
+                                                .selectable(
+                                                    selected = selected,
+                                                    role = Role.RadioButton,
+                                                    onClick = { state.notation = notation },
+                                                )
+                                                .padding(horizontal = 8.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                color = if (selected) Color.White else chromeWhite(0.72f),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                maxLines = 1,
+                                            )
+                                        }
+                                    }
+                                }
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(Res.string.chord_reanalyse), color = Color.White) },
+                                    text = {
+                                        Text(
+                                            stringResource(Res.string.chord_reanalyse),
+                                            color = state.accentColor,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                        )
+                                    },
                                     onClick = { state.options = false; state.startAnalysis(song, source) },
                                 )
                             }
@@ -674,17 +721,81 @@ private fun chordAccentFromPalette(palette: MeshPalette): Color {
     return Color(com.music.bitchord.ui.graphics.ColorUtils.HSLToColor(hsl))
 }
 
+/** Compact Sonora-styled toggle pill for chord options, avoiding oversized Material switches. */
+@Composable
+private fun ChordOptionToggle(checked: Boolean, accent: Color) {
+    val thumbBias by animateFloatAsState(targetValue = if (checked) 1f else 0f, label = "chordToggle")
+    Box(
+        modifier = Modifier
+            .size(width = 38.dp, height = 22.dp)
+            .clip(CircleShape)
+            .background(if (checked) accent.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.18f))
+            .padding(2.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .graphicsLayer { translationX = thumbBias * 16.dp.toPx() }
+                .clip(CircleShape)
+                .background(Color.White),
+        )
+    }
+}
+
+/**
+ * Isolated, frame-aligned chord duration progress bar driven by the authoritative
+ * audio [playhead]. Reading the progress state inside [LinearProgressIndicator]'s
+ * lambda updates only the indicator's draw phase without recomposing the diagram cards.
+ */
+@Composable
+private fun ChordDurationProgressBar(
+    event: ChordEvent,
+    playhead: LyricPlayhead?,
+    active: Boolean,
+    color: Color,
+    width: Dp,
+) {
+    val progressState = remember(event.startMs, event.endMs) {
+        mutableFloatStateOf(
+            playhead?.let { chordProgressFraction(event, it.audioPositionMs) } ?: 0f,
+        )
+    }
+    LaunchedEffect(event.startMs, event.endMs, playhead, active) {
+        if (!active || playhead == null) return@LaunchedEffect
+        while (true) {
+            withFrameNanos {
+                val interpolatedMs = interpolatedChordPositionMs(
+                    sampledPositionMs = playhead.audioPositionMs,
+                    sampledAtNanos = playhead.sampledAtNanos,
+                    nowNanos = System.nanoTime(),
+                    advancing = playhead.isAdvancing(true),
+                )
+                val next = chordProgressFraction(event, interpolatedMs)
+                if (kotlin.math.abs(next - progressState.floatValue) >= 0.001f || next == 0f || next == 1f) {
+                    progressState.floatValue = next
+                }
+            }
+        }
+    }
+    LinearProgressIndicator(
+        progress = { progressState.floatValue },
+        modifier = Modifier.width(width).height(3.dp),
+        color = color,
+        trackColor = color.copy(alpha = 0.14f),
+    )
+}
+
 @Composable
 private fun InstrumentChordPanel(state: ChordUiState) {
     val events = remember(state.events, state.simplify, state.notation, state.guitar, state.capo) { state.displayEvents() }
     val position = state.positionMs
     val window = chordFollowWindow(events, position)
     val current = window.firstOrNull()?.takeIf { position >= it.startMs && position < it.endMs }
-    val progress = current?.let { ((position - it.startMs).toFloat() / (it.endMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
     Spacer(Modifier.height(5.dp))
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         window.forEachIndexed { index, event ->
-            key(event.startMs, event.label) {
+            key(event.startMs, event.endMs, event.label) {
                 val playing = event == current
                 val tint = state.accentColor
                 Column(
@@ -700,8 +811,17 @@ private fun InstrumentChordPanel(state: ChordUiState) {
                     if (state.piano && pianoChordNotes(event.label) != null) PianoDiagram(event.label, if (playing) tint else chromeWhite(0.9f))
                     else if (!state.piano && shape != null) GuitarDiagram(event.label, shape, if (playing) tint else chromeWhite(0.9f))
                     else Text(if (event.label == "N") stringResource(Res.string.chord_rest) else event.label, color = chromeWhite(0.9f), modifier = Modifier.height(92.dp).padding(top = 18.dp))
-                    if (playing) LinearProgressIndicator(progress = { progress }, modifier = Modifier.width(if (state.piano) 180.dp else 88.dp).height(3.dp), color = tint, trackColor = tint.copy(alpha = 0.12f))
-                    else Spacer(Modifier.height(3.dp))
+                    if (playing) {
+                        ChordDurationProgressBar(
+                            event = event,
+                            playhead = state.playhead,
+                            active = state.active && state.show,
+                            color = tint,
+                            width = if (state.piano) 180.dp else 88.dp,
+                        )
+                    } else {
+                        Spacer(Modifier.height(3.dp))
+                    }
                 }
             }
         }
