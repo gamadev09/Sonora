@@ -167,29 +167,14 @@ fun ListenTogetherScreen(
 
     // Hoisted so a sheet can be *animated* away rather than dropped out of the
     // composition, which is the only way one sheet can hand over to another:
-    // see the invite that follows a create.
-    val sheetState = rememberModalBottomSheetState()
+    // see the invite that follows a create. Only needed for full-screen mode;
+    // embedded mode renders sub-sheets inline inside PlayerDrawer.
+    val sheetState = if (!embedded) rememberModalBottomSheetState() else null
 
-    /**
-     * Hands the create sheet over to the invite sheet, with the party page
-     * visible in between.
-     *
-     * Three separate things, and the order is the whole point. The create sheet
-     * is *animated* down rather than dropped out of the composition, because
-     * swapping one sheet's contents for another's under a drawer that never
-     * moved is a swap, and a swap is the one thing that does not read as a new
-     * sheet arriving. Then a beat with nothing over the page at all: what is
-     * underneath has just become a different page — a code, a member list — and
-     * an invite that rises immediately means nobody ever sees that it did. Only
-     * then the invite, from a fresh mount, so it slides.
-     */
     val showInviteAfterCreate: suspend () -> Unit = {
-        if (!embedded) runCatching { sheetState.hide() }
+        if (!embedded) runCatching { sheetState?.hide() }
         sheet = null
         delay(INVITE_SHEET_DELAY_MS)
-        // A second is long enough to have gone and opened something else in,
-        // and being interrupted by a drawer nobody asked for is worse than not
-        // being offered the link.
         if (sheet == null) sheet = PartySheet.Invite
     }
 
@@ -458,7 +443,7 @@ fun ListenTogetherScreen(
             }
     }
 
-    if (!embedded) sheet?.let { open ->
+    if (!embedded && sheetState != null) sheet?.let { open ->
         ModalBottomSheet(
             onDismissRequest = {
                 sheet = null
@@ -472,7 +457,7 @@ fun ListenTogetherScreen(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .then(if (embedded) Modifier else Modifier.verticalScroll(rememberScrollState()))
             .padding(contentPadding),
     ) {
         if (!embedded) SettingsPageTitle(stringResource(R.string.listen_together))

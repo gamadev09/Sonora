@@ -44,7 +44,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -120,14 +122,11 @@ fun PlayerDrawer(
     // springs back or goes — see [DISMISS_DRAG_FRACTION].
     var drag by remember { mutableFloatStateOf(0f) }
     var height by remember { mutableIntStateOf(0) }
-    val offset by animateFloatAsState(
+    val offsetState = animateFloatAsState(
         targetValue = drag,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "playerDrawerOffset",
     )
-    // Fades with the drawer rather than staying at full strength under a sheet
-    // halfway off the screen, which is what makes the drag feel connected.
-    val scrimAlpha = if (height > 0) (1f - offset / height).coerceIn(0f, 1f) else 1f
 
     // Flipped on the first composition so the drawer travels up from the edge
     // instead of appearing over the player fully formed.
@@ -188,7 +187,11 @@ fun PlayerDrawer(
         modifier = modifier
             .fillMaxSize()
             .containSheetGestures()
-            .background(SCRIM_COLOR.copy(alpha = SCRIM_COLOR.alpha * scrimAlpha))
+            .drawBehind {
+                val h = height
+                val alpha = if (h > 0) (1f - offsetState.value / h).coerceIn(0f, 1f) else 1f
+                drawRect(SCRIM_COLOR.copy(alpha = SCRIM_COLOR.alpha * alpha))
+            }
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
@@ -212,7 +215,7 @@ fun PlayerDrawer(
                 .widthIn(max = DRAWER_MAX_WIDTH)
                 .fillMaxWidth()
                 .onSizeChanged { height = it.height }
-                .offset { IntOffset(0, offset.roundToInt()) }
+                .graphicsLayer { translationY = offsetState.value }
                 .clip(DRAWER_SHAPE)
                 // The ⋯ menu's frost, so the drawers and the menu read as one
                 // material over the player — see [playerMenuSurface].

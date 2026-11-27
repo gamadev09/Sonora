@@ -540,8 +540,19 @@ class MainActivity : AppCompatActivity() {
         val supportedRefreshRate = if (restricted || refreshRate == 0) 0
             else composeView.display.resolvePerformanceRefreshRate(refreshRate)
         val highRefresh = supportedRefreshRate > 60
+        val currentMode = composeView.display?.mode
+        val matchingModeId = if (supportedRefreshRate > 0 && currentMode != null) {
+            composeView.display?.supportedModes
+                ?.firstOrNull { mode ->
+                    mode.physicalWidth == currentMode.physicalWidth &&
+                        mode.physicalHeight == currentMode.physicalHeight &&
+                        kotlin.math.abs(mode.refreshRate - supportedRefreshRate) < 1.5f
+                }
+                ?.modeId ?: 0
+        } else 0
         window.attributes = window.attributes.apply {
             preferredRefreshRate = supportedRefreshRate.toFloat()
+            preferredDisplayModeId = matchingModeId
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             window.setFrameRatePowerSavingsBalanced(!highRefresh)
