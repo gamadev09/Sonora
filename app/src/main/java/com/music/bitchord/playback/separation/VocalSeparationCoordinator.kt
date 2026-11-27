@@ -212,7 +212,7 @@ object VocalSeparationCoordinator : VocalSeparationController {
         val open: () -> MediaDataSource?,
     )
 
-    private fun resolveSource(app: Context, song: Song): ResolvedSource? {
+    private suspend fun resolveSource(app: Context, song: Song): ResolvedSource? {
         val local = song.localUri ?: Downloads.savedUri(app, song.videoId)?.toString()
             ?: song.videoId.takeIf { it.startsWith("content://") || it.startsWith("file://") }
         if (local != null) {

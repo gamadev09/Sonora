@@ -150,8 +150,8 @@ class VocalSeparationEngine(
         val sessionOptions = OrtSession.SessionOptions().apply {
             setIntraOpNumThreads(initialBudget.threads)
             setInterOpNumThreads(1)
-            setCpuMemArena(false)
-            setMemoryPattern(false)
+            setCPUArenaAllocator(false)
+            setMemoryPatternOptimization(false)
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
         }
 

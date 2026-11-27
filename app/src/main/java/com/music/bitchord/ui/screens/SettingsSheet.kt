@@ -954,7 +954,7 @@ fun SettingsScreen(
             row(audioIntelligenceTitle, "vocals", "stems", "separation", "mic", "ai") {
                 BypassedByBitPerfect(bitPerfectReady) {
                     SettingsRow(
-                        icon = androidx.compose.material.icons.Icons.Rounded.Mic,
+                        icon = SfIcons.Tune,
                         title = audioIntelligenceTitle,
                         subtitle = stringResource(R.string.audio_intelligence_subtitle),
                         value = audioIntelligencePriority.localizedLabel(),
