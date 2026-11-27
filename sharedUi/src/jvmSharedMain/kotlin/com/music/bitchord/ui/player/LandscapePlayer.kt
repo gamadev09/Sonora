@@ -7,11 +7,13 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.updateTransition
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -172,17 +174,24 @@ internal fun LandscapePlayerLayout(
     queuePane: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
     val transition = updateTransition(targetState = mode, label = "landscapePresentation")
     val paneFraction = transition.animateFloat(
-        transitionSpec = { tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase) },
+        transitionSpec = {
+            if (reduceAnimation) snap() else tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase)
+        },
         label = "panePosition",
     ) { if (it == LandscapeMode.Artwork) 0f else 1f }
     val compactFraction = transition.animateFloat(
-        transitionSpec = { tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase) },
+        transitionSpec = {
+            if (reduceAnimation) snap() else tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase)
+        },
         label = "compactArtwork",
     ) { if (it.compactArtwork) 1f else 0f }
     val cornerRadius = transition.animateDp(
-        transitionSpec = { tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase) },
+        transitionSpec = {
+            if (reduceAnimation) snap() else tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase)
+        },
         label = "artworkCorner",
     ) { if (it.compactArtwork) 6.dp else LANDSCAPE_ART_CORNER }
 
@@ -209,8 +218,15 @@ internal fun LandscapePlayerLayout(
                     Box(Modifier.layoutId("chords").fillMaxWidth()) { chordPanel?.invoke() }
                     transition.AnimatedContent(
                         transitionSpec = {
-                            fadeIn(tween(200, delayMillis = 280, easing = LandscapeEase)) togetherWith
-                                fadeOut(tween(120))
+                            if (reduceAnimation) {
+                                fadeIn(snap()) togetherWith fadeOut(snap())
+                            } else {
+                                val switchingRightPanes = initialState.pane != PlayerPane.Main &&
+                                    targetState.pane != PlayerPane.Main
+                                val enterDelay = if (switchingRightPanes) 80 else 280
+                                fadeIn(tween(200, delayMillis = enterDelay, easing = LandscapeEase)) togetherWith
+                                    fadeOut(tween(120))
+                            }
                         },
                         contentKey = { it.pane },
                         modifier = Modifier.layoutId("pane"),
@@ -234,12 +250,15 @@ internal fun LandscapePlayerLayout(
                 val rightContentWidth = (rightWidth - 2 * gutterPx).coerceAtLeast(1)
                 val sharedWidth = minOf(leftContentWidth, rightContentWidth)
                 val artSide = minOf(leftContentWidth, height).coerceAtLeast(1)
+                val p = paneFraction.value
+                val c = compactFraction.value
+                fun mix(from: Int, to: Int, fraction: Float): Int =
+                    (from + (to - from) * fraction).toInt()
                 fun child(id: String) = measurables.first { it.layoutId == id }
                 val art = child("artwork").measure(Constraints.fixed(artSide, artSide))
                 val compactSide = (if (compact) 56.dp else 68.dp).roundToPx()
-                val creditWidth = if (mode.compactArtwork) {
-                    (sharedWidth - compactSide - 12.dp.roundToPx()).coerceAtLeast(1)
-                } else sharedWidth
+                val compactCreditWidth = (sharedWidth - compactSide - 12.dp.roundToPx()).coerceAtLeast(1)
+                val creditWidth = mix(sharedWidth, compactCreditWidth, c).coerceAtLeast(1)
                 val creditsPlaceable = child("credits").measure(
                     Constraints(0, creditWidth, 0, height),
                 )
@@ -265,11 +284,7 @@ internal fun LandscapePlayerLayout(
                 val panelArtY = (artAreaHeight - panelArtSide) / 2
                 val compactArtX = gutterPx
                 val compactArtY = 0
-                fun mix(from: Int, to: Int, fraction: Float): Int =
-                    (from + (to - from) * fraction).toInt()
                 layout(width, height) {
-                    val p = paneFraction.value
-                    val c = compactFraction.value
                     // The compact sleeve moves first, leaving the diagrams clear before they appear.
                     val artP = (p * 1.45f).coerceIn(0f, 1f)
                     val sharedP = ((p - 0.18f) / 0.82f).coerceIn(0f, 1f)
@@ -286,8 +301,13 @@ internal fun LandscapePlayerLayout(
                         transformOrigin = TransformOrigin(0f, 0f)
                     }
                     val chordY = mix(subCreditsY + creditsPlaceable.height + chordGap, compactSide + subGap, c)
+                    val chordAlpha = if (mode.compactArtwork) {
+                        minOf(((p - 0.45f) / 0.55f).coerceIn(0f, 1f), ((c - 0.45f) / 0.55f).coerceIn(0f, 1f))
+                    } else {
+                        ((p - 0.52f) / 0.48f).coerceIn(0f, 1f)
+                    }
                     chords.placeRelativeWithLayer(gutterPx, chordY) {
-                        alpha = ((p - 0.52f) / 0.48f).coerceIn(0f, 1f)
+                        alpha = chordAlpha
                     }
                     val mainX = leftWidth + gutterPx
                     val subCreditsX = mix(gutterPx, gutterPx + compactSide + 12.dp.roundToPx(), c)
