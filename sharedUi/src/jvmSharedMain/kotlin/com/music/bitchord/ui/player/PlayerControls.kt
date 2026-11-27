@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.sizeIn
 
 import org.jetbrains.compose.resources.DrawableResource
 import androidx.compose.animation.animateContentSize
@@ -1421,7 +1422,7 @@ private fun OutputPartyPill(
         val haptics = rememberHaptics()
         Row(
             modifier = Modifier
-                .let { m -> androidx.compose.foundation.layout.run { m.sizeIn(minHeight = BOTTOM_ACTION_SIZE) } }
+                .sizeIn(minHeight = BOTTOM_ACTION_SIZE)
                 .clip(CircleShape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -1451,7 +1452,7 @@ private fun OutputPartyPill(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .let { m -> androidx.compose.foundation.layout.run { m.sizeIn(maxWidth = 128.dp) } }
+                        .sizeIn(maxWidth = 128.dp)
                         .brightRowChrome(chrome),
                 )
             }
@@ -1500,7 +1501,7 @@ private fun OutputPartyPill(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .padding(top = 2.dp)
-                    .let { m -> androidx.compose.foundation.layout.run { m.sizeIn(maxWidth = 136.dp) } }
+                    .sizeIn(maxWidth = 136.dp)
                     .brightRowChrome(chrome),
             )
         }
