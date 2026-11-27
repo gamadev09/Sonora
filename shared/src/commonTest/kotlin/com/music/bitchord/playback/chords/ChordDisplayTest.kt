@@ -51,4 +51,27 @@ class ChordDisplayTest {
         assertEquals(listOf(emptyList()), chordsAboveLines(events, listOf(6000)))
         assertEquals(emptyList(), chordsAboveLines(events, emptyList()))
     }
+
+    @Test fun guitarAndPianoValidateRepresentativeChordsAndCapo() {
+        val chords = listOf("C", "Am", "Cmaj7", "G7", "Dm7", "Dsus2", "Asus4", "F#m", "Bb", "Bmaj7")
+        chords.forEach { label ->
+            val shape = guitarShape(label)
+            assertNotNull(shape, "Expected guitar shape for $label")
+            assertEquals(6, shape.frets.size, "Expected 6 strings for $label")
+
+            val piano = pianoChordNotes(label)
+            assertNotNull(piano, "Expected piano notes for $label")
+            assertTrue(piano.all { it in 0..23 }, "Piano notes for $label out of 2-octave range: $piano")
+        }
+
+        // F major is a 1st-fret barre chord across all 6 strings.
+        val fShape = guitarShape("F")!!
+        assertEquals(listOf(1, 3, 3, 2, 1, 1), fShape.frets)
+        assertEquals(1, fShape.firstFret)
+
+        // Capo 2 transposes D -> C for guitar display while piano uses capo 0.
+        val dEvent = listOf(ChordEvent(0, 2000, "D"))
+        assertEquals("C", displayChordEvents(dEvent, simplify = false, notation = ChordNotation.SHARPS, capo = 2).single().label)
+        assertEquals("D", displayChordEvents(dEvent, simplify = false, notation = ChordNotation.SHARPS, capo = 0).single().label)
+    }
 }

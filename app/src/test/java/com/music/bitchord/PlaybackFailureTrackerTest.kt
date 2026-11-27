@@ -84,4 +84,23 @@ class PlaybackFailureTrackerTest {
         assertNull(tracker.recordFailure(SourceKind.JIOSAAVN))
         assertNotNull(tracker.recordFailure(SourceKind.JIOSAAVN))
     }
+
+    @Test
+    fun `success on one provider does not reset another provider and failedMediaId is preserved`() {
+        val tracker = PlaybackFailureTracker(threshold = 3)
+
+        assertNull(tracker.recordFailure(SourceKind.YOUTUBE, failedMediaId = "vid_1"))
+        assertNull(tracker.recordFailure(SourceKind.YOUTUBE, failedMediaId = "vid_2"))
+        assertNull(tracker.recordFailure(SourceKind.JIOSAAVN, failedMediaId = "jio_1"))
+
+        // Succeeding on JioSaavn must NOT clear YouTube's consecutive failure count.
+        tracker.recordSuccess(SourceKind.JIOSAAVN)
+        assertEquals(0, tracker.failureCountFor(SourceKind.JIOSAAVN))
+        assertEquals(2, tracker.failureCountFor(SourceKind.YOUTUBE))
+
+        val warning = tracker.recordFailure(SourceKind.YOUTUBE, failedMediaId = "vid_3")
+        assertNotNull(warning)
+        assertEquals(SourceKind.YOUTUBE, warning!!.provider)
+        assertEquals("vid_3", warning.failedMediaId)
+    }
 }

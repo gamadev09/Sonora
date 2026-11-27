@@ -1626,4 +1626,32 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Auto</string>
+    <string name="filter_all">Tout</string>
+    <string name="filter_favourites">Favoris</string>
+    <string name="filter_downloaded">Téléchargés</string>
+    <string name="taste_prompt_title">Affinez vos goûts</string>
+    <string name="taste_prompt_subtitle">Choisissez quelques genres pour personnaliser Accueil et Nouveautés localement.</string>
+    <string name="playback_failure_title">Problème de lecture ?</string>
+    <string name="playback_failure_message">La source musicale sélectionnée (%1$s) ne peut pas assurer la lecture pour le moment. Les services externes peuvent restreindre l\'accès temporairement ou être indisponibles.\n\nVous pouvez réessayer, changer de source ou vérifier vos paramètres.</string>
+    <string name="playback_failure_manage_sources">Gérer les sources</string>
+    <string name="playback_failure_try_again">Réessayer</string>
+    <string name="settings_group_account">Compte</string>
+    <string name="settings_group_listening">Expérience d\'écoute</string>
+    <string name="settings_group_application">Application</string>
+    <string name="settings_group_connectivity">Connectivité et données</string>
+    <string name="settings_group_support">Assistance</string>
+    <string name="settings_lyrics_chords">Paroles et accords</string>
+    <string name="settings_music_sources">Sources musicales</string>
+    <string name="settings_personalisation">Personnalisation</string>
+    <string name="settings_downloads_storage">Téléchargements et stockage</string>
+    <string name="settings_library">Bibliothèque</string>
+    <string name="settings_language_accessibility">Langue et accessibilité</string>
+    <string name="settings_connected_devices">Appareils connectés</string>
+    <string name="settings_connected_devices_subtitle">Diffusez vers Chromecast, AirPlay ou DLNA depuis la feuille de sortie audio du lecteur.</string>
+    <string name="settings_privacy_data">Confidentialité et données</string>
+    <string name="settings_about_sonora">À propos de Sonora</string>
+    <string name="settings_diagnostics">Diagnostics</string>
+    <string name="settings_favourite_genres">Genres favoris</string>
+    <string name="settings_favourite_genres_subtitle">Utilisés localement pour personnaliser Accueil et Nouveautés</string>
 </resources>

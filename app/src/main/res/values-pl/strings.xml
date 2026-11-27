@@ -1666,4 +1666,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Auto</string>
+    <string name="new_music">Nowości</string>
+    <string name="filter_all">Wszystkie</string>
+    <string name="filter_favourites">Ulubione</string>
+    <string name="filter_downloaded">Pobrane</string>
+    <string name="taste_prompt_title">Dopasuj gust</string>
+    <string name="taste_prompt_subtitle">Wybierz kilka gatunków, aby lokalnie spersonalizować Start i Nowości.</string>
+    <string name="playback_failure_title">Problem z odtwarzaniem?</string>
+    <string name="playback_failure_message">Wybrane źródło muzyki (%1$s) nie może teraz odtwarzać. Usługi zewnętrzne mogą tymczasowo ograniczać dostęp lub być niedostępne.\n\nMożesz spróbować ponownie, zmienić źródło lub sprawdzić ustawienia.</string>
+    <string name="playback_failure_manage_sources">Zarządzaj źródłami</string>
+    <string name="playback_failure_try_again">Spróbuj ponownie</string>
+    <string name="settings_group_account">Konto</string>
+    <string name="settings_group_listening">Wrażenia ze słuchania</string>
+    <string name="settings_group_application">Aplikacja</string>
+    <string name="settings_group_connectivity">Łączność i dane</string>
+    <string name="settings_group_support">Wsparcie</string>
+    <string name="settings_lyrics_chords">Teksty i akordy</string>
+    <string name="settings_music_sources">Źródła muzyki</string>
+    <string name="settings_personalisation">Personalizacja</string>
+    <string name="settings_downloads_storage">Pobrane i pamięć</string>
+    <string name="settings_library">Biblioteka</string>
+    <string name="settings_language_accessibility">Język i dostępność</string>
+    <string name="settings_connected_devices">Połączone urządzenia</string>
+    <string name="settings_connected_devices_subtitle">Przesyłaj na Chromecast, AirPlay lub DLNA z panelu wyjścia audio w odtwarzaczu.</string>
+    <string name="settings_privacy_data">Prywatność i dane</string>
+    <string name="settings_about_sonora">O Sonora</string>
+    <string name="settings_diagnostics">Diagnostyka</string>
+    <string name="settings_favourite_genres">Ulubione gatunki</string>
+    <string name="settings_favourite_genres_subtitle">Używane lokalnie do personalizacji Start i Nowości</string>
 </resources>

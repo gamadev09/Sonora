@@ -1658,4 +1658,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Авто</string>
+    <string name="new_music">Новое</string>
+    <string name="filter_all">Все</string>
+    <string name="filter_favourites">Избранное</string>
+    <string name="filter_downloaded">Скачанные</string>
+    <string name="taste_prompt_title">Настройте вкус</string>
+    <string name="taste_prompt_subtitle">Выберите несколько жанров, чтобы локально персонализировать Главную и Новое.</string>
+    <string name="playback_failure_title">Проблемы с воспроизведением?</string>
+    <string name="playback_failure_message">Выбранный источник музыки (%1$s) сейчас не может воспроизводить треки. Внешние сервисы могут временно ограничивать доступ или быть недоступны.\n\nВы можете повторить попытку, сменить источник или проверить настройки.</string>
+    <string name="playback_failure_manage_sources">Управление источниками</string>
+    <string name="playback_failure_try_again">Повторить</string>
+    <string name="settings_group_account">Аккаунт</string>
+    <string name="settings_group_listening">Прослушивание</string>
+    <string name="settings_group_application">Приложение</string>
+    <string name="settings_group_connectivity">Подключения и данные</string>
+    <string name="settings_group_support">Поддержка</string>
+    <string name="settings_lyrics_chords">Тексты и аккорды</string>
+    <string name="settings_music_sources">Источники музыки</string>
+    <string name="settings_personalisation">Персонализация</string>
+    <string name="settings_downloads_storage">Загрузки и хранилище</string>
+    <string name="settings_library">Медиатека</string>
+    <string name="settings_language_accessibility">Язык и доступность</string>
+    <string name="settings_connected_devices">Подключённые устройства</string>
+    <string name="settings_connected_devices_subtitle">Транслируйте на Chromecast, AirPlay или DLNA из меню вывода звука в плеере.</string>
+    <string name="settings_privacy_data">Конфиденциальность и данные</string>
+    <string name="settings_about_sonora">О Sonora</string>
+    <string name="settings_diagnostics">Диагностика</string>
+    <string name="settings_favourite_genres">Любимые жанры</string>
+    <string name="settings_favourite_genres_subtitle">Используются локально для персонализации Главной и Нового</string>
 </resources>

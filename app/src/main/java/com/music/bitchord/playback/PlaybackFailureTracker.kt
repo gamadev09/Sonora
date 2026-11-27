@@ -13,6 +13,7 @@ data class PlaybackFailureWarning(
     val provider: SourceKind,
     val providerName: String,
     val failureCount: Int,
+    val failedMediaId: String? = null,
 )
 
 /**
@@ -38,6 +39,7 @@ class PlaybackFailureTracker(
         isNetworkFault: Boolean = false,
         isLocalFile: Boolean = false,
         isUserAction: Boolean = false,
+        failedMediaId: String? = null,
     ): PlaybackFailureWarning? = synchronized(lock) {
         if (isNetworkFault || isLocalFile || isUserAction || provider !in BUILT_IN_PROVIDERS) {
             return@synchronized null
@@ -59,6 +61,7 @@ class PlaybackFailureTracker(
             provider = provider,
             providerName = provider.label,
             failureCount = next,
+            failedMediaId = failedMediaId,
         )
         _activeWarning.value = warning
         warning
@@ -109,11 +112,13 @@ object PlaybackFailureMonitor {
         isNetworkFault: Boolean = false,
         isLocalFile: Boolean = false,
         isUserAction: Boolean = false,
+        failedMediaId: String? = null,
     ): PlaybackFailureWarning? = tracker.recordFailure(
         provider = provider,
         isNetworkFault = isNetworkFault,
         isLocalFile = isLocalFile,
         isUserAction = isUserAction,
+        failedMediaId = failedMediaId,
     )
 
     fun recordSuccess(provider: SourceKind? = null) = tracker.recordSuccess(provider)

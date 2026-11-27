@@ -18,6 +18,7 @@ import com.music.bitchord.data.model.ShelfItem
 import com.music.bitchord.data.model.UiState
 import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.new_music
+import com.music.bitchord.sharedui.resources.new_releases_empty
 import com.music.bitchord.sharedui.resources.global_charts
 import com.music.bitchord.sharedui.resources.retry
 import com.music.bitchord.ui.components.MessageState
@@ -55,19 +56,29 @@ fun NewScreen(
                     MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry)
                 }
                 is UiState.Success -> {
-                    items(state.data, key = { "new:personal:${it.title}" }) { shelf ->
-                        Shelf(shelf = shelf, onItemClick = onShelfItemClick)
-                    }
-                    if (globalShelves.isNotEmpty()) {
-                        item(key = "new:global-header") {
-                            Text(
-                                text = stringResource(Res.string.global_charts),
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(start = PAGE_GUTTER, top = 20.dp, bottom = 4.dp),
+                    if (state.data.isEmpty() && globalShelves.isEmpty()) {
+                        item(key = "new:empty") {
+                            MessageState(
+                                message = stringResource(Res.string.new_releases_empty),
+                                actionLabel = stringResource(Res.string.retry),
+                                onAction = onRetry,
                             )
                         }
-                        items(globalShelves, key = { "new:global:${it.title}" }) { shelf ->
+                    } else {
+                        items(state.data, key = { "new:personal:${it.title}" }) { shelf ->
                             Shelf(shelf = shelf, onItemClick = onShelfItemClick)
+                        }
+                        if (globalShelves.isNotEmpty()) {
+                            item(key = "new:global-header") {
+                                Text(
+                                    text = stringResource(Res.string.global_charts),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(start = PAGE_GUTTER, top = 20.dp, bottom = 4.dp),
+                                )
+                            }
+                            items(globalShelves, key = { "new:global:${it.title}" }) { shelf ->
+                                Shelf(shelf = shelf, onItemClick = onShelfItemClick)
+                            }
                         }
                     }
                 }

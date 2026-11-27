@@ -139,8 +139,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * [loadHome] synchronously up to its first suspension point — a property
      * declared after [init] would still be null when that runs.
      */
-    private var homeContinuation: String? = null
-    private var homeUnproductivePages = 0
+    private val homePagination = com.music.bitchord.data.recommendations.HomePaginationState()
 
     /** Titles already on screen, so a later page can't repeat a shelf. */
     private val homeSeenTitles = mutableSetOf<String>()
@@ -2106,8 +2105,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         homePersonalizeJob?.cancel()
         rawHomeShelves = emptyList()
         if (_home.value !is UiState.Success || homeFeedIdentity != identity) _home.value = UiState.Loading
-        homeContinuation = null
-        homeUnproductivePages = 0
+        homePagination.reset()
         homeSeenTitles.clear()
         _homeLoadingMore.value = false
         _homeRecentlyPlayedLoading.value = _signedIn.value
@@ -2121,7 +2119,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     YtMusicRepository.home()
                         .onSuccess { feed ->
                             if (!isCurrentHomeLoad(identity, generation)) return@onSuccess
-                            homeContinuation = feed.continuation
+                            homePagination.reset(feed.continuation)
                             publishHomeShelves(feed.shelves)
                         }
                         .onFailure { failure ->
@@ -2305,8 +2303,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (topPicksJob?.isActive != true) loadTopPicks(identity, rebuild = false)
         YtMusicRepository.home().onSuccess { feed ->
             if (!isCurrentHomeLoad(identity, generation)) return@onSuccess
-            homeContinuation = feed.continuation
-            homeUnproductivePages = 0
+            homePagination.reset(feed.continuation)
             homeSeenTitles.clear()
             val shelves = feed.shelves.withoutRepeatsOf(emptyList())
                 .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
@@ -2324,7 +2321,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * loaded — [homeContinuation] covers all three by construction.
      */
     fun loadMoreHome() {
-        val token = homeContinuation ?: return
+        val token = homePagination.nextToken ?: return
         if (_homeLoadingMore.value) return
         val identity = listenerKey()
         val generation = homeLoadGeneration.get()
@@ -2332,21 +2329,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val visibleBefore = (_home.value as? UiState.Success)?.data.orEmpty().sumOf { it.items.size }
             YtMusicRepository.moreHome(token).onSuccess { feed ->
-                if (isCurrentHomeLoad(identity, generation) && token == homeContinuation) {
+                if (isCurrentHomeLoad(identity, generation) && token == homePagination.nextToken) {
                     val existing = rawHomeShelves
                     val added = feed.shelves.withoutRepeatsOf(existing)
                         .filter { it.title.lowercase(Locale.ROOT) !in homeSeenTitles }
-                    // A page with nothing new signals the feed has looped back on
-                    // itself rather than run dry with a token still attached —
-                    // treat it the same as exhausted so scrolling can't spin here.
-                    homeContinuation = feed.continuation.takeIf { added.isNotEmpty() }
                     if (added.isNotEmpty()) {
                         publishHomeShelves(added)
                         homePersonalizeJob?.join()
-                        val visibleAfter = (_home.value as? UiState.Success)?.data.orEmpty().sumOf { it.items.size }
-                        homeUnproductivePages = if (visibleAfter > visibleBefore) 0 else homeUnproductivePages + 1
-                        if (homeUnproductivePages >= 2) homeContinuation = null
                     }
+                    val visibleAfter = (_home.value as? UiState.Success)?.data.orEmpty().sumOf { it.items.size }
+                    homePagination.onPageResult(
+                        usedToken = token,
+                        incomingToken = feed.continuation,
+                        addedRawShelves = added.size,
+                        visibleItemsBefore = visibleBefore,
+                        visibleItemsAfter = visibleAfter,
+                    )
                 }
             }
             if (isCurrentHomeLoad(identity, generation)) _homeLoadingMore.value = false

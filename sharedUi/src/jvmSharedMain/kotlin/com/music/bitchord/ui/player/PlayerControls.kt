@@ -2304,8 +2304,27 @@ private fun LosslessOrStats(
             iconSize = 13.dp,
             modifier = modifier,
         )
-        // Below that, no badge: "Medium Quality" and "Data Saver" are gone.
-        // The space under the bar is kept for what is worth announcing.
+        // Below 256 kbps, still surface confirmed codec/bitrate/sample-rate metadata
+        // (e.g. "Opus · 160 kbps · 48 kHz") without fabricating any unknown fields.
+        nerdStats != null -> {
+            val summary = buildList {
+                NerdStats.codecLabel(nerdStats.mimeType)?.let(::add)
+                nerdStats.bitrateKbps?.takeIf { it > 0 }?.let { add("$it kbps") }
+                nerdStats.sampleRateHz?.takeIf { it > 0 }?.let { hz ->
+                    val khz = if (hz % 1000 == 0) "${hz / 1000} kHz" else "%.1f kHz".format(hz / 1000.0)
+                    add(khz)
+                }
+            }.joinToString(" · ")
+            if (summary.isNotEmpty()) {
+                LosslessLabel(
+                    text = summary,
+                    animated = false,
+                    iconPainter = rememberVectorPainter(Icons.Rounded.Headphones),
+                    iconSize = 13.dp,
+                    modifier = modifier,
+                )
+            }
+        }
         else -> {}
     }
 }

@@ -1023,7 +1023,10 @@ class PlaybackService : MediaLibraryService() {
                 // say the queue is not simply unplayable end to end.
                 audibleMediaId = exoPlayer.currentMediaItem?.mediaId
                 consecutiveErrorSkips = 0
-                PlaybackFailureMonitor.recordSuccess()
+                activeBuiltInProviderFor(
+                    exoPlayer.currentMediaItem?.mediaId,
+                    exoPlayer.currentMediaItem?.localConfiguration?.uri,
+                )?.let(PlaybackFailureMonitor::recordSuccess)
             }
             if (isPlaying) registerCurrentPlay()
             // Nothing to read ahead for while paused, and a pause is often
@@ -4592,7 +4595,10 @@ class PlaybackService : MediaLibraryService() {
             // advance would leave every track looking like it never started.
             audibleMediaId = mediaItem?.mediaId
             consecutiveErrorSkips = 0
-            PlaybackFailureMonitor.recordSuccess()
+            activeBuiltInProviderFor(
+                mediaItem?.mediaId,
+                mediaItem?.localConfiguration?.uri,
+            )?.let(PlaybackFailureMonitor::recordSuccess)
         }
         // And the same instant on the wall clock, which is the one
         // logcat stamps its lines with — see [TrackLog].
@@ -5000,19 +5006,14 @@ class PlaybackService : MediaLibraryService() {
             // the bytes would trade one stuck track for a corrupt one.
             if (givingUp) {
                 val isLocal = uri?.scheme == "file" || uri?.scheme == "content"
-                val failedBuiltInProvider = when {
-                    isLocal -> null
-                    uri?.authority == "source" -> null
-                    uri?.getQueryParameter("source")?.contains("jiosaavn", ignoreCase = true) == true ->
-                        com.music.bitchord.data.sources.SourceKind.JIOSAAVN
-                    else -> com.music.bitchord.data.sources.SourceKind.YOUTUBE
-                }
+                val failedBuiltInProvider = activeBuiltInProviderFor(mediaId, uri)
                 if (failedBuiltInProvider != null) {
                     PlaybackFailureMonitor.recordFailure(
                         provider = failedBuiltInProvider,
                         isNetworkFault = networkFault,
                         isLocalFile = isLocal,
                         isUserAction = false,
+                        failedMediaId = mediaId,
                     )
                 }
                 // A track nobody can play must not leave the player parked in
@@ -5039,6 +5040,40 @@ class PlaybackService : MediaLibraryService() {
                 player.prepare()
             }
         }
+    }
+
+    /**
+     * Resolves which built-in provider ([SourceKind.YOUTUBE] or [SourceKind.JIOSAAVN])
+     * actually handled [mediaId]/[uri], returning null for local files, external addons,
+     * or unknown sources so failures and successes are never misattributed.
+     */
+    private fun activeBuiltInProviderFor(
+        mediaId: String?,
+        uri: Uri?,
+    ): com.music.bitchord.data.sources.SourceKind? {
+        if (uri?.scheme == "file" || uri?.scheme == "content") return null
+        val declaredSource = NerdStats.sourceFor(mediaId)?.lowercase(java.util.Locale.ROOT)
+        if (!declaredSource.isNullOrBlank()) {
+            return when {
+                "jiosaavn" in declaredSource -> com.music.bitchord.data.sources.SourceKind.JIOSAAVN
+                "youtube" in declaredSource -> com.music.bitchord.data.sources.SourceKind.YOUTUBE
+                else -> null
+            }
+        }
+        val querySource = uri?.getQueryParameter("source")?.lowercase(java.util.Locale.ROOT)
+        if (!querySource.isNullOrBlank()) {
+            return when {
+                "jiosaavn" in querySource -> com.music.bitchord.data.sources.SourceKind.JIOSAAVN
+                "youtube" in querySource -> com.music.bitchord.data.sources.SourceKind.YOUTUBE
+                else -> null
+            }
+        }
+        if (uri?.authority == "source") return null
+        if (mediaId != null && com.music.bitchord.data.sources.SourceTrackKeys.parse(mediaId) != null) return null
+        if (uri?.authority == "stream" || uri?.host?.contains("youtube", ignoreCase = true) == true || uri?.host?.contains("googlevideo", ignoreCase = true) == true) {
+            return com.music.bitchord.data.sources.SourceKind.YOUTUBE
+        }
+        return null
     }
 
     /**

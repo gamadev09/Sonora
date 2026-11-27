@@ -14,8 +14,15 @@ private fun chordParts(label: String): Pair<Int, String>? {
 /** Root-position voicing within a two-octave C keyboard; null means unknown harmony. */
 fun pianoChordNotes(label: String): List<Int>? {
     val (root, suffix) = chordParts(label) ?: return null
-    val quality = chordSuffixes.indexOf(suffix).takeIf { it >= 0 } ?: return null
-    return chordIntervals[quality].map { root + it }
+    val intervals = when (suffix) {
+        "sus2" -> listOf(0, 2, 7)
+        "sus4" -> listOf(0, 5, 7)
+        else -> {
+            val quality = chordSuffixes.indexOf(suffix).takeIf { it >= 0 } ?: return null
+            chordIntervals[quality]
+        }
+    }
+    return intervals.map { (root + it).coerceIn(0, 23) }
 }
 
 fun keyForChordEvents(events: List<ChordEvent>): ChordKey? {
@@ -48,13 +55,15 @@ private val openShapes = mapOf(
     "Cmaj7" to listOf(-1, 3, 2, 0, 0, 0), "Dmaj7" to listOf(-1, -1, 0, 2, 2, 2),
     "Emaj7" to listOf(0, 2, 1, 1, 0, 0), "Gmaj7" to listOf(3, 2, 0, 0, 0, 2), "Amaj7" to listOf(-1, 0, 2, 1, 2, 0),
     "Am7" to listOf(-1, 0, 2, 0, 1, 0), "Dm7" to listOf(-1, -1, 0, 2, 1, 1), "Em7" to listOf(0, 2, 0, 0, 0, 0),
+    "Asus2" to listOf(-1, 0, 2, 2, 0, 0), "Dsus2" to listOf(-1, -1, 0, 2, 3, 0), "Esus2" to listOf(0, 2, 4, 4, 0, 0),
+    "Asus4" to listOf(-1, 0, 2, 2, 3, 0), "Dsus4" to listOf(-1, -1, 0, 2, 3, 3), "Esus4" to listOf(0, 2, 2, 2, 0, 0),
 )
 
 fun guitarShape(label: String): GuitarShape? {
     val (root, suffix) = chordParts(label) ?: return null
     openShapes[chordRoots[root] + suffix]?.let { return GuitarShape(it) }
-    if (suffix !in chordSuffixes) return null
-    // Movable E and A families preserve the detected quality, including sevenths.
+    if (suffix !in chordSuffixes && suffix != "sus2" && suffix != "sus4") return null
+    // Movable E and A families preserve the detected quality, including sevenths and suspended chords.
     val candidates = listOf(4, 9).map { base ->
         val shift = (root - base + 12) % 12
         val template = when (base to suffix) {
@@ -63,10 +72,14 @@ fun guitarShape(label: String): GuitarShape? {
             4 to "7" -> listOf(0, 2, 0, 1, 0, 0)
             4 to "maj7" -> listOf(0, 2, 1, 1, 0, 0)
             4 to "m7" -> listOf(0, 2, 0, 0, 0, 0)
+            4 to "sus2" -> listOf(0, 2, 4, 4, 0, 0)
+            4 to "sus4" -> listOf(0, 2, 2, 2, 0, 0)
             9 to "" -> listOf(-1, 0, 2, 2, 2, 0)
             9 to "m" -> listOf(-1, 0, 2, 2, 1, 0)
             9 to "7" -> listOf(-1, 0, 2, 0, 2, 0)
             9 to "maj7" -> listOf(-1, 0, 2, 1, 2, 0)
+            9 to "sus2" -> listOf(-1, 0, 2, 2, 0, 0)
+            9 to "sus4" -> listOf(-1, 0, 2, 2, 3, 0)
             else -> listOf(-1, 0, 2, 0, 1, 0)
         }
         GuitarShape(template.map { if (it < 0) -1 else it + shift })

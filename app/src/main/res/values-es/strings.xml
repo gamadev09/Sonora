@@ -1597,4 +1597,32 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Automático</string>
+    <string name="filter_all">Todo</string>
+    <string name="filter_favourites">Favoritos</string>
+    <string name="filter_downloaded">Descargadas</string>
+    <string name="taste_prompt_title">Ajusta tus gustos</string>
+    <string name="taste_prompt_subtitle">Elige algunos géneros para personalizar Inicio y Novedades localmente.</string>
+    <string name="playback_failure_title">¿Problemas al reproducir música?</string>
+    <string name="playback_failure_message">La fuente de música seleccionada (%1$s) no puede reproducir en este momento. Los servicios externos pueden restringir el acceso temporalmente o no estar disponibles.\n\nPuedes reintentar la reproducción, cambiar de fuente o revisar la configuración de fuentes.</string>
+    <string name="playback_failure_manage_sources">Administrar fuentes</string>
+    <string name="playback_failure_try_again">Reintentar</string>
+    <string name="settings_group_account">Cuenta</string>
+    <string name="settings_group_listening">Experiencia de escucha</string>
+    <string name="settings_group_application">Aplicación</string>
+    <string name="settings_group_connectivity">Conectividad y datos</string>
+    <string name="settings_group_support">Soporte</string>
+    <string name="settings_lyrics_chords">Letras y acordes</string>
+    <string name="settings_music_sources">Fuentes de música</string>
+    <string name="settings_personalisation">Personalización</string>
+    <string name="settings_downloads_storage">Descargas y almacenamiento</string>
+    <string name="settings_library">Biblioteca</string>
+    <string name="settings_language_accessibility">Idioma y accesibilidad</string>
+    <string name="settings_connected_devices">Dispositivos conectados</string>
+    <string name="settings_connected_devices_subtitle">Transmite a altavoces Chromecast, AirPlay o DLNA desde la hoja de salida de audio en el reproductor.</string>
+    <string name="settings_privacy_data">Privacidad y datos</string>
+    <string name="settings_about_sonora">Acerca de Sonora</string>
+    <string name="settings_diagnostics">Diagnóstico</string>
+    <string name="settings_favourite_genres">Géneros favoritos</string>
+    <string name="settings_favourite_genres_subtitle">Se usa localmente para personalizar Inicio y Novedades</string>
 </resources>

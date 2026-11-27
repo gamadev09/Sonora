@@ -1303,7 +1303,7 @@ private fun BitChordApp(
         TAB_EXPLORE -> exploreListState
         TAB_RADIO -> mixesListState
         TAB_LIBRARY -> libraryListState
-        else -> searchListState
+        else -> if (selectedMoodGenre != null) moodGenreListState else searchListState
     }
 
     // Pull-to-refresh: the drag lives with the feed, but the indicator is the
@@ -3640,7 +3640,10 @@ private fun BitChordApp(
                                 // Nothing on Home is seen while the greeting covers it.
                                 artworkMotion = artworkMotion,
                                 replayYear = replayYearBadge,
-                                tasteSetupCard = if (!tastePromptDismissed && !signedIn) {
+                                tasteSetupCard = if (
+                                    (!tastePromptDismissed && !signedIn) ||
+                                    ((homeState as? UiState.Success)?.data?.isEmpty() == true && !homeRecentlyPlayedLoading)
+                                ) {
                                     {
                                         Column(
                                             modifier = Modifier
@@ -3657,7 +3660,7 @@ private fun BitChordApp(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                             ) {
                                                 Text(
-                                                    text = "Tune your taste",
+                                                    text = stringResource(R.string.taste_prompt_title),
                                                     style = MaterialTheme.typography.titleSmall,
                                                     color = MaterialTheme.colorScheme.onSurface,
                                                 )
@@ -3667,13 +3670,15 @@ private fun BitChordApp(
                                                     },
                                                 ) {
                                                     Text(
-                                                        text = if (selectedTasteGenres.isEmpty()) "Dismiss" else "Done",
+                                                        text = stringResource(
+                                                            if (selectedTasteGenres.isEmpty()) R.string.close else R.string.done,
+                                                        ),
                                                         style = MaterialTheme.typography.labelMedium,
                                                     )
                                                 }
                                             }
                                             Text(
-                                                text = "Pick a few genres to personalise Home and New locally.",
+                                                text = stringResource(R.string.taste_prompt_subtitle),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -5271,19 +5276,19 @@ private fun BitChordApp(
         playbackFailureWarning?.let { warning ->
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { com.music.bitchord.playback.PlaybackFailureMonitor.dismissWarning() },
-                containerColor = Color(0xFF141416),
-                titleContentColor = Color.White,
-                textContentColor = Color.White.copy(alpha = 0.78f),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 title = {
                     Text(
-                        text = "Having trouble playing music?",
+                        text = stringResource(R.string.playback_failure_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                     )
                 },
                 text = {
                     Text(
-                        text = "The selected music source (${warning.providerName}) is currently unable to provide playback. External music services may temporarily restrict access or become unavailable.\n\nYou can retry playback, switch music sources or review your source settings.",
+                        text = stringResource(R.string.playback_failure_message, warning.providerName),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 },
@@ -5296,18 +5301,34 @@ private fun BitChordApp(
                                 navigator.push(AppRoute.Sources)
                             },
                         ) {
-                            Text("Manage Sources", color = Color.White.copy(alpha = 0.85f))
+                            Text(
+                                text = stringResource(R.string.playback_failure_manage_sources),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
                         }
                         TextButton(
                             onClick = {
                                 com.music.bitchord.playback.PlaybackFailureMonitor.dismissWarning()
                                 controller?.let { c ->
+                                    val targetId = warning.failedMediaId
+                                    if (targetId != null && c.currentMediaItem?.mediaId != targetId) {
+                                        for (i in 0 until c.mediaItemCount) {
+                                            if (c.getMediaItemAt(i).mediaId == targetId) {
+                                                c.seekTo(i, 0L)
+                                                break
+                                            }
+                                        }
+                                    }
                                     c.prepare()
                                     c.play()
                                 }
                             },
                         ) {
-                            Text("Try Again", color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                            Text(
+                                text = stringResource(R.string.playback_failure_try_again),
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            )
                         }
                     }
                 },
@@ -5317,7 +5338,10 @@ private fun BitChordApp(
                             com.music.bitchord.playback.PlaybackFailureMonitor.dismissWarning()
                         },
                     ) {
-                        Text("Dismiss", color = Color.White.copy(alpha = 0.6f))
+                        Text(
+                            text = stringResource(R.string.close),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 },
             )

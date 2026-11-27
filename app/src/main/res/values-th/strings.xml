@@ -1606,4 +1606,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">อัตโนมัติ</string>
+    <string name="new_music">ใหม่</string>
+    <string name="filter_all">ทั้งหมด</string>
+    <string name="filter_favourites">รายการโปรด</string>
+    <string name="filter_downloaded">ดาวน์โหลดแล้ว</string>
+    <string name="taste_prompt_title">ปรับแต่งรสนิยมของคุณ</string>
+    <string name="taste_prompt_subtitle">เลือกแนวเพลงเพื่อปรับแต่งหน้าแรกและใหม่บนอุปกรณ์ของคุณ</string>
+    <string name="playback_failure_title">มีปัญหาในการเล่นเพลงหรือไม่?</string>
+    <string name="playback_failure_message">แหล่งเพลงที่เลือก (%1$s) ไม่สามารถเล่นได้ในขณะนี้ บริการภายนอกอาจจำกัดการเข้าถึงชั่วคราวหรือใช้งานไม่ได้\n\nคุณสามารถลองใหม่ เปลี่ยนแหล่งเพลง หรือตรวจสอบการตั้งค่าแหล่งเพลง</string>
+    <string name="playback_failure_manage_sources">จัดการแหล่งเพลง</string>
+    <string name="playback_failure_try_again">ลองอีกครั้ง</string>
+    <string name="settings_group_account">บัญชี</string>
+    <string name="settings_group_listening">ประสบการณ์การฟัง</string>
+    <string name="settings_group_application">แอปพลิเคชัน</string>
+    <string name="settings_group_connectivity">การเชื่อมต่อและข้อมูล</string>
+    <string name="settings_group_support">การสนับสนุน</string>
+    <string name="settings_lyrics_chords">เนื้อเพลงและคอร์ด</string>
+    <string name="settings_music_sources">แหล่งเพลง</string>
+    <string name="settings_personalisation">การปรับแต่งส่วนตัว</string>
+    <string name="settings_downloads_storage">การดาวน์โหลดและพื้นที่เก็บข้อมูล</string>
+    <string name="settings_library">คลังเพลง</string>
+    <string name="settings_language_accessibility">ภาษาและการเข้าถึง</string>
+    <string name="settings_connected_devices">อุปกรณ์ที่เชื่อมต่อ</string>
+    <string name="settings_connected_devices_subtitle">แคสต์ไปยังลำโพง Chromecast, AirPlay หรือ DLNA จากหน้าต่างเอาต์พุตเสียงในเครื่องเล่น</string>
+    <string name="settings_privacy_data">ความเป็นส่วนตัวและข้อมูล</string>
+    <string name="settings_about_sonora">เกี่ยวกับ Sonora</string>
+    <string name="settings_diagnostics">การวินิจฉัย</string>
+    <string name="settings_favourite_genres">แนวเพลงโปรด</string>
+    <string name="settings_favourite_genres_subtitle">ใช้ภายในเครื่องเพื่อปรับแต่งหน้าแรกและใหม่</string>
 </resources>

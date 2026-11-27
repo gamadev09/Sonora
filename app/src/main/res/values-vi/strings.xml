@@ -1540,4 +1540,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Tự động</string>
+    <string name="new_music">Mới</string>
+    <string name="filter_all">Tất cả</string>
+    <string name="filter_favourites">Yêu thích</string>
+    <string name="filter_downloaded">Đã tải xuống</string>
+    <string name="taste_prompt_title">Tùy chỉnh gu nhạc</string>
+    <string name="taste_prompt_subtitle">Chọn vài thể loại để cá nhân hóa Trang chủ và Mới ngay trên thiết bị.</string>
+    <string name="playback_failure_title">Gặp sự cố khi phát nhạc?</string>
+    <string name="playback_failure_message">Nguồn nhạc đã chọn (%1$s) hiện không thể phát. Các dịch vụ bên ngoài có thể tạm thời giới hạn truy cập hoặc không khả dụng.\n\nBạn có thể thử lại, chuyển nguồn nhạc hoặc xem lại cài đặt nguồn.</string>
+    <string name="playback_failure_manage_sources">Quản lý nguồn</string>
+    <string name="playback_failure_try_again">Thử lại</string>
+    <string name="settings_group_account">Tài khoản</string>
+    <string name="settings_group_listening">Trải nghiệm nghe</string>
+    <string name="settings_group_application">Ứng dụng</string>
+    <string name="settings_group_connectivity">Kết nối &amp; dữ liệu</string>
+    <string name="settings_group_support">Hỗ trợ</string>
+    <string name="settings_lyrics_chords">Lời bài hát &amp; Hợp âm</string>
+    <string name="settings_music_sources">Nguồn nhạc</string>
+    <string name="settings_personalisation">Cá nhân hóa</string>
+    <string name="settings_downloads_storage">Tải xuống &amp; Bộ nhớ</string>
+    <string name="settings_library">Thư viện</string>
+    <string name="settings_language_accessibility">Ngôn ngữ &amp; Trợ năng</string>
+    <string name="settings_connected_devices">Thiết bị đã kết nối</string>
+    <string name="settings_connected_devices_subtitle">Truyền tới loa Chromecast, AirPlay hoặc DLNA từ bảng Đầu ra âm thanh trong trình phát.</string>
+    <string name="settings_privacy_data">Quyền riêng tư &amp; Dữ liệu</string>
+    <string name="settings_about_sonora">Giới thiệu về Sonora</string>
+    <string name="settings_diagnostics">Chẩn đoán</string>
+    <string name="settings_favourite_genres">Thể loại yêu thích</string>
+    <string name="settings_favourite_genres_subtitle">Dùng cục bộ để cá nhân hóa Trang chủ và Mới</string>
 </resources>

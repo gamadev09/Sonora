@@ -1625,4 +1625,32 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Auto</string>
+    <string name="filter_all">Alle</string>
+    <string name="filter_favourites">Favoriten</string>
+    <string name="filter_downloaded">Heruntergeladen</string>
+    <string name="taste_prompt_title">Geschmack anpassen</string>
+    <string name="taste_prompt_subtitle">Wähle einige Genres, um Startseite und Neu lokal zu personalisieren.</string>
+    <string name="playback_failure_title">Probleme bei der Wiedergabe?</string>
+    <string name="playback_failure_message">Die ausgewählte Musikquelle (%1$s) kann derzeit keine Wiedergabe bereitstellen. Externe Dienste können vorübergehend eingeschränkt oder nicht verfügbar sein.\n\nDu kannst es erneut versuchen, die Quelle wechseln oder deine Quelleneinstellungen prüfen.</string>
+    <string name="playback_failure_manage_sources">Quellen verwalten</string>
+    <string name="playback_failure_try_again">Erneut versuchen</string>
+    <string name="settings_group_account">Konto</string>
+    <string name="settings_group_listening">Hörerlebnis</string>
+    <string name="settings_group_application">Anwendung</string>
+    <string name="settings_group_connectivity">Konnektivität &amp; Daten</string>
+    <string name="settings_group_support">Support</string>
+    <string name="settings_lyrics_chords">Songtexte &amp; Akkorde</string>
+    <string name="settings_music_sources">Musikquellen</string>
+    <string name="settings_personalisation">Personalisierung</string>
+    <string name="settings_downloads_storage">Downloads &amp; Speicher</string>
+    <string name="settings_library">Mediathek</string>
+    <string name="settings_language_accessibility">Sprache &amp; Bedienungshilfen</string>
+    <string name="settings_connected_devices">Verbundene Geräte</string>
+    <string name="settings_connected_devices_subtitle">Übertrage über das Audioausgabe-Menü im Player auf Chromecast, AirPlay oder DLNA.</string>
+    <string name="settings_privacy_data">Datenschutz &amp; Daten</string>
+    <string name="settings_about_sonora">Über Sonora</string>
+    <string name="settings_diagnostics">Diagnose</string>
+    <string name="settings_favourite_genres">Lieblingsgenres</string>
+    <string name="settings_favourite_genres_subtitle">Wird lokal verwendet, um Startseite und Neu zu personalisieren</string>
 </resources>

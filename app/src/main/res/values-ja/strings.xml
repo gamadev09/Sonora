@@ -1601,4 +1601,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">自動</string>
+    <string name="new_music">新着</string>
+    <string name="filter_all">すべて</string>
+    <string name="filter_favourites">お気に入り</string>
+    <string name="filter_downloaded">ダウンロード済み</string>
+    <string name="taste_prompt_title">好みを調整</string>
+    <string name="taste_prompt_subtitle">ジャンルを選ぶとホームと新着がローカルでパーソナライズされます。</string>
+    <string name="playback_failure_title">再生できませんか？</string>
+    <string name="playback_failure_message">選択した音楽ソース（%1$s）は現在再生できません。外部サービスが一時的に制限されているか利用できない可能性があります。\n\n再試行するか、音楽ソースを変更・設定確認してください。</string>
+    <string name="playback_failure_manage_sources">ソースを管理</string>
+    <string name="playback_failure_try_again">再試行</string>
+    <string name="settings_group_account">アカウント</string>
+    <string name="settings_group_listening">リスニング体験</string>
+    <string name="settings_group_application">アプリ</string>
+    <string name="settings_group_connectivity">接続とデータ</string>
+    <string name="settings_group_support">サポート</string>
+    <string name="settings_lyrics_chords">歌詞とコード</string>
+    <string name="settings_music_sources">音楽ソース</string>
+    <string name="settings_personalisation">パーソナライズ</string>
+    <string name="settings_downloads_storage">ダウンロードとストレージ</string>
+    <string name="settings_library">ライブラリ</string>
+    <string name="settings_language_accessibility">言語とアクセシビリティ</string>
+    <string name="settings_connected_devices">接続済みデバイス</string>
+    <string name="settings_connected_devices_subtitle">プレーヤーのオーディオ出力からChromecast、AirPlay、DLNAにキャストできます。</string>
+    <string name="settings_privacy_data">プライバシーとデータ</string>
+    <string name="settings_about_sonora">Sonoraについて</string>
+    <string name="settings_diagnostics">診断</string>
+    <string name="settings_favourite_genres">お気に入りのジャンル</string>
+    <string name="settings_favourite_genres_subtitle">ホームと新着のローカルパーソナライズに使用</string>
 </resources>

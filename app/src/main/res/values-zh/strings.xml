@@ -1600,4 +1600,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">自动</string>
+    <string name="new_music">最新</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_favourites">收藏</string>
+    <string name="filter_downloaded">已下载</string>
+    <string name="taste_prompt_title">调整你的品味</string>
+    <string name="taste_prompt_subtitle">选择几个流派以在本地个性化首页和最新内容。</string>
+    <string name="playback_failure_title">播放遇到问题？</string>
+    <string name="playback_failure_message">所选音乐源（%1$s）当前无法提供播放。外部音乐服务可能暂时受限或不可用。\n\n你可以重试播放、切换音乐源或检查源设置。</string>
+    <string name="playback_failure_manage_sources">管理音乐源</string>
+    <string name="playback_failure_try_again">重试</string>
+    <string name="settings_group_account">账号</string>
+    <string name="settings_group_listening">聆听体验</string>
+    <string name="settings_group_application">应用</string>
+    <string name="settings_group_connectivity">连接与数据</string>
+    <string name="settings_group_support">支持</string>
+    <string name="settings_lyrics_chords">歌词与和弦</string>
+    <string name="settings_music_sources">音乐源</string>
+    <string name="settings_personalisation">个性化</string>
+    <string name="settings_downloads_storage">下载与存储</string>
+    <string name="settings_library">媒体库</string>
+    <string name="settings_language_accessibility">语言与无障碍</string>
+    <string name="settings_connected_devices">已连接设备</string>
+    <string name="settings_connected_devices_subtitle">可在播放器的音频输出面板中投射到 Chromecast、AirPlay 或 DLNA。</string>
+    <string name="settings_privacy_data">隐私与数据</string>
+    <string name="settings_about_sonora">关于 Sonora</string>
+    <string name="settings_diagnostics">诊断</string>
+    <string name="settings_favourite_genres">喜爱的流派</string>
+    <string name="settings_favourite_genres_subtitle">仅在本地用于个性化首页与最新内容</string>
 </resources>

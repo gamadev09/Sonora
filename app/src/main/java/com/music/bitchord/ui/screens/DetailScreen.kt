@@ -462,7 +462,19 @@ fun DetailScreen(
     // Each surviving row still knows where it sat in the full running order, so
     // an album's track numbers stay the album's rather than becoming positions
     // in the filtered list.
-    val matches = remember(songs, query) { songs.matching(query) }
+    val showTrackFilters = !isArtist && folder == null && rawSongs.isNotEmpty()
+    var trackFilter by rememberSaveable(page.browseId) { mutableStateOf(0) } // 0=All, 1=Favourites, 2=Downloaded
+    val likeOverrides by com.music.bitchord.data.LikeState.overrides.collectAsStateWithLifecycle()
+    val downloadedIds = if (showTrackFilters) com.music.bitchord.ui.AppUi.host.downloadedIds() else emptySet()
+    val filteredByCategory = remember(songs, trackFilter, likeOverrides, downloadedIds, showTrackFilters) {
+        if (!showTrackFilters || trackFilter == 0) songs
+        else when (trackFilter) {
+            1 -> songs.filter { likeOverrides[it.videoId] == com.music.bitchord.data.model.LikeStatus.LIKE }
+            2 -> songs.filter { it.videoId in downloadedIds || it.localUri != null }
+            else -> songs
+        }
+    }
+    val matches = remember(filteredByCategory, query) { filteredByCategory.matching(query) }
     // What a tap plays: the filtered set of tracks currently standing in the
     // list. When no filter is active, matches contains the full running order
     // and plays the complete release/playlist from the tapped position.
@@ -714,6 +726,41 @@ fun DetailScreen(
                 }
             }
             if (!isArtist) aboutItem()
+
+            if (showTrackFilters) {
+                item(key = "track-filters", contentType = "track-filters") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf(
+                            0 to R.string.filter_all,
+                            1 to R.string.filter_favourites,
+                            2 to R.string.filter_downloaded,
+                        ).forEach { (id, labelRes) ->
+                            val selected = trackFilter == id
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (selected) palette.accent
+                                        else palette.onBackground.copy(alpha = 0.12f),
+                                    )
+                                    .clickable { trackFilter = id }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(labelRes),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (selected) palette.background else palette.onBackground,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             when (val state = page.songs) {
                 is UiState.Loading -> detailSkeleton(isArtist)

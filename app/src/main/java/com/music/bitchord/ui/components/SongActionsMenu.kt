@@ -191,7 +191,18 @@ fun SongActionsMenu(
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
     var pickingSleepTimer by remember { mutableStateOf(false) }
     // A menu has no pages to swap, so Song Info opens as a dialog.
-    if (showingSongInfo) SongInfoDialog(song) { showingSongInfo = false }
+    if (showingSongInfo) SongInfoDialog(
+        song = song,
+        onOpenArtist = { id ->
+            showingSongInfo = false
+            onOpenArtist(id)
+        },
+        onOpenAlbum = { id ->
+            showingSongInfo = false
+            onOpenAlbum(id)
+        },
+        onDismiss = { showingSongInfo = false },
+    )
     // Neutral rather than the sleeve's colours: the panel floats over the page
     // or the player, and an accent pitched against the artwork's tint is not
     // guaranteed to read against the panel.

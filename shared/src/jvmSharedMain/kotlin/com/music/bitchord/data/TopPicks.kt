@@ -77,6 +77,9 @@ object TopPicks {
         val mixesAsync = async { findMixes(homeShelves) }
 
         val history = historyAsync.await()
+        if (history.isEmpty() && local.artists.isEmpty() && local.songs.isEmpty() && local.genres.isEmpty()) {
+            return@coroutineScope emptyList()
+        }
         val ranked = weightedSample(rankArtists(history, local.artists).take(ARTIST_POOL), ARTISTS)
         val pages = ranked.map { artist ->
             async { YtMusicRepository.artistLanding(artist.browseId!!).getOrNull() }

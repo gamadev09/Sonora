@@ -165,4 +165,40 @@ class HomePersonalizerTest {
         assertTrue(partition.personalized.isEmpty())
         assertEquals("Worldwide Charts", partition.global.single().title)
     }
+
+    @Test
+    fun `pagination continues through irrelevant pages and stops on repeated tokens or exhaustion`() {
+        val pagination = com.music.bitchord.data.recommendations.HomePaginationState(
+            maxUnproductivePages = 3,
+            maxTotalPages = 10,
+        )
+        pagination.reset("tok_1")
+
+        // Page 1: irrelevant (raw shelf added, 0 new visible items) -> continues
+        assertEquals("tok_2", pagination.onPageResult("tok_1", "tok_2", addedRawShelves = 1, visibleItemsBefore = 5, visibleItemsAfter = 5))
+        // Page 2: relevant (visible items increased) -> resets unproductive counter and continues
+        assertEquals("tok_3", pagination.onPageResult("tok_2", "tok_3", addedRawShelves = 1, visibleItemsBefore = 5, visibleItemsAfter = 9))
+        assertEquals(0, pagination.unproductivePages)
+        // Page 3: duplicate page (0 raw shelves, fresh token) -> tolerated once
+        assertEquals("tok_4", pagination.onPageResult("tok_3", "tok_4", addedRawShelves = 0, visibleItemsBefore = 9, visibleItemsAfter = 9))
+        // Page 4: repeated token -> stops immediately
+        assertEquals(null, pagination.onPageResult("tok_4", "tok_2", addedRawShelves = 1, visibleItemsBefore = 9, visibleItemsAfter = 12))
+    }
+
+    @Test
+    fun `pagination stops after consecutive duplicate or empty pages`() {
+        val pagination = com.music.bitchord.data.recommendations.HomePaginationState(
+            maxUnproductivePages = 4,
+            maxTotalPages = 10,
+        )
+        pagination.reset("tok_a")
+        // First duplicate page tolerated
+        assertEquals("tok_b", pagination.onPageResult("tok_a", "tok_b", addedRawShelves = 0, visibleItemsBefore = 4, visibleItemsAfter = 4))
+        // Second consecutive duplicate page stops
+        assertEquals(null, pagination.onPageResult("tok_b", "tok_c", addedRawShelves = 0, visibleItemsBefore = 4, visibleItemsAfter = 4))
+
+        // Empty incoming token stops immediately
+        pagination.reset("tok_x")
+        assertEquals(null, pagination.onPageResult("tok_x", null, addedRawShelves = 2, visibleItemsBefore = 4, visibleItemsAfter = 8))
+    }
 }

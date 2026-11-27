@@ -273,12 +273,18 @@ object StreamResolver {
      * starting a track, and ExoPlayer asks again for every re-open: each seek
      * outside the buffer, and each range the cache fills in.
      */
-    suspend fun resolve(videoId: String): String {
+    suspend fun resolve(videoId: String): String = resolveStream(videoId).url
+
+    /**
+     * Resolves [videoId] and returns the selected [Stream] including its actual
+     * container/codec [Stream.mimeType] and [Stream.kbps], never hardcoding a codec.
+     */
+    suspend fun resolveStream(videoId: String): Stream {
         init
 
         recent[videoId]
             ?.takeIf { MonotonicClock.nowMs() - it.at < URL_TTL_MS }
-            ?.let { return it.url }
+            ?.let { return it.stream }
 
         // A verdict, not a failure: asking again cannot change the answer, so
         // every caller after the first is told so without a request being sent.
@@ -291,8 +297,8 @@ object StreamResolver {
         // real figure is ever known.
         NerdStats.onStreamPicked(videoId, stream.kbps)
         stream.loudnessDb?.let { loudness[videoId] = it }
-        remember(videoId, stream.url)
-        return stream.url
+        remember(videoId, stream)
+        return stream
     }
 
     /** Per-track loudness, read once and kept for as long as the process runs. */
@@ -1227,7 +1233,9 @@ object StreamResolver {
     suspend fun contentLength(videoId: String): Long? =
         resolve(videoId).toHttpUrlOrNull()?.queryParameter("clen")?.toLongOrNull()
 
-    private class Resolved(val url: String, val at: Long)
+    private class Resolved(val stream: Stream, val at: Long) {
+        val url: String get() = stream.url
+    }
 
     /**
      * Stream URLs already resolved, by videoId — and, since [resolve] only ever
@@ -1247,12 +1255,12 @@ object StreamResolver {
     /** Enough for the queue in hand; this is a latency cache, not a store. */
     private const val MAX_REMEMBERED = 32
 
-    private fun remember(videoId: String, url: String) {
+    private fun remember(videoId: String, stream: Stream) {
         if (recent.size >= MAX_REMEMBERED) {
             val cutoff = MonotonicClock.nowMs() - URL_TTL_MS
             recent.entries.removeAll { it.value.at < cutoff }
             if (recent.size >= MAX_REMEMBERED) recent.clear()
         }
-        recent[videoId] = Resolved(url, MonotonicClock.nowMs())
+        recent[videoId] = Resolved(stream, MonotonicClock.nowMs())
     }
 }

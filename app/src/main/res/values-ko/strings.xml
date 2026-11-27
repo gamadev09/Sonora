@@ -1461,4 +1461,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">자동</string>
+    <string name="new_music">신규</string>
+    <string name="filter_all">전체</string>
+    <string name="filter_favourites">즐겨찾기</string>
+    <string name="filter_downloaded">다운로드됨</string>
+    <string name="taste_prompt_title">취향 설정</string>
+    <string name="taste_prompt_subtitle">홈과 신규 탭을 로컬에서 맞춤화할 장르를 선택하세요.</string>
+    <string name="playback_failure_title">재생에 문제가 있나요?</string>
+    <string name="playback_failure_message">선택한 음악 소스(%1$s)에서 현재 재생할 수 없습니다. 외부 서비스가 일시적으로 제한되거나 사용할 수 없을 수 있습니다.\n\n다시 시도하거나 음악 소스를 변경하거나 설정을 확인하세요.</string>
+    <string name="playback_failure_manage_sources">소스 관리</string>
+    <string name="playback_failure_try_again">다시 시도</string>
+    <string name="settings_group_account">계정</string>
+    <string name="settings_group_listening">청취 환경</string>
+    <string name="settings_group_application">앱</string>
+    <string name="settings_group_connectivity">연결 및 데이터</string>
+    <string name="settings_group_support">지원</string>
+    <string name="settings_lyrics_chords">가사 및 코드</string>
+    <string name="settings_music_sources">음악 소스</string>
+    <string name="settings_personalisation">개인화</string>
+    <string name="settings_downloads_storage">다운로드 및 저장공간</string>
+    <string name="settings_library">라이브러리</string>
+    <string name="settings_language_accessibility">언어 및 접근성</string>
+    <string name="settings_connected_devices">연결된 기기</string>
+    <string name="settings_connected_devices_subtitle">플레이어의 오디오 출력 시트에서 Chromecast, AirPlay 또는 DLNA로 전송하세요.</string>
+    <string name="settings_privacy_data">개인정보 및 데이터</string>
+    <string name="settings_about_sonora">Sonora 정보</string>
+    <string name="settings_diagnostics">진단</string>
+    <string name="settings_favourite_genres">선호 장르</string>
+    <string name="settings_favourite_genres_subtitle">홈 및 신규 맞춤화에 로컬로 사용됨</string>
 </resources>

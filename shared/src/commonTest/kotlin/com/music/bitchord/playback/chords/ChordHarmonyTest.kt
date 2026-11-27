@@ -9,7 +9,8 @@ class ChordHarmonyTest {
         assertEquals(listOf(9, 12, 16, 19), pianoChordNotes("Am7"))
         assertEquals(pianoChordNotes("G#maj7"), pianoChordNotes("A♭maj7"))
         assertNull(pianoChordNotes("N"))
-        assertNull(pianoChordNotes("Csus4"))
+        assertEquals(listOf(0, 5, 7), pianoChordNotes("Csus4"))
+        assertNull(pianoChordNotes("Caug9#11"))
         for (root in chordRoots) for (suffix in chordSuffixes) {
             val notes = assertNotNull(pianoChordNotes(root + suffix))
             assertTrue(notes.all { it in 0..23 })

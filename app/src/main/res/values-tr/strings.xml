@@ -1581,4 +1581,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Otomatik</string>
+    <string name="new_music">Yeni</string>
+    <string name="filter_all">Tümü</string>
+    <string name="filter_favourites">Favoriler</string>
+    <string name="filter_downloaded">İndirilenler</string>
+    <string name="taste_prompt_title">Zevkini ayarla</string>
+    <string name="taste_prompt_subtitle">Ana Sayfa ve Yeni sekmesini yerel olarak kişiselleştirmek için birkaç tür seç.</string>
+    <string name="playback_failure_title">Müzik çalmada sorun mu var?</string>
+    <string name="playback_failure_message">Seçili müzik kaynağı (%1$s) şu anda çalamıyor. Harici servisler geçici olarak erişimi kısıtlayabilir veya kullanılamayabilir.\n\nYeniden deneyebilir, kaynak değiştirebilir veya kaynak ayarlarını kontrol edebilirsin.</string>
+    <string name="playback_failure_manage_sources">Kaynakları Yönet</string>
+    <string name="playback_failure_try_again">Tekrar Dene</string>
+    <string name="settings_group_account">Hesap</string>
+    <string name="settings_group_listening">Dinleme deneyimi</string>
+    <string name="settings_group_application">Uygulama</string>
+    <string name="settings_group_connectivity">Bağlantı ve veri</string>
+    <string name="settings_group_support">Destek</string>
+    <string name="settings_lyrics_chords">Şarkı Sözleri ve Akorlar</string>
+    <string name="settings_music_sources">Müzik Kaynakları</string>
+    <string name="settings_personalisation">Kişiselleştirme</string>
+    <string name="settings_downloads_storage">İndirmeler ve Depolama</string>
+    <string name="settings_library">Kitaplık</string>
+    <string name="settings_language_accessibility">Dil ve Erişilebilirlik</string>
+    <string name="settings_connected_devices">Bağlı Cihazlar</string>
+    <string name="settings_connected_devices_subtitle">Oynatıcıdaki Ses Çıkışı menüsünden Chromecast, AirPlay veya DLNA hoparlörlere yayınla.</string>
+    <string name="settings_privacy_data">Gizlilik ve Veri</string>
+    <string name="settings_about_sonora">Sonora Hakkında</string>
+    <string name="settings_diagnostics">Tanılama</string>
+    <string name="settings_favourite_genres">Favori türler</string>
+    <string name="settings_favourite_genres_subtitle">Ana Sayfa ve Yeni sekmesini yerel olarak kişiselleştirmek için kullanılır</string>
 </resources>

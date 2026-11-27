@@ -1624,4 +1624,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">ऑटो</string>
+    <string name="new_music">नया</string>
+    <string name="filter_all">सभी</string>
+    <string name="filter_favourites">पसंदीदा</string>
+    <string name="filter_downloaded">डाउनलोड किए गए</string>
+    <string name="taste_prompt_title">अपनी पसंद चुनें</string>
+    <string name="taste_prompt_subtitle">होम और नया को स्थानीय रूप से निजीकृत करने के लिए कुछ शैलियाँ चुनें।</string>
+    <string name="playback_failure_title">संगीत चलाने में समस्या?</string>
+    <string name="playback_failure_message">चयनित संगीत स्रोत (%1$s) अभी प्लेबैक प्रदान करने में असमर्थ है। बाहरी सेवाएँ अस्थायी रूप से सीमित या अनुपलब्ध हो सकती हैं।\n\nआप पुनः प्रयास कर सकते हैं, स्रोत बदल सकते हैं या स्रोत सेटिंग्स देख सकते हैं।</string>
+    <string name="playback_failure_manage_sources">स्रोत प्रबंधित करें</string>
+    <string name="playback_failure_try_again">पुनः प्रयास करें</string>
+    <string name="settings_group_account">खाता</string>
+    <string name="settings_group_listening">सुनने का अनुभव</string>
+    <string name="settings_group_application">ऐप</string>
+    <string name="settings_group_connectivity">कनेक्टिविटी और डेटा</string>
+    <string name="settings_group_support">सहायता</string>
+    <string name="settings_lyrics_chords">बोल और कॉर्ड्स</string>
+    <string name="settings_music_sources">संगीत स्रोत</string>
+    <string name="settings_personalisation">निजीकरण</string>
+    <string name="settings_downloads_storage">डाउनलोड और स्टोरेज</string>
+    <string name="settings_library">लाइब्रेरी</string>
+    <string name="settings_language_accessibility">भाषा और सुगम्यता</string>
+    <string name="settings_connected_devices">जुड़े डिवाइस</string>
+    <string name="settings_connected_devices_subtitle">प्लेयर में ऑडियो आउटपुट शीट से Chromecast, AirPlay या DLNA पर कास्ट करें।</string>
+    <string name="settings_privacy_data">गोपनीयता और डेटा</string>
+    <string name="settings_about_sonora">Sonora के बारे में</string>
+    <string name="settings_diagnostics">डायग्नोस्टिक्स</string>
+    <string name="settings_favourite_genres">पसंदीदा शैलियाँ</string>
+    <string name="settings_favourite_genres_subtitle">होम और नया को स्थानीय रूप से निजीकृत करने के लिए उपयोग किया जाता है</string>
 </resources>

@@ -1600,4 +1600,33 @@
         <item quantity="one">album</item>
         <item quantity="other">albums</item>
     </plurals>
+    <string name="auto_refresh">Otomatis</string>
+    <string name="new_music">Baru</string>
+    <string name="filter_all">Semua</string>
+    <string name="filter_favourites">Favorit</string>
+    <string name="filter_downloaded">Diunduh</string>
+    <string name="taste_prompt_title">Sesuaikan seleramu</string>
+    <string name="taste_prompt_subtitle">Pilih beberapa genre untuk mempersonalisasi Beranda dan Baru secara lokal.</string>
+    <string name="playback_failure_title">Kesulitan memutar musik?</string>
+    <string name="playback_failure_message">Sumber musik yang dipilih (%1$s) saat ini tidak dapat memutar. Layanan eksternal mungkin membatasi akses sementara atau tidak tersedia.\n\nAnda dapat mencoba lagi, mengganti sumber musik, atau memeriksa pengaturan sumber.</string>
+    <string name="playback_failure_manage_sources">Kelola Sumber</string>
+    <string name="playback_failure_try_again">Coba Lagi</string>
+    <string name="settings_group_account">Akun</string>
+    <string name="settings_group_listening">Pengalaman mendengarkan</string>
+    <string name="settings_group_application">Aplikasi</string>
+    <string name="settings_group_connectivity">Konektivitas &amp; data</string>
+    <string name="settings_group_support">Dukungan</string>
+    <string name="settings_lyrics_chords">Lirik &amp; Akor</string>
+    <string name="settings_music_sources">Sumber Musik</string>
+    <string name="settings_personalisation">Personalisasi</string>
+    <string name="settings_downloads_storage">Unduhan &amp; Penyimpanan</string>
+    <string name="settings_library">Perpustakaan</string>
+    <string name="settings_language_accessibility">Bahasa &amp; Aksesibilitas</string>
+    <string name="settings_connected_devices">Perangkat Terhubung</string>
+    <string name="settings_connected_devices_subtitle">Transmisikan ke Chromecast, AirPlay, atau DLNA dari panel Output Audio di pemutar.</string>
+    <string name="settings_privacy_data">Privasi &amp; Data</string>
+    <string name="settings_about_sonora">Tentang Sonora</string>
+    <string name="settings_diagnostics">Diagnostik</string>
+    <string name="settings_favourite_genres">Genre favorit</string>
+    <string name="settings_favourite_genres_subtitle">Digunakan secara lokal untuk mempersonalisasi Beranda dan Baru</string>
 </resources>
