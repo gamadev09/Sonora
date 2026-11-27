@@ -6,6 +6,7 @@ import com.music.bitchord.playback.EqualizerProcessor
 import com.music.bitchord.playback.LoudnessProcessor
 import com.music.bitchord.playback.SpatialAudioProcessor
 import com.music.bitchord.playback.TransitionFilterProcessor
+import com.music.bitchord.playback.separation.VocalSeparationProcessor
 
 /**
  * Composite DSP chain executing BitChord's custom audio processors in their canonical sequence:
@@ -36,6 +37,7 @@ class DspChain(
     val equalizer: EqualizerProcessor = EqualizerProcessor(),
     val transition: TransitionFilterProcessor = TransitionFilterProcessor(),
     val loudness: LoudnessProcessor = LoudnessProcessor(),
+    val vocalSeparation: VocalSeparationProcessor = VocalSeparationProcessor(),
 ) : FloatAudioProcessor {
 
     private var currentSampleRate: Int = 0
@@ -43,6 +45,7 @@ class DspChain(
 
     override fun configure(sampleRate: Int, channelCount: Int) {
         this.currentSampleRate = sampleRate
+        vocalSeparation.configure(sampleRate, channelCount)
         spatial.configure(sampleRate, channelCount)
         equalizer.configure(sampleRate, channelCount)
         transition.configure(sampleRate, channelCount)
@@ -67,27 +70,30 @@ class DspChain(
                     val spatialOn = spatial.enabled
                     val eqOn = equalizer.isEnabled
                     val transitionOn = transition.isFiltering
+                    val vocalSepOn = vocalSeparation.isActive
                     Log.d(
                         TAG,
                         "process() #$count frames=$frames sr=$sr " +
-                            "spatial=$spatialOn eq=$eqOn transition=$transitionOn",
+                            "vocalSep=$vocalSepOn spatial=$spatialOn eq=$eqOn transition=$transitionOn",
                     )
                 } catch (_: Throwable) {
                 }
             }
         }
 
+        vocalSeparation.process(block)
         spatial.process(block)
         equalizer.process(block)
         transition.process(block)
         // The equaliser and spatial widener leave their overs in place for the stages
         // after them to see; the loudness stage's limiter is what catches whatever survives.
-        loudness.holdLimiter = equalizer.isShaping || spatial.enabled
+        loudness.holdLimiter = equalizer.isShaping || spatial.enabled || vocalSeparation.isActive
         loudness.process(block)
     }
 
     @Suppress("DEPRECATION")
     override fun flush() {
+        vocalSeparation.flush()
         spatial.flush()
         equalizer.flush()
         transition.flush()
@@ -96,6 +102,7 @@ class DspChain(
 
     override fun reset() {
         processCounter = 0L
+        vocalSeparation.reset()
         spatial.reset()
         equalizer.reset()
         transition.reset()

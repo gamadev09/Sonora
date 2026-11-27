@@ -65,6 +65,11 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     override val chordAnalysis: ChordAnalysisSource by lazy {
         com.music.bitchord.playback.chords.AndroidChordAnalysis(app)
     }
+    override val vocalSeparation: VocalSeparationController by lazy {
+        com.music.bitchord.playback.separation.VocalSeparationCoordinator.also {
+            it.install(app)
+        }
+    }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
 

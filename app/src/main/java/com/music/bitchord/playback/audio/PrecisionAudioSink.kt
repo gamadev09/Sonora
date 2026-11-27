@@ -408,7 +408,10 @@ class PrecisionAudioSink(
                 silenceUntilHandover(inArm, loopBlockUs, decodedFrames)
             }
 
-            // Process normalized Float32 samples through custom DSP chain
+            // Supply track-relative timestamp for synchronized stem mixing, then
+            // process normalized Float32 samples through custom DSP chain.
+            val trackBlockUs = if (loopBlockUs != C.TIME_UNSET) loopBlockUs - loop.streamOffsetUs else Long.MIN_VALUE
+            dspChain.vocalSeparation.setBlockTimestampUs(trackBlockUs)
             dspChain.process(audioBlock)
 
             // Encode processed samples to target PCM output buffer (Float32 or PCM16)

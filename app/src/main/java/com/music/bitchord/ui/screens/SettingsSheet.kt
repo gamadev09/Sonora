@@ -163,6 +163,7 @@ import com.music.bitchord.data.settings.OutputPcmMode
 import com.music.bitchord.data.settings.BitPerfectMode
 import com.music.bitchord.playback.AudioOutputStatus
 import com.music.bitchord.playback.audio.bitperfect.BitPerfectOutput
+import com.music.bitchord.data.settings.AudioIntelligencePriority
 import com.music.bitchord.data.settings.AutomixPerformanceMode
 import com.music.bitchord.playback.smart.AutomixModels
 import com.music.bitchord.R
@@ -236,6 +237,7 @@ fun SettingsScreen(
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixModels by AutomixModels.state.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
+    val audioIntelligencePriority by AppSettings.audioIntelligencePriority.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val sleepTimerFadeOut by AppSettings.sleepTimerFadeOut.collectAsStateWithLifecycle()
     val dolbyAtmos by AppSettings.dolbyAtmos.collectAsStateWithLifecycle()
@@ -945,6 +947,18 @@ fun SettingsScreen(
                         subtitle = stringResource(R.string.automix_performance_subtitle),
                         value = automixPerformance.localizedLabel(),
                         onClick = { onOpenChoice(SettingsChoiceKind.AUTOMIX_PERFORMANCE) },
+                    )
+                }
+            }
+            val audioIntelligenceTitle = stringResource(R.string.audio_intelligence)
+            row(audioIntelligenceTitle, "vocals", "stems", "separation", "mic", "ai") {
+                BypassedByBitPerfect(bitPerfectReady) {
+                    SettingsRow(
+                        icon = androidx.compose.material.icons.Icons.Rounded.Mic,
+                        title = audioIntelligenceTitle,
+                        subtitle = stringResource(R.string.audio_intelligence_subtitle),
+                        value = audioIntelligencePriority.localizedLabel(),
+                        onClick = { onOpenChoice(SettingsChoiceKind.AUDIO_INTELLIGENCE_PRIORITY) },
                     )
                 }
             }
@@ -2126,6 +2140,15 @@ private fun AutomixPerformanceMode.localizedLabel(): String = stringResource(
     },
 )
 
+@Composable
+private fun AudioIntelligencePriority.localizedLabel(): String = stringResource(
+    when (this) {
+        AudioIntelligencePriority.BALANCED -> R.string.audio_intelligence_balanced
+        AudioIntelligencePriority.HIGH_QUALITY -> R.string.audio_intelligence_high_quality
+        AudioIntelligencePriority.EFFICIENCY -> R.string.audio_intelligence_efficiency
+    },
+)
+
 /**
  * Hands the device's own effect panel this app's audio session.
  *
@@ -2918,6 +2941,7 @@ enum class SettingsChoiceKind(@param:StringRes val title: Int) {
     AUDIO_QUALITY_CELLULAR(R.string.on_mobile_data),
     DOWNLOAD_QUALITY(R.string.download_quality),
     AUTOMIX_PERFORMANCE(R.string.automix_performance),
+    AUDIO_INTELLIGENCE_PRIORITY(R.string.audio_intelligence),
     BIT_PERFECT(R.string.bit_perfect_output),
     FONT(R.string.font),
 }
@@ -3044,6 +3068,28 @@ fun SettingsChoicePage(
                     footer = stringResource(R.string.automix_performance_warning),
                 ) { mode ->
                     AppSettings.setAutomixPerformanceMode(mode)
+                    onChosen()
+                }
+            }
+
+            SettingsChoiceKind.AUDIO_INTELLIGENCE_PRIORITY -> {
+                val selected by AppSettings.audioIntelligencePriority.collectAsStateWithLifecycle()
+                ChoiceGroup(
+                    options = AudioIntelligencePriority.entries,
+                    selected = selected,
+                    label = { it.localizedLabel() },
+                    detail = {
+                        stringResource(
+                            when (it) {
+                                AudioIntelligencePriority.BALANCED -> R.string.audio_intelligence_balanced_subtitle
+                                AudioIntelligencePriority.HIGH_QUALITY -> R.string.audio_intelligence_high_quality_subtitle
+                                AudioIntelligencePriority.EFFICIENCY -> R.string.audio_intelligence_efficiency_subtitle
+                            },
+                        )
+                    },
+                    footer = stringResource(R.string.audio_intelligence_footer),
+                ) { priority ->
+                    AppSettings.setAudioIntelligencePriority(priority)
                     onChosen()
                 }
             }

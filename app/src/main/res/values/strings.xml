@@ -1525,4 +1525,13 @@
     <string name="filter_all">All</string>
     <string name="filter_favourites">Favourites</string>
     <string name="filter_downloaded">Downloaded</string>
+    <string name="audio_intelligence">Audio Intelligence</string>
+    <string name="audio_intelligence_subtitle">Background vocal separation priority</string>
+    <string name="audio_intelligence_balanced">Balanced</string>
+    <string name="audio_intelligence_balanced_subtitle">Smooth separation quality and steady background pacing (recommended)</string>
+    <string name="audio_intelligence_high_quality">High Quality</string>
+    <string name="audio_intelligence_high_quality_subtitle">50% chunk overlap and sharper vocal masking; uses more CPU and battery</string>
+    <string name="audio_intelligence_efficiency">Efficiency</string>
+    <string name="audio_intelligence_efficiency_subtitle">Single-thread low-heat processing that preserves battery life</string>
+    <string name="audio_intelligence_footer">Stems are separated on-device in the background while playback continues, and cached automatically with LRU eviction.</string>
 </resources>

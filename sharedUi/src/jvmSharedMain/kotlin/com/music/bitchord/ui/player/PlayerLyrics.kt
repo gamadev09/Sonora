@@ -51,6 +51,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -1608,6 +1609,69 @@ internal fun RomanizationToggleButton(
                     if (showingRomanization) Res.string.show_original_lyrics
                     else Res.string.romanize_lyrics,
                 ),
+                tint = tint,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Companion vocal-separation mic toggle matching [RomanizationToggleButton]
+ * dimensions and interaction style. Displays live model-download / separation
+ * progress, active state, and error feedback without adding extra chrome.
+ */
+@Composable
+internal fun VocalSeparationToggleButton(
+    trackId: String,
+    state: VocalSeparationUiState,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val isDownloading = state is VocalSeparationUiState.DownloadingModel && state.trackId == trackId
+    val isProcessing = state is VocalSeparationUiState.Processing && state.trackId == trackId
+    val isActive = state is VocalSeparationUiState.Active && state.trackId == trackId
+    val isError = state is VocalSeparationUiState.Error && state.trackId == trackId
+    val busy = isDownloading || isProcessing
+    val progress = when {
+        isDownloading -> (state as VocalSeparationUiState.DownloadingModel).progress
+        isProcessing -> (state as VocalSeparationUiState.Processing).progress
+        else -> 0f
+    }
+    val tint = when {
+        !enabled -> chromeWhite(0.42f)
+        isError -> Color(0xFFFF8A80)
+        else -> Color.White
+    }
+    CircleGlyphContainer(
+        active = isActive || busy,
+        enabled = enabled,
+        onClick = onClick,
+    ) {
+        if (busy) {
+            if (progress > 0.01f) {
+                CircularProgressIndicator(
+                    progress = { progress.coerceIn(0f, 1f) },
+                    modifier = Modifier.size(16.dp),
+                    color = tint,
+                    trackColor = chromeWhite(0.22f),
+                    strokeWidth = 1.7.dp,
+                )
+            } else {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = tint,
+                    strokeWidth = 1.7.dp,
+                )
+            }
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.Mic,
+                contentDescription = when {
+                    isActive -> "Disable vocal separation"
+                    isError -> "Retry vocal separation"
+                    else -> "Separate vocals"
+                },
                 tint = tint,
                 modifier = Modifier.size(19.dp),
             )

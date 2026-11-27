@@ -41,6 +41,9 @@ interface PlayerHost {
     /** Optional offline chord analysis; absent platforms keep their existing player. */
     val chordAnalysis: ChordAnalysisSource? get() = null
 
+    /** Optional background vocal separation controller (Audio Intelligence). */
+    val vocalSeparation: VocalSeparationController? get() = null
+
     /** Optional in-process feed; platforms without AutoMix leave it absent. */
     val autoMixVisualState: StateFlow<AutoMixVisualState?>? get() = null
 

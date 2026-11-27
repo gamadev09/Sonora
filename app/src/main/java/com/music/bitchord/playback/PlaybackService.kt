@@ -4501,6 +4501,7 @@ class PlaybackService : MediaLibraryService() {
         }
         currentAudioInputFormat = null
         NerdStats.onTrackTransition(mediaItem?.mediaId)
+        com.music.bitchord.playback.separation.VocalSeparationCoordinator.onCurrentTrackChanged(mediaItem?.mediaId)
         // A rendition discarded and fetched again comes back under the same
         // URI, so a size measured for the last track isn't kept past it.
         measuredBitrateCache.clear()
@@ -7841,7 +7842,11 @@ class PlaybackService : MediaLibraryService() {
             // them for the same reason: it belongs to the listener and
             // the whole session, while the transition filter belongs to
             // one handoff and has to have the last word on it.
-            val dspChain = DspChain(spatial, equalizer, transition, loudness)
+            com.music.bitchord.playback.separation.VocalSeparationCoordinator.install(context)
+            val vocalSeparation = com.music.bitchord.playback.separation.VocalSeparationProcessor().also {
+                com.music.bitchord.playback.separation.VocalSeparationCoordinator.attachProcessor(it)
+            }
+            val dspChain = DspChain(spatial, equalizer, transition, loudness, vocalSeparation)
             val airPlaySink = AirPlayAudioSink(
                 delegate = defaultSink,
                 isAudible = { transition === activeFilter },

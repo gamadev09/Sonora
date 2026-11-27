@@ -123,6 +123,29 @@ object AutomixModels {
     fun download() = request(force = true)
 
     /**
+     * Ensures [VOCALS] (`vocals_umxhq_int8.onnx`, MIT-licensed Open-Unmix HQ,
+     * SHA-256 verified) is present on disk for Audio Intelligence vocal separation,
+     * without requiring the Beat model to be downloaded.
+     */
+    fun ensureVocalsModel(onProgress: (Float) -> Unit = {}): File {
+        val target = fileFor(VOCALS) ?: throw FileNotFoundException("AutomixModels.install was never called")
+        if (isPresent(VOCALS)) {
+            onProgress(1f)
+            return target
+        }
+        fetch(VOCALS) { read ->
+            onProgress((read.toFloat() / VOCALS.bytes.toFloat()).coerceIn(0f, 1f))
+        }
+        synchronized(lock) {
+            if (ALL.all(::isPresent)) {
+                failedAt = 0L
+                _state.value = State.Ready
+            }
+        }
+        return target
+    }
+
+    /**
      * Settings' Delete: removes both models (and any half-finished download)
      * to free the space. Refused while a download is running. The caller turns
      * Automix off first, or the next analysis pass would fetch them straight back.

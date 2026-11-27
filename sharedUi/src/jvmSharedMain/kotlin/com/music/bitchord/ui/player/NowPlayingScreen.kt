@@ -76,6 +76,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.MutableFloatState
@@ -1563,6 +1564,8 @@ fun NowPlayingScreen(
     val collapseDone by remember { derivedStateOf { p() >= 1f } }
     val queueShowing by remember { derivedStateOf { queueSlide.floatValue > 0.01f } }
     val chordSource = remember { PlayerPlatform.host.chordAnalysis }
+    val vocalSeparation = remember { PlayerPlatform.host.vocalSeparation }
+    val vocalSepState = vocalSeparation?.state?.collectAsState()?.value ?: VocalSeparationUiState.Idle
     val chordState = if (chordSource != null) {
         rememberChordState(song, chordSource, lyricsPlayhead, lyricsOpen && (sideways || collapseDone))
     } else null
@@ -2699,6 +2702,14 @@ fun NowPlayingScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
+                                    if (vocalSeparation != null) {
+                                        VocalSeparationToggleButton(
+                                            trackId = song.videoId,
+                                            state = vocalSepState,
+                                            enabled = true,
+                                            onClick = { vocalSeparation.toggle(song) },
+                                        )
+                                    }
                                     RomanizationToggleButton(
                                         state = lyricsTranslation.romanizationState,
                                         showingRomanization = lyricsTranslation.showingRomanization,
@@ -4570,6 +4581,14 @@ fun NowPlayingScreen(
                                     onStatusClick = { showLyricsProviders = true },
                                     modifier = Modifier.weight(1f),
                                 )
+                                if (vocalSeparation != null) {
+                                    VocalSeparationToggleButton(
+                                        trackId = song.videoId,
+                                        state = vocalSepState,
+                                        enabled = true,
+                                        onClick = { vocalSeparation.toggle(song) },
+                                    )
+                                }
                                 RomanizationToggleButton(
                                     state = lyricsTranslation.romanizationState,
                                     showingRomanization = lyricsTranslation.showingRomanization,

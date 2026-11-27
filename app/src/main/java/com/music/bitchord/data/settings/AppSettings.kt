@@ -298,6 +298,9 @@ object AppSettings {
 
     /** The CPU budget used by Beat This! and vocal analysis for Automix. */
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)
+
+    /** Processing priority for Audio Intelligence background vocal separation. */
+    val audioIntelligencePriority = MutableStateFlow(AudioIntelligencePriority.BALANCED)
     val skipSilence = MutableStateFlow(false)
 
     /** Requested PCM representation at the Android AudioTrack boundary. */
@@ -1040,6 +1043,11 @@ object AppSettings {
                 prefs.getString(KEY_AUTOMIX_PERFORMANCE_MODE, null) ?: AutomixPerformanceMode.BALANCED.name,
             )
         }.getOrDefault(AutomixPerformanceMode.BALANCED)
+        audioIntelligencePriority.value = runCatching {
+            AudioIntelligencePriority.valueOf(
+                prefs.getString(KEY_AUDIO_INTELLIGENCE_PRIORITY, null) ?: AudioIntelligencePriority.BALANCED.name,
+            )
+        }.getOrDefault(AudioIntelligencePriority.BALANCED)
         skipSilence.value = prefs.getBoolean(KEY_SKIP_SILENCE, false)
         outputPcmMode.value = runCatching {
             OutputPcmMode.valueOf(
@@ -1401,6 +1409,11 @@ object AppSettings {
     fun setAutomixPerformanceMode(value: AutomixPerformanceMode) {
         automixPerformanceMode.value = value
         prefs.edit().putString(KEY_AUTOMIX_PERFORMANCE_MODE, value.name).apply()
+    }
+
+    fun setAudioIntelligencePriority(value: AudioIntelligencePriority) {
+        audioIntelligencePriority.value = value
+        prefs.edit().putString(KEY_AUDIO_INTELLIGENCE_PRIORITY, value.name).apply()
     }
 
     fun setSkipSilence(value: Boolean) {
@@ -2478,6 +2491,7 @@ object AppSettings {
     private const val KEY_DISCORD_BUTTON_2_VISIBLE = "discord_button_2_visible"
     private const val KEY_DISCORD_INFO_DISMISSED = "discord_info_dismissed"
     private const val KEY_LAST_VERSION_CODE = "last_version_code"
+    private const val KEY_AUDIO_INTELLIGENCE_PRIORITY = "audio_intelligence_priority"
 }
 
 
