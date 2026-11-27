@@ -1631,12 +1631,9 @@ fun NowPlayingScreen(
     // still-art full-bleed preference. Other providers and static artwork keep
     // answering to that preference exactly as before.
     // A music video sits in the card's place at its own 16:9, never full bleed.
-    // The cover remains a complete sleeve. Only a confirmed portrait clip may
-    // occupy the banner; square animated covers retain their natural frame.
     val heroMode = !videoMode && (
         spotifyCanvasOnPhone ||
-            (canvas != null && canvasAspect > 0f && canvasAspect < 0.85f &&
-                fullBleedArt && playerFillsWindow(windowWidth))
+            (fullBleedArt && playerFillsWindow(windowWidth))
         )
 
     // Whether there's a still image to blow out — a placeholder tile is a card
