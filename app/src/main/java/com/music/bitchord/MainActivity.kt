@@ -973,6 +973,10 @@ private fun BitChordApp(
     val lyricsChecked by viewModel.lyricsChecked.collectAsStateWithLifecycle()
     val playbackFailureWarning by com.music.bitchord.playback.PlaybackFailureMonitor.activeWarning.collectAsStateWithLifecycle()
     val lyricsProviderStates by viewModel.lyricsProviderStates.collectAsStateWithLifecycle()
+    val newReleasesPersonalized by viewModel.newReleasesPersonalized.collectAsStateWithLifecycle()
+    val newReleasesGlobal by viewModel.newReleasesGlobal.collectAsStateWithLifecycle()
+    val selectedTasteGenres by com.music.bitchord.data.recommendations.TastePreferences.selectedGenres.collectAsStateWithLifecycle()
+    val tastePromptDismissed by com.music.bitchord.data.recommendations.TastePreferences.promptDismissed.collectAsStateWithLifecycle()
     val lyricsProviderTiers by viewModel.lyricsProviderTiers.collectAsStateWithLifecycle()
     val isManualLyricsActive by viewModel.isManualLyricsActive.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
@@ -3609,6 +3613,76 @@ private fun BitChordApp(
                                 // Nothing on Home is seen while the greeting covers it.
                                 artworkMotion = artworkMotion,
                                 replayYear = replayYearBadge,
+                                tasteSetupCard = if (!tastePromptDismissed && !signedIn) {
+                                    {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 20.dp, vertical = 8.dp)
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                                .padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                            ) {
+                                                Text(
+                                                    text = "Tune your taste",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                )
+                                                TextButton(
+                                                    onClick = {
+                                                        com.music.bitchord.data.recommendations.TastePreferences.dismissPrompt()
+                                                    },
+                                                ) {
+                                                    Text(
+                                                        text = if (selectedTasteGenres.isEmpty()) "Dismiss" else "Done",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = "Pick a few genres to personalise Home and New locally.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .horizontalScroll(rememberScrollState()),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            ) {
+                                                com.music.bitchord.data.recommendations.TastePreferences.SUGGESTED_GENRES.forEach { genre ->
+                                                    val picked = genre in selectedTasteGenres
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(50))
+                                                            .background(
+                                                                if (picked) MaterialTheme.colorScheme.onSurface
+                                                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                            )
+                                                            .clickable {
+                                                                com.music.bitchord.data.recommendations.TastePreferences.toggleGenre(genre)
+                                                                viewModel.onTastePreferencesChanged()
+                                                            }
+                                                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                                                    ) {
+                                                        Text(
+                                                            text = genre,
+                                                            style = MaterialTheme.typography.labelMedium,
+                                                            color = if (picked) MaterialTheme.colorScheme.surface
+                                                            else MaterialTheme.colorScheme.onSurface,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else null,
                                 onTopPickLongPress = { pick ->
                                     pick.browseId?.let { browseId ->
                                         onShelfLongPress(
@@ -3665,6 +3739,29 @@ private fun BitChordApp(
                                 onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                                 pullState = explorePull,
                                 contentPadding = listPadding,
+                                personalizedNewShelves = newReleasesPersonalized,
+                                globalNewShelves = newReleasesGlobal,
+                                onShelfItemClick = { item ->
+                                    item.videoId?.let { videoId ->
+                                        playRadio(
+                                            Song(
+                                                videoId = videoId,
+                                                title = item.title,
+                                                artist = InnertubeParser.artistFromSubtitle(item.subtitle),
+                                                thumbnailUrl = item.thumbnailUrl,
+                                                isVideo = item.isVideo,
+                                            ),
+                                            QueueSource("New", PlaybackSourceType.EXPLORE, null),
+                                        )
+                                    } ?: item.browseId?.let { browseId ->
+                                        viewModel.openDetail(
+                                            browseId = browseId,
+                                            title = item.title,
+                                            subtitle = item.subtitle,
+                                            thumbnailUrl = item.thumbnailUrl,
+                                        )
+                                    }
+                                },
                             )
                             TAB_SEARCH -> SearchScreen(
                                 query = query,

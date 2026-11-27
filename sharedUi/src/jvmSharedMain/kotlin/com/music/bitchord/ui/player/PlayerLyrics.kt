@@ -395,8 +395,8 @@ private val GAP_ROW_SPACING = 16.dp
  * only past that does the panel let go. The last entry stands for everything
  * further out, which is most of the list.
  */
-private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.8f, 0.7f, 0.58f, 0.46f)
-private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp)
+private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.84f, 0.74f, 0.62f, 0.50f)
+private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 0.dp, 0.5.dp, 1.0.dp, 1.5.dp)
 
 /**
  * The same falloff for a phone, where the sung line is read from the top and
@@ -406,7 +406,7 @@ private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp)
  * last entry is still a floor, not zero — the bottom of the screen stays
  * readable at a glance.
  */
-private val LINE_FALLOFF_ALPHA_PHONE = floatArrayOf(1f, 0.74f, 0.6f, 0.48f, 0.4f, 0.34f)
+private val LINE_FALLOFF_ALPHA_PHONE = floatArrayOf(1f, 0.80f, 0.68f, 0.56f, 0.46f, 0.38f)
 
 /**
  * The shape of the page the lyrics are going to fill.
@@ -2023,14 +2023,14 @@ internal fun LyricsContent(
     // wherever it was left rather than snapping back on these timers.
     LaunchedEffect(browsingByDrag, activeOnScreen, listState.isScrollInProgress, panelPlaying) {
         if (panelPlaying && browsingByDrag && activeOnScreen && !listState.isScrollInProgress) {
-            delay(600)
+            delay(4_000)
             browsingByDrag = false
         }
     }
 
     LaunchedEffect(browsingByDrag, listState.isScrollInProgress, panelPlaying) {
         if (panelPlaying && browsingByDrag && !listState.isScrollInProgress) {
-            delay(5_000)
+            delay(8_000)
             browsingByDrag = false
         }
     }

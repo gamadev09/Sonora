@@ -684,9 +684,9 @@ internal fun TransportRow(
     compact: Boolean = false,
     animationsActive: Boolean = true,
 ) {
-    val playSize = if (compact) 58.dp else 74.dp
-    val playTouch = if (compact) 76.dp else 92.dp
-    val skipSize = if (compact) 44.dp else PLAYER_SKIP_ICON_SIZE
+    val playSize = if (compact) 50.dp else 56.dp
+    val playTouch = if (compact) 58.dp else 64.dp
+    val skipSize = if (compact) 36.dp else PLAYER_SKIP_ICON_SIZE
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
     val previousMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
     val nextMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
@@ -1276,8 +1276,8 @@ private fun TransportGlyph(
 }
 
 /** The skip glyphs' width, and their touch box, beside the larger play button. */
-private val PLAYER_SKIP_ICON_SIZE = 53.dp
-private val PLAYER_SKIP_TOUCH_SIZE = 53.dp
+private val PLAYER_SKIP_ICON_SIZE = 40.dp
+private val PLAYER_SKIP_TOUCH_SIZE = 52.dp
 
 /** Draw-only diameter shared by expanded playback controls; hit targets stay unchanged. */
 private val PLAYER_PRESS_CIRCLE_DIAMETER = 60.dp
@@ -1288,7 +1288,7 @@ private val PLAYER_PRESS_CIRCLE_DIAMETER = 60.dp
  */
 private const val PLAYER_SKIP_HEIGHT_SCALE = 0.85f
 
-private val BOTTOM_ACTION_SIZE = 44.dp
+private val BOTTOM_ACTION_SIZE = 48.dp
 
 /** What the lyrics and queue glyphs are drawn at inside [BOTTOM_ACTION_SIZE]. */
 private val BOTTOM_ICON_SIZE = 26.dp

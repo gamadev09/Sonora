@@ -125,6 +125,7 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
             AndroidStreamHooks.initInnerTubeX(this)
             CanvasCache.init(this)
             ListeningStats.init(this)
+            com.music.bitchord.data.recommendations.TastePreferences.init(this)
             ArtistFacts.init(this)
         }
         // Migration-safe: an old single cookie becomes the first encrypted

@@ -1567,6 +1567,10 @@ fun NowPlayingScreen(
     val collapseAlmostDone by remember { derivedStateOf { p() >= 0.999f } }
     val collapseDone by remember { derivedStateOf { p() >= 1f } }
     val queueShowing by remember { derivedStateOf { queueSlide.floatValue > 0.01f } }
+    val chordSource = remember { PlayerPlatform.host.chordAnalysis }
+    val chordState = if (chordSource != null) {
+        rememberChordState(song, chordSource, lyricsPlayhead, lyricsOpen && collapseDone)
+    } else null
 
     // Whether the sleeve has finished getting out of the way, and how far the
     // panel that replaces it has faded up since.
@@ -2650,17 +2654,8 @@ fun NowPlayingScreen(
                                     animationsActive = !panelOpen,
                                 )
                             },
-                            volume = if (hideVolumeBar) {
-                                null
-                            } else {
-                                {
-                                    VolumeRow(
-                                        value = { volume.level.value },
-                                        onValueChange = onVolumeChange,
-                                        onValueChangeFinished = onVolumeChangeFinished,
-                                    )
-                                }
-                            },
+                            // Volume lives in the Audio Output menu across all player modes.
+                            volume = null,
                         )
                     },
                     lyricsPane = {
@@ -4395,11 +4390,7 @@ fun NowPlayingScreen(
                         // [lyricsOpen] asked first: a close has already hidden the
                         // panel, and doesn't then listen for the sleeve leaving the
                         // header — which is its first frame of moving.
-                        val chordSource = remember { PlayerPlatform.host.chordAnalysis }
                         val lyricsPanelVisible = lyricsOpen && collapseDone
-                        val chordState = if (chordSource != null) {
-                            rememberChordState(song, chordSource, lyricsPlayhead, lyricsPanelVisible)
-                        } else null
                         if (lyricsPanelVisible || playerPrewarmStage >= 2) {
                             LyricsTranslationMotion(
                                 trigger = lyricsTranslation.transition,
@@ -4448,65 +4439,6 @@ fun NowPlayingScreen(
                                     )
                                 }
 
-                            // Floated over the foot of the lyrics rather than placed in
-                            // the controls below them. In the controls it was a row of
-                            // layout like any other, and the bottom block is measured at
-                            // its natural height — so the button's 34dp came straight
-                            // off the panel above it and the lyrics lost a line. Drawn
-                            // here it costs the panel nothing and still reads as sitting
-                            // on top of the half player, because that is where it is.
-                            //
-                            // Arrives and leaves on the controls' own fade: the panel is
-                            // for reading, and a control parked over the words when
-                            // nobody asked for the controls is one more thing between
-                            // the reader and them.
-                            val translateShown = lyricsPanelVisible && lyricsControlsOpen
-                            val translateFade by animateFloatAsState(
-                                targetValue = if (translateShown) 1f else 0f,
-                                animationSpec = tween(if (translateShown) 220 else 160),
-                                label = "translateFade",
-                            )
-                            if (translateFade > 0.01f && !lyricPicker.picking) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .graphicsLayer { alpha = translateFade },
-                                ) {
-                                    RomanizationToggleButton(
-                                        state = lyricsTranslation.romanizationState,
-                                        showingRomanization = lyricsTranslation.showingRomanization,
-                                        enabled = translateShown && !lyrics.isNullOrEmpty(),
-                                        onClick = lyricsTranslation.toggleRomanization,
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .graphicsLayer { alpha = translateFade },
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        if (chordSource != null && chordState != null) {
-                                            ChordAnalysisToggleButton(
-                                                song = song,
-                                                source = chordSource,
-                                                state = chordState,
-                                                enabled = translateShown,
-                                            )
-                                        }
-                                        TranslationToggleButton(
-                                            state = lyricsTranslation.translationState,
-                                            showingTranslation = lyricsTranslation.showingTranslation,
-                                            // Not tappable on the way out: a disc at 20%
-                                            // opacity is on its way to gone, not a target.
-                                            enabled = translateShown && !lyrics.isNullOrEmpty(),
-                                            onClick = lyricsTranslation.toggleTranslation,
-                                        )
-                                    }
-                                }
-                            }
                             // The bar arrives and leaves without a transition of its own:
                             // it is an instruction over the words, and one that has to
                             // be legible the instant it is on. Anything that animated
@@ -4696,14 +4628,39 @@ fun NowPlayingScreen(
                         )
                     }
                     if (lyricsOpen) {
-                        LyricsStatusWithChange(
-                            status = lyricsTranslation.status,
-                            onStatusClick = { showLyricsProviders = true },
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .offset(y = 6.dp)
-                                .padding(vertical = 4.dp),
-                        )
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            LyricsStatusWithChange(
+                                status = lyricsTranslation.status,
+                                onStatusClick = { showLyricsProviders = true },
+                                modifier = Modifier.weight(1f),
+                            )
+                            RomanizationToggleButton(
+                                state = lyricsTranslation.romanizationState,
+                                showingRomanization = lyricsTranslation.showingRomanization,
+                                enabled = !lyrics.isNullOrEmpty(),
+                                onClick = lyricsTranslation.toggleRomanization,
+                            )
+                            if (chordSource != null && chordState != null) {
+                                ChordAnalysisToggleButton(
+                                    song = song,
+                                    source = chordSource,
+                                    state = chordState,
+                                    enabled = true,
+                                )
+                            }
+                            TranslationToggleButton(
+                                state = lyricsTranslation.translationState,
+                                showingTranslation = lyricsTranslation.showingTranslation,
+                                enabled = !lyrics.isNullOrEmpty(),
+                                onClick = lyricsTranslation.toggleTranslation,
+                            )
+                        }
                     }
                     }
                     val transitionWindow by PlayerSettings.smartTransitionWindow.collectAsStateWithLifecycle()
@@ -4747,41 +4704,15 @@ fun NowPlayingScreen(
                                 (!spotifyCanvasPresentation || spotifyCanvasControlsOpen || mixing),
                         )
                     }
-                    if (!hideVolumeBar) {
-                        // The transport rides midway between the two blocks it
-                        // separates: the scrubber above it, and the volume bar and
-                        // toggle row below, which sit close enough together to read
-                        // as one. Both of its own gaps take half the spread, so on a
-                        // tall screen it holds the centre rather than drifting up
-                        // under the seek bar.
-                        Spacer(Modifier.height(8.dp + controlSpread / 2))
-                        transport()
-                        Spacer(Modifier.height(12.dp + controlSpread / 2))
-                        VolumeRow(
-                            value = { volume.level.value },
-                            onValueChange = onVolumeChange,
-                            onValueChangeFinished = onVolumeChangeFinished,
-                        )
-                        // The volume slider already has 13dp below its drawn track.
-                        // Balance that invisible inset with the caption gap below the icons.
-                        Spacer(Modifier.height(6.dp))
-                    } else {
-                        // No volume bar: the transport centres itself in the whole run
-                        // between the scrubber and the bottom row instead. The run is
-                        // exactly as tall as with the bar, so the half-player's height
-                        // never depends on the setting — only where the transport sits.
-                        // The scrubber draws its times 9dp above their slot, which
-                        // leaves that much more visible room above; half of it moves
-                        // from the top gap to the bottom one.
-                        val run = 8.dp + 12.dp + 6.dp + controlSpread + VOLUME_ROW_HEIGHT
-                        val lift = SCRUBBER_LABEL_LIFT / 2
-                        Spacer(Modifier.height(run / 2 - lift))
-                        transport()
-                        Spacer(Modifier.height(run / 2 + lift))
-                    }
+                    // Unified compact playback deck across artwork, lyrics, and queue modes:
+                    // consistent 8/12dp rhythm, zero layout shift on mode switch, and
+                    // volume housed inside the Audio Output menu.
+                    Spacer(Modifier.height(8.dp))
+                    transport()
+                    Spacer(Modifier.height(8.dp))
 
                     playerActions()
-                    Spacer(Modifier.height(18.dp))
+                    Spacer(Modifier.height(12.dp))
                     }
                     }
                     }

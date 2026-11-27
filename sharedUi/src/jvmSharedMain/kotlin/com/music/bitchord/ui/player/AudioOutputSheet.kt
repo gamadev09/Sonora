@@ -162,7 +162,7 @@ internal fun AudioOutputSheet(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             outputs.forEach { device ->
                 OutputRow(
@@ -209,10 +209,10 @@ internal fun AudioOutputSheet(
             }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         VolumeRow(routeKey = outputs)
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
         AudioPipelineRow(onClick = onOpenPipeline)
     }
 }

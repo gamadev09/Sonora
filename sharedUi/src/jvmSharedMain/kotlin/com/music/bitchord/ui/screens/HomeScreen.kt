@@ -155,6 +155,8 @@ fun HomeScreen(
     artworkMotion: Boolean = true,
     /** The compact Replay year shortcut above the feed, or null for none. See [ReplayYearButton]. */
     replayYear: ReplayYearBadge? = null,
+    /** Optional lightweight taste-selection prompt for new users without listening history. */
+    tasteSetupCard: (@Composable () -> Unit)? = null,
 ) {
     // Top Picks' pictures and motion wait for the feed — see LocalArtworkImages.
     val feedReady = state !is UiState.Loading
@@ -200,6 +202,11 @@ fun HomeScreen(
                         modifier = Modifier.padding(bottom = 8.dp),
                         motion = LocalArtworkMotion.current && !listState.isScrollInProgress,
                     )
+                }
+            }
+            if (tasteSetupCard != null) {
+                item(key = "taste-setup", contentType = "taste-setup") {
+                    tasteSetupCard()
                 }
             }
             if (onTopPickClick != null) {

@@ -68,6 +68,9 @@ fun ExploreScreen(
     modifier: Modifier = Modifier,
     /** The big "Explore" heading; the desktop's pages carry none. */
     showTitle: Boolean = true,
+    personalizedNewShelves: List<HomeShelf> = emptyList(),
+    globalNewShelves: List<HomeShelf> = emptyList(),
+    onShelfItemClick: ((ShelfItem) -> Unit)? = null,
 ) {
     PullToRefresh(
         refreshing = refreshing,
@@ -114,14 +117,47 @@ fun ExploreScreen(
                         MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry)
                     }
                     is UiState.Success -> {
-                        // Moods and genres read as one grid; the server's
-                        // grouping only decides the order.
+                        // Tiers 1–4: Personalised new releases from favourite artists, taste-matched
+                        // albums/singles, similar artists, and relevant new playlists.
+                        if (onShelfItemClick != null && personalizedNewShelves.isNotEmpty()) {
+                            items(
+                                items = personalizedNewShelves,
+                                key = { "new-pers:${it.title}" },
+                                contentType = { "shelf" },
+                            ) { shelf ->
+                                Shelf(shelf = shelf, onItemClick = onShelfItemClick)
+                            }
+                        }
+                        // Moods and genres grid.
                         items(
                             items = rows,
                             key = { row -> row.first().let { "${it.browseId}|${it.params}" } },
                             contentType = { "mood-row" },
                         ) { row ->
                             MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
+                        }
+                        // Tier 5: Global new releases & worldwide charts, clearly separated at the bottom.
+                        if (onShelfItemClick != null && globalNewShelves.isNotEmpty()) {
+                            item(key = "global-new-header", contentType = "section-header") {
+                                Text(
+                                    text = "Global & charts",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(
+                                        start = PAGE_GUTTER,
+                                        end = PAGE_GUTTER,
+                                        top = 20.dp,
+                                        bottom = 4.dp,
+                                    ),
+                                )
+                            }
+                            items(
+                                items = globalNewShelves,
+                                key = { "new-global:${it.title}" },
+                                contentType = { "shelf" },
+                            ) { shelf ->
+                                Shelf(shelf = shelf, onItemClick = onShelfItemClick)
+                            }
                         }
                     }
                 }

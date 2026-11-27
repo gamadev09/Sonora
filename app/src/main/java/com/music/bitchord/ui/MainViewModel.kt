@@ -177,6 +177,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _explore = MutableStateFlow<UiState<List<MoodGenreSection>>>(UiState.Loading)
     val explore: StateFlow<UiState<List<MoodGenreSection>>> = _explore.asStateFlow()
 
+    private val _newReleasesPersonalized = MutableStateFlow<List<HomeShelf>>(emptyList())
+    val newReleasesPersonalized: StateFlow<List<HomeShelf>> = _newReleasesPersonalized.asStateFlow()
+
+    private val _newReleasesGlobal = MutableStateFlow<List<HomeShelf>>(emptyList())
+    val newReleasesGlobal: StateFlow<List<HomeShelf>> = _newReleasesGlobal.asStateFlow()
+
+    private var rawNewShelves: List<HomeShelf> = emptyList()
+    private var rawHomeShelves: List<HomeShelf> = emptyList()
+
     /** The signed-in "Mixed for you" cards: My Mixes, Supermix, the mood mixes. */
     private val _mixes = MutableStateFlow<UiState<List<KeyedMix>>>(UiState.Loading)
     val mixes: StateFlow<UiState<List<KeyedMix>>> = _mixes.asStateFlow()
@@ -1950,8 +1959,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (identity == listenerKey()) _mixes.value = state
     }
 
-    private suspend fun fetchExplore() {
-        val state = YtMusicRepository.moodAndGenres().fold(
+    private suspend fun fetchExplore() = coroutineScope {
+        val moodsJob = async { YtMusicRepository.moodAndGenres() }
+        val newShelvesJobs = YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.map { browseId ->
+            async { YtMusicRepository.homeSupplement(browseId).getOrDefault(emptyList()) }
+        }
+        val state = moodsJob.await().fold(
             onSuccess = { sections ->
                 if (sections.isEmpty()) {
                     UiState.Error(text(R.string.nothing_to_explore))
@@ -1963,6 +1976,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
         _explore.value = state
         (state as? UiState.Success)?.data?.let(::loadMoodGenreArtwork)
+
+        val fetchedNew = newShelvesJobs.flatMap { it.await() }
+            .distinctBy { it.title.lowercase(Locale.ROOT) }
+        rawNewShelves = fetchedNew
+        personalizeNewFeed(fetchedNew)
+    }
+
+    private fun personalizeNewFeed(shelves: List<HomeShelf>) {
+        if (shelves.isEmpty()) return
+        val seed = homeRefreshSeed
+        val likesSnapshot = likeStatuses.value
+        viewModelScope.launch(Dispatchers.Default) {
+            val profile = com.music.bitchord.data.recommendations.HomePersonalizer.buildLocalProfile(likesSnapshot)
+            val partitioned = com.music.bitchord.data.recommendations.HomePersonalizer.personalizeNewShelves(
+                rawNewShelves = shelves,
+                profile = profile,
+                refreshSeed = seed,
+            )
+            _newReleasesPersonalized.value = partitioned.personalized
+            _newReleasesGlobal.value = partitioned.global
+        }
+    }
+
+    /** Re-evaluates Home and New personalisation after local taste preferences change. */
+    fun onTastePreferencesChanged() {
+        homeRefreshSeed += 1L
+        if (rawHomeShelves.isNotEmpty()) personalizePublishedHome(rawHomeShelves)
+        if (rawNewShelves.isNotEmpty()) personalizeNewFeed(rawNewShelves)
     }
 
     /**
@@ -2029,10 +2070,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         homeSeenTitles.clear()
         _homeLoadingMore.value = false
         _homeRecentlyPlayedLoading.value = _signedIn.value
-        // The core feed plus one browse per supplement. Recently played is left
-        // out: it has its own skeleton at the head of the page rather than the
-        // one at the tail.
-        _homePendingShelves.value = 1 + YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.size
+        // Home loads exclusively the listener's personalised core feed + history;
+        // global new releases and explore charts belong in the New (Explore) tab.
+        _homePendingShelves.value = 1
         loadTopPicks(identity, rebuild = false)
         viewModelScope.launch {
             launch {
@@ -2064,17 +2104,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         .onFailure {
                             if (isCurrentHomeLoad(identity, generation)) _homeRecentlyPlayedLoading.value = false
                         }
-                }
-            }
-            YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.forEach { browseId ->
-                launch {
-                    try {
-                        YtMusicRepository.homeSupplement(browseId).onSuccess { shelves ->
-                            if (isCurrentHomeLoad(identity, generation)) publishHomeShelves(shelves)
-                        }
-                    } finally {
-                        homeShelfRequestSettled(identity, generation)
-                    }
                 }
             }
         }
@@ -2180,25 +2209,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun isCurrentHomeLoad(identity: String?, generation: Long) =
         identity == listenerKey() && generation == homeLoadGeneration.get()
 
+    private var homeRefreshSeed: Long = 0L
+    private var homePersonalizeJob: Job? = null
+
     private fun publishHomeShelves(shelves: List<HomeShelf>, prepend: Boolean = false) {
         val existing = (_home.value as? UiState.Success)?.data.orEmpty()
-        if (prepend) {
+        val merged = if (prepend) {
             // YouTube's core home can also contain a stale "Recently played"
             // shelf. The dedicated history endpoint wins and replaces it.
             val replacing = shelves.map { it.title.lowercase(Locale.ROOT) }.toSet()
             homeSeenTitles.addAll(replacing)
-            _home.value = UiState.Success(shelves + existing.filterNot {
+            shelves + existing.filterNot {
                 it.title.lowercase(Locale.ROOT) in replacing
-            })
-            return
+            }
+        } else {
+            val added = shelves.withoutRepeatsOf(existing)
+                .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
+            if (added.isEmpty()) return
+            existing + added
         }
-        val added = shelves.withoutRepeatsOf(existing)
-            .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
-        if (added.isNotEmpty()) _home.value = UiState.Success(existing + added)
+        rawHomeShelves = merged
+        _home.value = UiState.Success(merged)
+        personalizePublishedHome(merged)
+    }
+
+    private fun personalizePublishedHome(shelves: List<HomeShelf>) {
+        if (shelves.isEmpty()) return
+        homePersonalizeJob?.cancel()
+        val seed = homeRefreshSeed
+        val likesSnapshot = likeStatuses.value
+        homePersonalizeJob = viewModelScope.launch(Dispatchers.Default) {
+            val profile = com.music.bitchord.data.recommendations.HomePersonalizer.buildLocalProfile(likesSnapshot)
+            val personalized = com.music.bitchord.data.recommendations.HomePersonalizer.personalizeShelves(
+                rawShelves = shelves,
+                profile = profile,
+                refreshSeed = seed,
+            )
+            if (personalized.isNotEmpty()) {
+                _home.value = UiState.Success(personalized)
+            }
+        }
     }
 
     /** Refreshes the core feed without blanking the current Play page first. */
     private suspend fun refreshHome(identity: String?) = coroutineScope {
+        homeRefreshSeed += 1L
         val recent = if (_signedIn.value) async { YtMusicRepository.homeRecentlyPlayed() } else null
         // Top Picks keeps to its hour; a pull refreshes the feed, not the
         // picks, unless the hour has already turned over.
