@@ -14,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -315,7 +314,6 @@ internal fun AutoMixCover(
     frames: AutoMixCoverFrames?,
     modifier: Modifier,
     blur: Boolean,
-    alignment: Alignment = Alignment.Center,
     fallback: @Composable (Modifier) -> Unit,
 ) {
     if (frames == null) {
@@ -326,11 +324,11 @@ internal fun AutoMixCover(
     val incoming = frames.incoming
     Box(modifier) {
         if (incoming == null) {
-            DecodedCover(base, Modifier.fillMaxSize(), alignment)
+            DecodedCover(base, Modifier.fillMaxSize())
         } else {
             val eased = { AutoMixArtworkTuning.revealProgress(frames.progress()) }
-            DecodedCover(base, Modifier.fillMaxSize(), alignment)
-            AutoMixIncomingStill(incoming, eased, frames.generation, blur = blur, alignment = alignment)
+            DecodedCover(base, Modifier.fillMaxSize())
+            AutoMixIncomingStill(incoming, eased, frames.generation, blur = blur)
         }
     }
 }
@@ -343,9 +341,8 @@ internal fun AutoMixIncomingStill(
     generation: Long,
     polish: Boolean = true,
     blur: Boolean = true,
-    alignment: Alignment = Alignment.Center,
 ) {
-    DecodedCover(result, Modifier.fillMaxSize().then(autoMixIncomingMask(eased, generation, polish, blur)), alignment)
+    DecodedCover(result, Modifier.fillMaxSize().then(autoMixIncomingMask(eased, generation, polish, blur)))
 }
 
 @Composable
@@ -382,25 +379,19 @@ internal fun AutoMixGestureCover(
 }
 
 @Composable
-internal fun DecodedCover(result: DecodedAutoMixCover, modifier: Modifier, alignment: Alignment = Alignment.Center) {
+internal fun DecodedCover(result: DecodedAutoMixCover, modifier: Modifier) {
     val context = LocalPlatformContext.current
     val painter = result.painter ?: remember(result.image, context) { result.image.asPainter(context) }
-    Image(painter, contentDescription = null, modifier = modifier, contentScale = ContentScale.Fit, alignment = alignment)
+    Image(painter, contentDescription = null, modifier = modifier, contentScale = ContentScale.Fit)
 }
 
 @Composable
-internal fun AutoMixPlayerCover(
-    art: PlayerArtwork,
-    frames: AutoMixCoverFrames?,
-    modifier: Modifier,
-    alignment: Alignment = Alignment.Center,
-) {
-    AutoMixCover(frames, modifier, blur = true, alignment = alignment) { artworkModifier ->
+internal fun AutoMixPlayerCover(art: PlayerArtwork, frames: AutoMixCoverFrames?, modifier: Modifier) {
+    AutoMixCover(frames, modifier, blur = true) { artworkModifier ->
         AsyncImage(
             model = art.request,
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            alignment = alignment,
             onState = art::onState,
             modifier = artworkModifier,
         )

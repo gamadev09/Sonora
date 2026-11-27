@@ -3,17 +3,12 @@ package com.music.bitchord.ui.player
 import dev.chrisbanes.haze.HazeState
 import com.music.bitchord.sharedui.resources.*
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.updateTransition
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -59,10 +54,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.layoutId
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -108,23 +99,12 @@ private val LANDSCAPE_GUTTER_COMPACT = 20.dp
  * queue. The left column never moves, so a crossfade is the whole transition —
  * the same page being turned, not a panel being opened.
  */
-private const val LANDSCAPE_TRANSITION_MS = 480
-private val LandscapeEase = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
+private const val LANDSCAPE_PANE_FADE_IN_MS = 240
+private const val LANDSCAPE_PANE_FADE_IN_DELAY_MS = 240
+private const val LANDSCAPE_PANE_FADE_OUT_MS = 180
 
 /** Which of its three things the player's content column is showing. */
 internal enum class PlayerPane { Main, Lyrics, Queue }
-
-internal enum class LandscapeMode {
-    Artwork, Lyrics, Guitar, Piano, Inline, Queue;
-
-    val pane: PlayerPane get() = when (this) {
-        Artwork -> PlayerPane.Main
-        Queue -> PlayerPane.Queue
-        else -> PlayerPane.Lyrics
-    }
-
-    val compactArtwork: Boolean get() = this == Guitar || this == Piano
-}
 
 /** The landscape sleeve's corner radius, at rest. */
 internal val LANDSCAPE_ART_CORNER = 10.dp
@@ -158,10 +138,12 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  */
 @Composable
 internal fun LandscapePlayerLayout(
-    mode: LandscapeMode,
+    pane: PlayerPane,
+    /** True when Guitar or Piano diagrams are shown in the left panel, shrinking artwork to compact beside metadata. */
+    compactArtworkMode: Boolean = false,
     background: @Composable (Modifier) -> Unit,
     /** The sleeve; handed a modifier that already fixes its square size. */
-    artwork: @Composable (Modifier, () -> androidx.compose.ui.unit.Dp) -> Unit,
+    artwork: @Composable (Modifier) -> Unit,
     /** Metadata + grouped track controls (Queue, Favourite, Overflow). */
     credits: @Composable () -> Unit,
     /** Optional contextual chord heading / diagrams shown in the left panel during Lyrics+Chords. */
@@ -174,155 +156,147 @@ internal fun LandscapePlayerLayout(
     queuePane: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
-    val transition = updateTransition(targetState = mode, label = "landscapePresentation")
-    val paneFraction = transition.animateFloat(
-        transitionSpec = {
-            if (reduceAnimation) snap() else tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase)
-        },
-        label = "panePosition",
-    ) { if (it == LandscapeMode.Artwork) 0f else 1f }
-    val compactFraction = transition.animateFloat(
-        transitionSpec = {
-            if (reduceAnimation) snap() else tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase)
-        },
-        label = "compactArtwork",
-    ) { if (it.compactArtwork) 1f else 0f }
-    val cornerRadius = transition.animateDp(
-        transitionSpec = {
-            if (reduceAnimation) snap() else tween(LANDSCAPE_TRANSITION_MS, easing = LandscapeEase)
-        },
-        label = "artworkCorner",
-    ) { if (it.compactArtwork) 6.dp else LANDSCAPE_ART_CORNER }
-
     Box(modifier = modifier.fillMaxSize()) {
         background(Modifier.fillMaxSize())
+
         BoxWithConstraints(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.union(stableStatusBarInsets())),
             contentAlignment = Alignment.TopCenter,
         ) {
             val compact = maxHeight < LANDSCAPE_COMPACT_HEIGHT
             val gutter = if (compact) LANDSCAPE_GUTTER_COMPACT else PLAYER_GUTTER
-            Layout(
-                modifier = Modifier.widthIn(max = LANDSCAPE_PLAYER_MAX_WIDTH)
+
+            Row(
+                modifier = Modifier
+                    .widthIn(max = LANDSCAPE_PLAYER_MAX_WIDTH)
                     .fillMaxSize()
-                    .padding(top = LANDSCAPE_HANDLE_STRIP, bottom = if (compact) 8.dp else 16.dp),
-                content = {
-                    Box(Modifier.layoutId("artwork")) {
-                        artwork(Modifier.fillMaxSize(), { cornerRadius.value })
-                    }
-                    Box(Modifier.layoutId("credits").fillMaxWidth()) { credits() }
-                    Box(Modifier.layoutId("scrubber").fillMaxWidth()) { scrubber() }
-                    Box(Modifier.layoutId("controls").fillMaxWidth()) { playbackControls() }
-                    Box(Modifier.layoutId("chords").fillMaxWidth()) { chordPanel?.invoke() }
-                    transition.AnimatedContent(
-                        transitionSpec = {
-                            if (reduceAnimation) {
-                                fadeIn(snap()) togetherWith fadeOut(snap())
-                            } else {
-                                val switchingRightPanes = initialState.pane != PlayerPane.Main &&
-                                    targetState.pane != PlayerPane.Main
-                                val enterDelay = if (switchingRightPanes) 80 else 280
-                                fadeIn(tween(200, delayMillis = enterDelay, easing = LandscapeEase)) togetherWith
-                                    fadeOut(tween(120))
+                    .padding(
+                        top = LANDSCAPE_HANDLE_STRIP,
+                        bottom = if (compact) 8.dp else 16.dp,
+                    ),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(horizontal = gutter),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (pane == PlayerPane.Main) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                        }
+                    } else {
+                        if (compactArtworkMode) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                artwork(Modifier.size(if (compact) 56.dp else 68.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Box(Modifier.weight(1f)) { credits() }
                             }
-                        },
-                        contentKey = { it.pane },
-                        modifier = Modifier.layoutId("pane"),
-                    ) { shown ->
-                        Box(Modifier.fillMaxSize().padding(horizontal = gutter)) {
-                            when (shown.pane) {
-                                PlayerPane.Main -> Unit
-                                PlayerPane.Lyrics -> lyricsPane()
-                                PlayerPane.Queue -> queuePane()
+                            if (chordPanel != null) {
+                                Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth(),
+                                    contentAlignment = Alignment.TopStart,
+                                ) {
+                                    chordPanel()
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+                        } else {
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                            }
+                            Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
+                            credits()
+                            if (chordPanel != null) {
+                                Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+                                chordPanel()
                             }
                         }
+                        Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+                        scrubber()
+                        Spacer(Modifier.height(if (compact) 0.dp else 4.dp))
+                        playbackControls()
                     }
-                },
-            ) { measurables, constraints ->
-                val width = constraints.maxWidth
-                val height = constraints.maxHeight
-                val leftWidth = width / 2
-                val rightWidth = width - leftWidth
-                val gutterPx = gutter.roundToPx()
-                val leftContentWidth = (leftWidth - 2 * gutterPx).coerceAtLeast(1)
-                val rightContentWidth = (rightWidth - 2 * gutterPx).coerceAtLeast(1)
-                val sharedWidth = minOf(leftContentWidth, rightContentWidth)
-                val artSide = minOf(leftContentWidth, height).coerceAtLeast(1)
-                val p = paneFraction.value
-                val c = compactFraction.value
-                fun mix(from: Int, to: Int, fraction: Float): Int =
-                    (from + (to - from) * fraction).toInt()
-                fun child(id: String) = measurables.first { it.layoutId == id }
-                val art = child("artwork").measure(Constraints.fixed(artSide, artSide))
-                val compactSide = (if (compact) 56.dp else 68.dp).roundToPx()
-                val compactCreditWidth = (sharedWidth - compactSide - 12.dp.roundToPx()).coerceAtLeast(1)
-                val creditWidth = mix(sharedWidth, compactCreditWidth, c).coerceAtLeast(1)
-                val creditsPlaceable = child("credits").measure(
-                    Constraints(0, creditWidth, 0, height),
-                )
-                val scrub = child("scrubber").measure(Constraints(0, sharedWidth, 0, height))
-                val controls = child("controls").measure(Constraints(0, sharedWidth, 0, height))
-                val chordMaxHeight = (height - compactSide - scrub.height - controls.height - 20.dp.roundToPx()).coerceAtLeast(0)
-                val chords = child("chords").measure(Constraints(0, leftContentWidth, 0, chordMaxHeight))
-                val panel = child("pane").measure(Constraints.fixed(rightWidth, height))
-                val mainGap1 = (if (compact) 10.dp else 16.dp).roundToPx()
-                val mainGap2 = (if (compact) 4.dp else 10.dp).roundToPx()
-                val mainGroupHeight = creditsPlaceable.height + mainGap1 + scrub.height + mainGap2 + controls.height
-                val mainCreditsY = (height - mainGroupHeight) / 2
-                val subGap = (if (compact) 4.dp else 8.dp).roundToPx()
-                val subControlsY = height - controls.height
-                val subScrubY = subControlsY - subGap - scrub.height
-                val chordGap = if (chordPanel != null) subGap else 0
-                val subCreditsY = subScrubY - subGap - chords.height - chordGap - creditsPlaceable.height
-                val artAreaHeight = (subCreditsY - subGap).coerceAtLeast(1)
-                val panelArtSide = minOf(leftContentWidth, artAreaHeight)
-                val mainArtX = gutterPx + (leftContentWidth - artSide) / 2
-                val mainArtY = (height - artSide) / 2
-                val panelArtX = gutterPx + (leftContentWidth - panelArtSide) / 2
-                val panelArtY = (artAreaHeight - panelArtSide) / 2
-                val compactArtX = gutterPx
-                val compactArtY = 0
-                layout(width, height) {
-                    // The compact sleeve moves first, leaving the diagrams clear before they appear.
-                    val artP = (p * 1.45f).coerceIn(0f, 1f)
-                    val sharedP = ((p - 0.18f) / 0.82f).coerceIn(0f, 1f)
-                    val subArtX = mix(panelArtX, compactArtX, c)
-                    val subArtY = mix(panelArtY, compactArtY, c)
-                    val subArtSide = mix(panelArtSide, compactSide, c)
-                    val artX = mix(mainArtX, subArtX, artP)
-                    val artY = mix(mainArtY, subArtY, artP)
-                    val drawnSide = mix(artSide, subArtSide, artP)
-                    art.placeRelativeWithLayer(artX, artY) {
-                        val scale = drawnSide.toFloat() / artSide
-                        scaleX = scale
-                        scaleY = scale
-                        transformOrigin = TransformOrigin(0f, 0f)
+                }
+
+                AnimatedContent(
+                    targetState = pane,
+                    transitionSpec = {
+                        fadeIn(
+                            tween(
+                                LANDSCAPE_PANE_FADE_IN_MS,
+                                delayMillis = LANDSCAPE_PANE_FADE_IN_DELAY_MS,
+                            ),
+                        ) togetherWith fadeOut(tween(LANDSCAPE_PANE_FADE_OUT_MS))
+                    },
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    label = "landscapePane",
+                ) { shown ->
+                    when (shown) {
+                        PlayerPane.Main -> Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = gutter),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .widthIn(max = PLAYER_MAX_WIDTH)
+                                    .fillMaxWidth(),
+                            ) {
+                                credits()
+                                Spacer(Modifier.height(if (compact) 10.dp else 16.dp))
+                                scrubber()
+                                Spacer(Modifier.height(if (compact) 4.dp else 10.dp))
+                                playbackControls()
+                            }
+                        }
+                        PlayerPane.Lyrics -> Box(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = gutter),
+                        ) {
+                            lyricsPane()
+                        }
+                        PlayerPane.Queue -> Box(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = gutter),
+                        ) {
+                            queuePane()
+                        }
                     }
-                    val chordY = mix(subCreditsY + creditsPlaceable.height + chordGap, compactSide + subGap, c)
-                    val chordAlpha = if (mode.compactArtwork) {
-                        minOf(((p - 0.45f) / 0.55f).coerceIn(0f, 1f), ((c - 0.45f) / 0.55f).coerceIn(0f, 1f))
-                    } else {
-                        ((p - 0.52f) / 0.48f).coerceIn(0f, 1f)
-                    }
-                    chords.placeRelativeWithLayer(gutterPx, chordY) {
-                        alpha = chordAlpha
-                    }
-                    val mainX = leftWidth + gutterPx
-                    val subCreditsX = mix(gutterPx, gutterPx + compactSide + 12.dp.roundToPx(), c)
-                    val creditX = mix(mainX, subCreditsX, sharedP)
-                    val creditY = mix(mainCreditsY, mix(subCreditsY, 0, c), sharedP)
-                    creditsPlaceable.placeRelative(creditX, creditY)
-                    val mainScrubY = mainCreditsY + creditsPlaceable.height + mainGap1
-                    scrub.placeRelative(mix(mainX, gutterPx, sharedP), mix(mainScrubY, subScrubY, sharedP))
-                    val mainControlsY = mainScrubY + scrub.height + mainGap2
-                    controls.placeRelative(mix(mainX, gutterPx, sharedP), mix(mainControlsY, subControlsY, sharedP))
-                    panel.placeRelative(leftWidth, 0)
                 }
             }
+
             Box(
-                Modifier.align(Alignment.TopCenter).offset(y = 8.dp).width(38.dp).height(5.dp)
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 8.dp)
+                    .width(38.dp)
+                    .height(5.dp)
                     .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
                     .clip(RoundedCornerShape(3.dp))
                     .additiveChrome(LocalPlayerChrome.current)
