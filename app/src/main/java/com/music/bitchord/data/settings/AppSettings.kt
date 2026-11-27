@@ -619,27 +619,6 @@ object AppSettings {
     val signatureApiEnabled = MutableStateFlow(false)
     val signatureApiUrl = MutableStateFlow("")
 
-    /**
-     * Blows the player's cover art out to a full-bleed banner running off the
-     * top of the screen, rather than sitting it in a square card.
-     *
-     * The treatment motion artwork has always had, applied to still sleeves too.
-     * Off restores the card: the sleeve keeps its corners, its shadow and its
-     * shrink-while-paused, and only a clip goes full-bleed. Phones only either
-     * way — see the hero notes in
-     * [NowPlayingScreen][com.music.bitchord.ui.player.NowPlayingScreen].
-     */
-    val fullBleedArtwork = MutableStateFlow(true)
-
-    /**
-     * The album and playlist page's answer to [fullBleedArtwork]: the sleeve
-     * runs edge to edge off the top of the screen and dissolves into the page
-     * colour, instead of sitting framed in the middle. Everything under it —
-     * the page colour, title, credit and buttons — stays as it is. Off by
-     * default, the framed sleeve being the page's own look.
-     */
-    val fullBleedDetailArtwork = MutableStateFlow(false)
-
     /** Shows the track's total duration at the end of the player scrubber. */
     val showTotalDuration = MutableStateFlow(false)
 
@@ -1148,8 +1127,6 @@ object AppSettings {
         updateEffectiveSpotifyCanvasSettings()
         signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, false)
         signatureApiUrl.value = normalizeSignatureApiUrl(prefs.getString(KEY_SIGNATURE_API_URL, "").orEmpty())
-        fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
-        fullBleedDetailArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_DETAIL_ARTWORK, false)
         showTotalDuration.value = prefs.getBoolean(KEY_SHOW_TOTAL_DURATION, false)
         // The old legacy mesh switch answers until a theme has been picked.
         playerTheme.value = runCatching {
@@ -1818,16 +1795,6 @@ object AppSettings {
         prefs.edit().putString(KEY_SIGNATURE_API_URL, normalized).apply()
     }
 
-    fun setFullBleedArtwork(value: Boolean) {
-        fullBleedArtwork.value = value
-        prefs.edit().putBoolean(KEY_FULL_BLEED_ARTWORK, value).apply()
-    }
-
-    fun setFullBleedDetailArtwork(value: Boolean) {
-        fullBleedDetailArtwork.value = value
-        prefs.edit().putBoolean(KEY_FULL_BLEED_DETAIL_ARTWORK, value).apply()
-    }
-
     fun setShowTotalDuration(value: Boolean) {
         showTotalDuration.value = value
         prefs.edit().putBoolean(KEY_SHOW_TOTAL_DURATION, value).apply()
@@ -2451,8 +2418,6 @@ object AppSettings {
     private const val KEY_PRIORITIZE_SPOTIFY_CANVAS = "prioritize_spotify_canvas"
     private const val KEY_SIGNATURE_API_ENABLED = "signature_api_enabled"
     private const val KEY_SIGNATURE_API_URL = "signature_api_url"
-    private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
-    private const val KEY_FULL_BLEED_DETAIL_ARTWORK = "full_bleed_detail_artwork"
     private const val KEY_SHOW_TOTAL_DURATION = "show_total_duration"
     private const val KEY_PLAYER_THEME = "player_theme"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"

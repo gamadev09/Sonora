@@ -99,9 +99,9 @@ private val LANDSCAPE_GUTTER_COMPACT = 20.dp
  * queue. The left column never moves, so a crossfade is the whole transition —
  * the same page being turned, not a panel being opened.
  */
-private const val LANDSCAPE_PANE_FADE_IN_MS = 220
-private const val LANDSCAPE_PANE_FADE_IN_DELAY_MS = 90
-private const val LANDSCAPE_PANE_FADE_OUT_MS = 140
+private const val LANDSCAPE_PANE_FADE_IN_MS = 240
+private const val LANDSCAPE_PANE_FADE_IN_DELAY_MS = 240
+private const val LANDSCAPE_PANE_FADE_OUT_MS = 180
 
 /** Which of its three things the player's content column is showing. */
 internal enum class PlayerPane { Main, Lyrics, Queue }
@@ -646,12 +646,6 @@ internal fun LandscapeQueuePane(
     queueList: @Composable (Modifier) -> Unit,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = stringResource(Res.string.queue),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -665,12 +659,11 @@ internal fun LandscapeQueuePane(
                 .padding(top = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            modeButtons()
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 12.dp),
-                contentAlignment = Alignment.CenterEnd,
+                    .padding(end = 12.dp),
+                contentAlignment = Alignment.CenterStart,
             ) {
                 Text(
                     text = if (remainingCount == 1) "1 track left" else "$remainingCount tracks left",
@@ -679,6 +672,7 @@ internal fun LandscapeQueuePane(
                     maxLines = 1,
                 )
             }
+            modeButtons()
         }
     }
 }

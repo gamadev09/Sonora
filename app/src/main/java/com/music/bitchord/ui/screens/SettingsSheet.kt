@@ -257,8 +257,6 @@ fun SettingsScreen(
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val signatureApiEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
     val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
-    val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
-    val fullBleedDetailArtwork by AppSettings.fullBleedDetailArtwork.collectAsStateWithLifecycle()
     val showTotalDuration by AppSettings.showTotalDuration.collectAsStateWithLifecycle()
     val playerTheme by AppSettings.playerTheme.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
@@ -1440,41 +1438,6 @@ fun SettingsScreen(
             // the player to fill and too narrow to stand a page beside it keeps
             // the sleeve either way. A docked pane is a phone's width, so it does
             // honour it — see [fullBleedArtworkAvailable].
-            if (fullBleedArtworkAvailable(windowWidth)) {
-                val fullScreenCoverArtTitle = stringResource(R.string.full_screen_cover_art)
-                row(fullScreenCoverArtTitle, "artwork", "player") {
-                    SettingsRow(
-                        icon = SfIcons.Fullscreen,
-                        title = fullScreenCoverArtTitle,
-                        subtitle = stringResource(R.string.full_screen_cover_art_subtitle),
-                        trailing = {
-                            IosSwitch(
-                                checked = fullBleedArtwork,
-                                onCheckedChange = AppSettings::setFullBleedArtwork,
-                            )
-                        },
-                        onClick = { AppSettings.setFullBleedArtwork(!fullBleedArtwork) },
-                    )
-                }
-            }
-            // Listed at every width: the page itself keeps the framed sleeve
-            // wherever a square the window's width wouldn't fit — see
-            // [ReleaseHeader].
-            val fullScreenDetailCoverTitle = stringResource(R.string.full_screen_detail_cover)
-            row(fullScreenDetailCoverTitle, "artwork", "album", "playlist", "cover") {
-                SettingsRow(
-                    icon = SfIcons.Fullscreen,
-                    title = fullScreenDetailCoverTitle,
-                    subtitle = stringResource(R.string.full_screen_detail_cover_subtitle),
-                    trailing = {
-                        IosSwitch(
-                            checked = fullBleedDetailArtwork,
-                            onCheckedChange = AppSettings::setFullBleedDetailArtwork,
-                        )
-                    },
-                    onClick = { AppSettings.setFullBleedDetailArtwork(!fullBleedDetailArtwork) },
-                )
-            }
             val showTotalDurationTitle = stringResource(R.string.show_total_duration)
             row(showTotalDurationTitle, "seek bar", "remaining time", "duration", "song length") {
                 SettingsRow(

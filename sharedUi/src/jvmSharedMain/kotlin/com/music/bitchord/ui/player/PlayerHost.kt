@@ -318,7 +318,6 @@ interface PlayerSettingsSource {
     val audioQualityCellular: StateFlow<AudioQuality>
     val audioQualityWifi: StateFlow<AudioQuality>
     val canvasOverCellular: StateFlow<Boolean>
-    val fullBleedArtwork: StateFlow<Boolean>
     val showTotalDuration: StateFlow<Boolean>
     val hideSongStatus: StateFlow<Boolean>
     /** Hides the lyrics preview strip on the main and mini player screens. */

@@ -1090,7 +1090,7 @@ fun NowPlayingScreen(
     // to it, in place of the full-width box at the video's shape.
     val squareVideo = videoMode && VideoThumbnails.square
     val fullCanvasWindow = playerFillsWindow(windowWidth)
-    val fullBleedArt by PlayerSettings.fullBleedArtwork.collectAsStateWithLifecycle()
+    val fullBleedArt = true
     val sessionCanvas = rememberCanvasArtwork(song)?.takeUnless { videoMode }
         ?.nowPlayingRendition(fullCanvasWindow)
     val coverEntry = remember(song.videoId, song.queueEntryId, queue, queueIndex) {
