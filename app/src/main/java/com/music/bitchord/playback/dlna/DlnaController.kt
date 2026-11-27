@@ -12,6 +12,7 @@ package com.music.bitchord.playback.dlna
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
+import android.os.SystemClock
 import android.util.Log
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -19,6 +20,7 @@ import coil3.request.SuccessResult
 import coil3.request.allowHardware
 import coil3.toBitmap
 import com.music.bitchord.auth.EncryptedPrefs
+import com.music.bitchord.data.Http
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,11 +33,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.NetworkInterface
-import java.net.URL
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
 
@@ -46,6 +50,17 @@ import kotlin.math.roundToInt
  */
 object DlnaController {
     private const val TAG = "DlnaController"
+    private val SOAP_XML_MEDIA_TYPE = "text/xml; charset=utf-8".toMediaType()
+
+    /** Fast LAN-tuned OkHttp client sharing the app's connection pool for SOAP keep-alive reuse. */
+    private val soapClient by lazy {
+        Http.client.newBuilder()
+            .connectTimeout(2500, TimeUnit.MILLISECONDS)
+            .readTimeout(2500, TimeUnit.MILLISECONDS)
+            .writeTimeout(2500, TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(true)
+            .build()
+    }
 
     data class State(
         val devices: List<DlnaDevice> = emptyList(),
@@ -137,8 +152,9 @@ object DlnaController {
         synchronized(this) {
             discoverySubscribers++
             if (discoverySubscribers == 1) {
-                val disc = DlnaDiscovery(app)
-                discovery = disc
+                // Reuse a single DlnaDiscovery instance so its warm LAN cache surfaces
+                // previously discovered renderers immediately on sheet reopen.
+                val disc = discovery ?: DlnaDiscovery(app).also { discovery = it }
                 disc.start()
                 discoveryForwardJob?.cancel()
                 discoveryForwardJob = scope.launch {
@@ -154,8 +170,7 @@ object DlnaController {
                 if (discoverySubscribers == 0) {
                     discoveryForwardJob?.cancel()
                     discoveryForwardJob = null
-                    discovery?.stop()
-                    discovery = null
+                    discovery?.stop(keepCache = true)
                 }
             }
         }
@@ -167,7 +182,8 @@ object DlnaController {
 
         connectJob?.cancel()
         connectJob = scope.launch {
-            teardownActiveSession(sendStop = true)
+            val connectStartMs = SystemClock.elapsedRealtime()
+            teardownActiveSession(sendStop = activeDevice != null && activeDevice?.udn != device.udn)
             _state.update {
                 it.copy(
                     connectingUdn = device.udn,
@@ -182,33 +198,43 @@ object DlnaController {
                 httpServer.start()
                 val streamUrl = httpServer.streamUrl(localIp)
                 val initialMeta = delegate?.currentTrackMetadata()
-                val resolvedMeta = resolveMetadataForDidl(ctx, initialMeta, localIp)
-
-                runCatching {
-                    postSoap(
-                        controlUrl = device.avControlUrl,
-                        service = DlnaProtocol.SERVICE_AV_TRANSPORT,
-                        action = "Stop",
-                        body = DlnaProtocol.stopEnvelope(),
+                // Do not block playback startup on artwork download/JPEG re-encoding:
+                // pass the direct artwork URL immediately and cache local JPEG asynchronously.
+                val fastMeta = initialMeta?.let {
+                    DlnaProtocol.TrackMetadata(
+                        title = it.title,
+                        artist = it.artist,
+                        album = it.album,
+                        artworkUrl = it.artworkUrl?.takeIf { u ->
+                            u.startsWith("http://", ignoreCase = true) ||
+                                u.startsWith("https://", ignoreCase = true)
+                        },
                     )
                 }
 
+                // Enable PCM streaming before Play so audio bytes are ready the moment
+                // the renderer opens /stream.wav, cutting startup latency.
+                activeDevice = device
+                isStreaming = true
+
+                val setUriStartMs = SystemClock.elapsedRealtime()
                 postSoap(
                     controlUrl = device.avControlUrl,
                     service = DlnaProtocol.SERVICE_AV_TRANSPORT,
                     action = "SetAVTransportURI",
-                    body = DlnaProtocol.setAvTransportUriEnvelope(streamUrl, resolvedMeta),
+                    body = DlnaProtocol.setAvTransportUriEnvelope(streamUrl, fastMeta),
                 )
+                val playStartMs = SystemClock.elapsedRealtime()
                 postSoap(
                     controlUrl = device.avControlUrl,
                     service = DlnaProtocol.SERVICE_AV_TRANSPORT,
                     action = "Play",
                     body = DlnaProtocol.playEnvelope(),
                 )
+                val playAckMs = SystemClock.elapsedRealtime() - playStartMs
 
-                activeDevice = device
-                isStreaming = true
                 lastSentMetaKey = metaKey(initialMeta)
+                lastSentArtKey = initialMeta?.artworkUrl
                 _state.update {
                     it.copy(
                         connectingUdn = null,
@@ -217,21 +243,37 @@ object DlnaController {
                         error = null,
                     )
                 }
-                val rcUrl = device.rcControlUrl
-                if (rcUrl != null) {
-                    runCatching {
-                        val volPercent = (_volume.value * 100f).roundToInt().coerceIn(0, 100)
-                        postSoap(
-                            controlUrl = rcUrl,
-                            service = DlnaProtocol.SERVICE_RENDERING_CONTROL,
-                            action = "SetVolume",
-                            body = DlnaProtocol.setVolumeEnvelope(volPercent),
-                        )
-                    }
-                }
                 delegate?.onDlnaConnected()
                 delegate?.onDlnaRouteChanged()
-                Log.i(TAG, "Connected DLNA renderer ${device.name} (${device.host}) -> $streamUrl")
+                Log.i(
+                    TAG,
+                    "Connected DLNA ${device.name} (${device.host}) in " +
+                        "${SystemClock.elapsedRealtime() - connectStartMs}ms " +
+                        "(SetURI=${playStartMs - setUriStartMs}ms, PlayAck=${playAckMs}ms) -> $streamUrl",
+                )
+
+                // Sync volume and warm local artwork cache asynchronously without delaying audio start.
+                val rcUrl = device.rcControlUrl
+                if (rcUrl != null) {
+                    scope.launch {
+                        runCatching {
+                            val volPercent = (_volume.value * 100f).roundToInt().coerceIn(0, 100)
+                            postSoap(
+                                controlUrl = rcUrl,
+                                service = DlnaProtocol.SERVICE_RENDERING_CONTROL,
+                                action = "SetVolume",
+                                body = DlnaProtocol.setVolumeEnvelope(volPercent),
+                            )
+                        }
+                    }
+                }
+                val artUrl = initialMeta?.artworkUrl
+                if (!artUrl.isNullOrBlank()) {
+                    artworkJob?.cancel()
+                    artworkJob = scope.launch {
+                        httpServer.artworkBytes = loadArtworkJpeg(ctx, artUrl)
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -317,10 +359,14 @@ object DlnaController {
         if (pendingVolumeScheduled.compareAndSet(false, true)) {
             scope.launch {
                 try {
-                    val dev = activeDevice
-                    val rcUrl = dev?.rcControlUrl
-                    if (isStreaming && rcUrl != null) {
+                    var lastSent = -1
+                    while (true) {
                         val target = pendingVolumePercent
+                        if (target == lastSent) break
+                        val dev = activeDevice
+                        val rcUrl = dev?.rcControlUrl
+                        if (!isStreaming || rcUrl == null) break
+                        lastSent = target
                         runCatching {
                             postSoap(
                                 controlUrl = rcUrl,
@@ -352,69 +398,28 @@ object DlnaController {
         }
     }
 
+    /**
+     * Updates cached artwork on track change WITHOUT tearing down and re-issuing
+     * `SetAVTransportURI` + `Play` over the continuous live `/stream.wav` stream,
+     * eliminating the 2–5 second renderer reconnect/rebuffer stall on every track skip.
+     */
     fun onTrackChanged(metadata: TrackMetadata) {
-        val dev = activeDevice ?: return
-        if (!isStreaming) return
+        if (!isStreaming || activeDevice == null) return
         val key = metaKey(metadata)
         if (key == lastSentMetaKey && metadata.artworkUrl == lastSentArtKey) return
         lastSentMetaKey = key
         lastSentArtKey = metadata.artworkUrl
 
         val ctx = appContext ?: return
+        val artUrl = metadata.artworkUrl
         artworkJob?.cancel()
-        artworkJob = scope.launch {
-            val localIp = getLocalIpAddress() ?: return@launch
-            if (httpServer.port <= 0) httpServer.start()
-            val streamUrl = httpServer.streamUrl(localIp)
-            val resolvedMeta = resolveMetadataForDidl(ctx, metadata, localIp)
-            if (!isStreaming || activeDevice?.udn != dev.udn) return@launch
-            runCatching {
-                postSoap(
-                    controlUrl = dev.avControlUrl,
-                    service = DlnaProtocol.SERVICE_AV_TRANSPORT,
-                    action = "SetAVTransportURI",
-                    body = DlnaProtocol.setAvTransportUriEnvelope(streamUrl, resolvedMeta),
-                )
-                postSoap(
-                    controlUrl = dev.avControlUrl,
-                    service = DlnaProtocol.SERVICE_AV_TRANSPORT,
-                    action = "Play",
-                    body = DlnaProtocol.playEnvelope(),
-                )
-            }.onFailure {
-                Log.w(TAG, "DLNA metadata update failed: ${it.message}")
-            }
-        }
-    }
-
-    private suspend fun resolveMetadataForDidl(
-        context: Context,
-        metadata: TrackMetadata?,
-        localIp: String,
-    ): DlnaProtocol.TrackMetadata? {
-        if (metadata == null) return null
-        val url = metadata.artworkUrl
-        var artForDidl: String? = url?.takeIf {
-            it.startsWith("http://", ignoreCase = true) ||
-                it.startsWith("https://", ignoreCase = true)
-        }
-
-        if (!url.isNullOrBlank()) {
-            val bytes = loadArtworkJpeg(context, url)
-            if (bytes != null) {
-                httpServer.artworkBytes = bytes
-                artForDidl = httpServer.artworkUrl(localIp, bytes)
-            }
-        } else {
+        if (artUrl.isNullOrBlank()) {
             httpServer.artworkBytes = null
+            return
         }
-
-        return DlnaProtocol.TrackMetadata(
-            title = metadata.title,
-            artist = metadata.artist,
-            album = metadata.album,
-            artworkUrl = artForDidl,
-        )
+        artworkJob = scope.launch {
+            httpServer.artworkBytes = loadArtworkJpeg(ctx, artUrl)
+        }
     }
 
     private suspend fun loadArtworkJpeg(context: Context, artworkUrl: String): ByteArray? =
@@ -429,7 +434,7 @@ object DlnaController {
                 val res = loader.execute(req) as? SuccessResult ?: return@runCatching null
                 val bmp = res.image.toBitmap()
                 val baos = ByteArrayOutputStream()
-                bmp.compress(Bitmap.CompressFormat.JPEG, 88, baos)
+                bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos)
                 baos.toByteArray()
             }.getOrNull()
         }
@@ -440,28 +445,20 @@ object DlnaController {
         action: String,
         body: String,
     ) {
-        val conn = (URL(controlUrl).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 5000
-            readTimeout = 5000
-            doOutput = true
-            setRequestProperty("User-Agent", "BitChord/1.0 UPnP/1.0 DLNADOC/1.50")
-            setRequestProperty("Content-Type", "text/xml; charset=\"utf-8\"")
-            setRequestProperty("SOAPACTION", "\"$service#$action\"")
-        }
-        try {
-            val bytes = body.toByteArray(Charsets.UTF_8)
-            conn.setFixedLengthStreamingMode(bytes.size)
-            conn.outputStream.use { it.write(bytes) }
-            val code = conn.responseCode
-            if (code !in 200..299) {
-                val errText = runCatching { conn.errorStream?.bufferedReader()?.readText() }.getOrNull()
-                error("SOAP $action HTTP $code: ${errText.orEmpty().take(200)}")
+        val request = Request.Builder()
+            .url(controlUrl)
+            .header("User-Agent", "BitChord/1.0 UPnP/1.0 DLNADOC/1.50")
+            .header("SOAPACTION", "\"$service#$action\"")
+            .post(body.toRequestBody(SOAP_XML_MEDIA_TYPE))
+            .build()
+        soapClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errText = runCatching { response.body?.string() }.getOrNull()
+                error("SOAP $action HTTP ${response.code}: ${errText.orEmpty().take(200)}")
             }
-            conn.inputStream.use { it.readBytes() }
-            Log.d(TAG, "SOAP $action -> HTTP $code ($controlUrl)")
-        } finally {
-            conn.disconnect()
+            // Drain body so OkHttp returns the keep-alive socket to the pool immediately.
+            response.body?.bytes()
+            Log.d(TAG, "SOAP $action -> HTTP ${response.code} ($controlUrl)")
         }
     }
 

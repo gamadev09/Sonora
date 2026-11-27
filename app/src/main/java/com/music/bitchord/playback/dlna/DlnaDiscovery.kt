@@ -11,22 +11,25 @@ package com.music.bitchord.playback.dlna
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.os.SystemClock
 import android.util.Log
+import com.music.bitchord.data.Http
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
-import java.io.InputStream
+import okhttp3.Request
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -34,9 +37,17 @@ import java.net.NetworkInterface
 import java.net.URI
 import java.util.Collections
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * SSDP discovery for UPnP / DLNA MediaRenderer devices on the local Wi-Fi LAN.
+ *
+ * Optimisations:
+ * - Retains a warm cache across sheet reopens so known renderers appear immediately.
+ * - Probes active LAN interfaces concurrently with a fast initial MX=1 window.
+ * - Reuses OkHttp's connection pool with tight 2s LAN timeouts for XML descriptions.
+ * - Tracks `lastSeenMs` per UDN to prune vanished/offline devices cleanly.
  */
 class DlnaDiscovery(private val context: Context) {
     private val _devices = MutableStateFlow<List<DlnaDevice>>(emptyList())
@@ -47,44 +58,93 @@ class DlnaDiscovery(private val context: Context) {
     private var multicastLock: WifiManager.MulticastLock? = null
 
     private val foundDevices = LinkedHashMap<String, DlnaDevice>()
+    private val lastSeenMs = ConcurrentHashMap<String, Long>()
     private val fetchedLocations = Collections.synchronizedSet(HashSet<String>())
+    private val locationToUdn = ConcurrentHashMap<String, String>()
+
+    private val descClient by lazy {
+        Http.client.newBuilder()
+            .connectTimeout(2000, TimeUnit.MILLISECONDS)
+            .readTimeout(2000, TimeUnit.MILLISECONDS)
+            .followRedirects(false)
+            .build()
+    }
 
     @Synchronized
     fun start() {
         if (scanJob?.isActive == true) return
+        pruneStaleDevices(CACHE_RETENTION_MS)
         acquireMulticastLock()
         scanJob = scope.launch {
             val ssdpAddr = runCatching { InetAddress.getByName(DlnaProtocol.SSDP_ADDRESS) }.getOrNull()
                 ?: return@launch
-            Log.i(TAG, "Starting DLNA SSDP discovery")
+            Log.i(TAG, "Starting DLNA SSDP discovery (cached=${foundDevices.size})")
+            var cycle = 0
             while (isActive) {
                 val localAddrs = activeLanIpv4Addresses()
+                val windowMs = if (cycle == 0) INITIAL_LISTEN_MS else STEADY_LISTEN_MS
+                val mx = if (cycle == 0) 1 else 2
                 if (localAddrs.isNotEmpty()) {
-                    for (localAddr in localAddrs) {
-                        if (!isActive) break
-                        sendSsdpBurstAndListen(ssdpAddr, localAddr)
+                    coroutineScope {
+                        localAddrs.map { localAddr ->
+                            async { sendSsdpBurstAndListen(ssdpAddr, localAddr, windowMs, mx) }
+                        }.awaitAll()
                     }
                 } else {
-                    sendSsdpBurstAndListen(ssdpAddr, null)
+                    sendSsdpBurstAndListen(ssdpAddr, null, windowMs, mx)
                 }
-                delay(4000L)
+                if (cycle > 0) {
+                    pruneStaleDevices(STALE_DEVICE_TTL_MS)
+                }
+                cycle++
+                delay(if (cycle == 1) 1500L else RESCAN_INTERVAL_MS)
             }
         }
     }
 
     @Synchronized
-    fun stop() {
+    fun stop(keepCache: Boolean = false) {
         scanJob?.cancel()
         scanJob = null
         releaseMulticastLock()
-        synchronized(foundDevices) {
-            foundDevices.clear()
+        if (!keepCache) {
+            synchronized(foundDevices) { foundDevices.clear() }
+            lastSeenMs.clear()
+            fetchedLocations.clear()
+            locationToUdn.clear()
+            _devices.value = emptyList()
         }
-        fetchedLocations.clear()
-        _devices.value = emptyList()
     }
 
-    private fun sendSsdpBurstAndListen(ssdpAddr: InetAddress, bindAddress: InetAddress?) {
+    private fun pruneStaleDevices(maxAgeMs: Long) {
+        val now = SystemClock.elapsedRealtime()
+        val staleUdns = lastSeenMs.entries
+            .filter { now - it.value > maxAgeMs }
+            .map { it.key }
+        if (staleUdns.isEmpty()) return
+        synchronized(foundDevices) {
+            var changed = false
+            for (udn in staleUdns) {
+                val removed = foundDevices.remove(udn)
+                lastSeenMs.remove(udn)
+                if (removed != null) {
+                    fetchedLocations.remove(removed.location)
+                    locationToUdn.remove(removed.location)
+                    changed = true
+                }
+            }
+            if (changed) {
+                _devices.value = foundDevices.values.sortedBy { it.name.lowercase(Locale.ROOT) }
+            }
+        }
+    }
+
+    private fun sendSsdpBurstAndListen(
+        ssdpAddr: InetAddress,
+        bindAddress: InetAddress?,
+        listenWindowMs: Long,
+        mxSeconds: Int,
+    ) {
         try {
             DatagramSocket(null).use { socket ->
                 socket.reuseAddress = true
@@ -93,26 +153,29 @@ class DlnaDiscovery(private val context: Context) {
                 } else {
                     socket.bind(InetSocketAddress(0))
                 }
-                socket.soTimeout = 2500
+                socket.soTimeout = SOCKET_SO_TIMEOUT_MS
                 for (st in DlnaProtocol.SEARCH_TARGETS) {
-                    val queryBytes = DlnaProtocol.buildSsdpQuery(st, mxSeconds = 2)
+                    val queryBytes = DlnaProtocol.buildSsdpQuery(st, mxSeconds = mxSeconds)
                         .toByteArray(Charsets.US_ASCII)
                     socket.send(
                         DatagramPacket(queryBytes, queryBytes.size, ssdpAddr, DlnaProtocol.SSDP_PORT),
                     )
                 }
                 val buffer = ByteArray(4096)
-                val endAt = System.currentTimeMillis() + 3000L
-                while (System.currentTimeMillis() < endAt) {
+                val endAt = SystemClock.elapsedRealtime() + listenWindowMs
+                while (SystemClock.elapsedRealtime() < endAt) {
                     val packet = DatagramPacket(buffer, buffer.size)
                     try {
                         socket.receive(packet)
                     } catch (_: Exception) {
-                        break
+                        if (SystemClock.elapsedRealtime() >= endAt) break else continue
                     }
                     val host = packet.address?.hostAddress ?: continue
                     val response = String(packet.data, 0, packet.length, Charsets.UTF_8)
                     val location = DlnaProtocol.extractSsdpLocation(response) ?: continue
+                    locationToUdn[location]?.let { udn ->
+                        lastSeenMs[udn] = SystemClock.elapsedRealtime()
+                    }
                     if (fetchedLocations.add(location)) {
                         Log.i(TAG, "SSDP reply from $host -> $location")
                         scope.launch { resolveDevice(location, host) }
@@ -158,25 +221,22 @@ class DlnaDiscovery(private val context: Context) {
             val locationUri = URI(location)
             val scheme = locationUri.scheme?.lowercase(Locale.ROOT)
             if (scheme != "http" && scheme != "https") return
-            // Guard against SSRF from spoofed SSDP replies: LOCATION must point back to the sender IP.
             if (locationUri.host == null || locationUri.host != hostAddress) {
                 Log.d(TAG, "Ignoring SSDP LOCATION with mismatched host: $location vs $hostAddress")
                 return
             }
 
-            val conn = (locationUri.toURL().openConnection() as HttpURLConnection).apply {
-                connectTimeout = 3000
-                readTimeout = 3000
-                instanceFollowRedirects = false
-            }
-            val xml = try {
-                if (conn.responseCode !in 200..299) {
+            val req = Request.Builder().url(location).get().build()
+            val xml = descClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
                     fetchedLocations.remove(location)
                     return
                 }
-                conn.inputStream.use { readBoundedUtf8(it, MAX_DESCRIPTION_BYTES) }
-            } finally {
-                conn.disconnect()
+                val body = resp.body ?: return
+                val source = body.source()
+                source.request(MAX_DESCRIPTION_BYTES.toLong())
+                val byteCount = minOf(source.buffer.size, MAX_DESCRIPTION_BYTES.toLong())
+                source.buffer.clone().readUtf8(byteCount)
             }
 
             val parsed = DlnaProtocol.parseRemoteDescription(xml) ?: return
@@ -196,6 +256,8 @@ class DlnaDiscovery(private val context: Context) {
                 location = location,
             )
 
+            locationToUdn[location] = udn
+            lastSeenMs[udn] = SystemClock.elapsedRealtime()
             synchronized(foundDevices) {
                 val clash = foundDevices.any { (existingUdn, existing) ->
                     existingUdn != udn && existing.name == parsed.friendlyName && existing.host != hostAddress
@@ -236,19 +298,14 @@ class DlnaDiscovery(private val context: Context) {
         }
     }
 
-    private fun readBoundedUtf8(input: InputStream, maxBytes: Int): String {
-        val out = ByteArrayOutputStream()
-        val buf = ByteArray(4096)
-        while (out.size() < maxBytes) {
-            val read = input.read(buf, 0, minOf(buf.size, maxBytes - out.size()))
-            if (read <= 0) break
-            out.write(buf, 0, read)
-        }
-        return out.toString(Charsets.UTF_8.name())
-    }
-
     companion object {
         private const val TAG = "DlnaDiscovery"
         private const val MAX_DESCRIPTION_BYTES = 262_144
+        private const val SOCKET_SO_TIMEOUT_MS = 400
+        private const val INITIAL_LISTEN_MS = 1400L
+        private const val STEADY_LISTEN_MS = 2200L
+        private const val RESCAN_INTERVAL_MS = 6000L
+        private const val STALE_DEVICE_TTL_MS = 22_000L
+        private const val CACHE_RETENTION_MS = 90_000L
     }
 }

@@ -171,68 +171,87 @@ internal fun UnifiedAudioOutputSheet(
         )
         val hasAvailableDevices = remoteName != null || candidates.isNotEmpty() ||
             outputs.any { !it.isActive } || (watch.available && !watch.active)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(14.dp))
         Text(
             stringResource(Res.string.output_discovery_protocols),
             style = MaterialTheme.typography.labelMedium,
             color = Color.White,
         )
         if (hasAvailableDevices) {
+            Spacer(Modifier.height(2.dp))
             Text(
                 stringResource(Res.string.output_available_devices),
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.White.copy(alpha = 0.64f),
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Box(
-            Modifier.fillMaxWidth().height(252.dp).clip(ROW_SHAPE)
-                .background(Color.White.copy(alpha = 0.08f)),
-        ) {
-            if (!hasAvailableDevices) {
-                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center) {
-                    if (searching) CircularProgressIndicator(Modifier.size(22.dp),
-                        color = Color.White.copy(alpha = 0.72f), strokeWidth = 2.dp)
-                    Spacer(Modifier.height(10.dp))
-                    Text(stringResource(if (searching) Res.string.output_searching else Res.string.output_no_devices),
-                        color = Color.White.copy(alpha = 0.66f), style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(10.dp))
+        if (!hasAvailableDevices) {
+            Box(
+                Modifier.fillMaxWidth().height(108.dp).clip(ROW_SHAPE)
+                    .background(Color.White.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    if (searching) {
+                        CircularProgressIndicator(
+                            Modifier.size(22.dp),
+                            color = Color.White.copy(alpha = 0.72f),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    Text(
+                        stringResource(if (searching) Res.string.output_searching else Res.string.output_no_devices),
+                        color = Color.White.copy(alpha = 0.66f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-            } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    if (remoteName != null) {
-                        item(key = "phone") {
-                            UnifiedDeviceRow(
-                                title = local?.let { outputLabel(it, accountName) }
-                                    ?: stringResource(Res.string.output_this_phone),
-                                subtitle = stringResource(Res.string.output_this_phone),
-                                icon = local?.let(::iconFor) ?: Icons.Rounded.PhoneAndroid,
-                                onClick = host::returnToPhone,
-                            )
-                        }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (remoteName != null) {
+                    UnifiedDeviceRow(
+                        title = local?.let { outputLabel(it, accountName) }
+                            ?: stringResource(Res.string.output_this_phone),
+                        subtitle = stringResource(Res.string.output_this_phone),
+                        icon = local?.let(::iconFor) ?: Icons.Rounded.PhoneAndroid,
+                        onClick = host::returnToPhone,
+                    )
+                }
+                outputs.filterNot { it.isActive }.forEach { device ->
+                    UnifiedDeviceRow(outputLabel(device, accountName), null, iconFor(device)) {
+                        host.selectAudioOutput(device.id)
                     }
-                    items(outputs.filterNot { it.isActive }, key = { "local:${it.id}" }) { device ->
-                        UnifiedDeviceRow(outputLabel(device, accountName), null, iconFor(device)) {
-                            host.selectAudioOutput(device.id)
-                        }
+                }
+                if (watch.available && !watch.active) {
+                    UnifiedDeviceRow(watch.name.orEmpty(), null, Icons.Rounded.PhoneAndroid) {
+                        host.selectWatchOutput()
                     }
-                    if (watch.available && !watch.active) item(key = "watch") {
-                        UnifiedDeviceRow(watch.name.orEmpty(), null, Icons.Rounded.PhoneAndroid) {
-                            host.selectWatchOutput()
-                        }
-                    }
-                    items(candidates, key = { "${it.protocol}:${it.id}" }) { device ->
-                        UnifiedDeviceRow(device.name,
-                            if (device.connecting) stringResource(Res.string.output_connecting, device.protocol.label())
-                            else device.protocol.label(), device.protocol.icon(),
-                            onClick = {
-                                if (device.protocol == OutputProtocol.AIRPLAY && device.requiresPairing) {
-                                    onOpenAirPlay()
-                                } else {
-                                    host.connectNetworkOutput(device.protocol, device.id)
-                                }
-                            })
-                    }
+                }
+                candidates.forEach { device ->
+                    UnifiedDeviceRow(
+                        title = device.name,
+                        subtitle = if (device.connecting) {
+                            stringResource(Res.string.output_connecting, device.protocol.label())
+                        } else {
+                            device.protocol.label()
+                        },
+                        icon = device.protocol.icon(),
+                        onClick = {
+                            if (device.protocol == OutputProtocol.AIRPLAY && device.requiresPairing) {
+                                onOpenAirPlay()
+                            } else {
+                                host.connectNetworkOutput(device.protocol, device.id)
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -288,15 +307,8 @@ private fun ActiveOutputRow(title: String, subtitle: String, icon: androidx.comp
         if (adjustable) {
             Box(
                 Modifier.fillMaxWidth(clampedLevel).height(58.dp)
-                    .background(Color.White.copy(alpha = 0.28f)),
-            ) {
-                if (clampedLevel > 0.02f && clampedLevel < 0.99f) {
-                    Box(
-                        Modifier.align(Alignment.CenterEnd).width(1.dp).height(58.dp)
-                            .background(Color.White.copy(alpha = 0.36f)),
-                    )
-                }
-            }
+                    .background(Color.White.copy(alpha = 0.16f)),
+            )
         }
         Row(Modifier.fillMaxSize().padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
@@ -321,7 +333,7 @@ private fun UnifiedDeviceRow(
     onClick: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth().height(58.dp).clip(ROW_SHAPE)
-        .background(Color.White.copy(alpha = 0.07f)).clickable(onClick = onClick)
+        .background(Color.White.copy(alpha = 0.08f)).clickable(onClick = onClick)
         .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         OutputIcon(icon)
         Spacer(Modifier.width(12.dp))

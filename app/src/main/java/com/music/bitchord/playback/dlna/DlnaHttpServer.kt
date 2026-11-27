@@ -111,6 +111,7 @@ class DlnaHttpServer {
     private suspend fun handleClient(socket: Socket) {
         try {
             socket.tcpNoDelay = true
+            socket.sendBufferSize = SOCKET_SEND_BUFFER_BYTES
             socket.soTimeout = 30_000
 
             val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.US_ASCII))
@@ -184,14 +185,20 @@ class DlnaHttpServer {
                 "ICY-NAME: BitChord Stream\r\n" +
                 "ICY-METADATA: 0\r\n" +
                 "Access-Control-Allow-Origin: *\r\n\r\n"
-            output.write(respHeaders.toByteArray(Charsets.US_ASCII))
-
+            val headerBytes = respHeaders.toByteArray(Charsets.US_ASCII)
             if (method == "HEAD") {
+                output.write(headerBytes)
                 output.flush()
                 return
             }
 
-            output.write(DlnaProtocol.buildStreamingWavHeader())
+            // Send HTTP 200 headers + 44-byte RIFF/WAVE header in a single write so the
+            // renderer parses the format and starts buffering in one TCP round-trip.
+            val wavHeader = DlnaProtocol.buildStreamingWavHeader()
+            val combined = ByteArray(headerBytes.size + wavHeader.size)
+            headerBytes.copyInto(combined, 0)
+            wavHeader.copyInto(combined, headerBytes.size)
+            output.write(combined)
             output.flush()
 
             val channel = Channel<ByteArray>(
@@ -223,6 +230,7 @@ class DlnaHttpServer {
 
     companion object {
         private const val TAG = "DlnaHttpServer"
-        private const val CLIENT_QUEUE_CHUNKS = 64
+        private const val CLIENT_QUEUE_CHUNKS = 16
+        private const val SOCKET_SEND_BUFFER_BYTES = 32 * 1024
     }
 }
