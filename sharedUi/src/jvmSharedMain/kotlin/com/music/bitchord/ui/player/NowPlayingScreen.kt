@@ -977,6 +977,7 @@ fun NowPlayingScreen(
      * the sheet is the caller's business.
      */
     onListenTogether: () -> Unit,
+    onEditPartyServer: () -> Unit = {},
     lyrics: List<LyricLine>?,
     lyricsSource: LyricsSource?,
     lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
@@ -1333,12 +1334,6 @@ fun NowPlayingScreen(
     // re-ran this whole screen on the frame it starts to animate in.
     val currentMenuOpen by rememberUpdatedState(menuOpen)
     val currentLyricsOffsetOpen by rememberUpdatedState(lyricsOffsetOpen)
-    val overlayOpen = remember {
-        derivedStateOf {
-            currentMenuOpen() || showAudioPipeline || showCast || showAirPlay || showDlna || showAudioOutput || showVideoQuality ||
-                showLyricsProviders || showListenTogetherMembers || lyricsShare != null || currentLyricsOffsetOpen
-        }
-    }
     val lyricsShareEnabled = lyricsShareAvailable
     val lyricPicker = rememberLyricsPicker(
         song = song,
@@ -1571,6 +1566,13 @@ fun NowPlayingScreen(
     val chordState = if (chordSource != null) {
         rememberChordState(song, chordSource, lyricsPlayhead, lyricsOpen && collapseDone)
     } else null
+    val overlayOpen = remember(chordState) {
+        derivedStateOf {
+            currentMenuOpen() || chordState?.options == true || showAudioPipeline || showCast || showAirPlay ||
+                showDlna || showAudioOutput || showVideoQuality || showLyricsProviders ||
+                showListenTogetherMembers || lyricsShare != null || currentLyricsOffsetOpen
+        }
+    }
 
     // Whether the sleeve has finished getting out of the way, and how far the
     // panel that replaces it has faded up since.
@@ -1629,9 +1631,12 @@ fun NowPlayingScreen(
     // still-art full-bleed preference. Other providers and static artwork keep
     // answering to that preference exactly as before.
     // A music video sits in the card's place at its own 16:9, never full bleed.
+    // The cover remains a complete sleeve. Only a confirmed portrait clip may
+    // occupy the banner; square animated covers retain their natural frame.
     val heroMode = !videoMode && (
         spotifyCanvasOnPhone ||
-            (fullBleedArt && playerFillsWindow(windowWidth))
+            (canvas != null && canvasAspect > 0f && canvasAspect < 0.85f &&
+                fullBleedArt && playerFillsWindow(windowWidth))
         )
 
     // Whether there's a still image to blow out — a placeholder tile is a card
@@ -1978,6 +1983,7 @@ fun NowPlayingScreen(
             AudioOutputSheet(
                 hazeState = playerHaze,
                 accountName = accountName,
+                signedIn = signedIn,
                 onDismiss = { showAudioOutput = false },
                 onOpenPipeline = { showAudioPipeline = true },
                 onOpenCast = { showCast = true },
@@ -1985,6 +1991,7 @@ fun NowPlayingScreen(
                 onOpenDlna = { showDlna = true },
                 onListenTogether = onListenTogether,
                 onOpenListenTogetherMembers = openListenTogetherMembers,
+                onEditPartyServer = onEditPartyServer,
             )
         }
         if (showLyricsProviders) {
@@ -2809,7 +2816,7 @@ fun NowPlayingScreen(
                         (!spotifyCanvasPresentation || lyricsOpen || queueOpen) &&
                         (!artworkMeshBackdrop || lyricsOpen || queueOpen)
                     ) 1f else 0f,
-                    animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
+                    animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
                     label = "fullArtworkBackdropCrossfade",
                 )
                 // One layer for all three, recorded for a shared lyrics card.
@@ -3423,7 +3430,20 @@ fun NowPlayingScreen(
                         // player and has to be centred in it; collapsed, it belongs
                         // hard against the left edge with the credits beside it.
                         fun artStart(): Dp = lerp((maxWidth - fullArt) / 2, 0.dp, p())
-                        fun regularTitleTop(): Dp = lerp(titleBottomTop, 0.dp, p())
+                        fun smoothPath(value: Float): Float {
+                            val t = value.coerceIn(0f, 1f)
+                            return t * t * (3f - 2f * t)
+                        }
+                        // The expanded credits begin below the sleeve. On the way
+                        // into lyrics they first clear its right edge, then rise into
+                        // the header. Both directions read the same collapse clock.
+                        // A straight diagonal crossed the still-large sleeve halfway.
+                        val sharedHeaderPath = !queueOpen && !queueDragging && !queueShowing && !spotifyCanvasPresentation
+                        fun regularTitleTop(): Dp = lerp(
+                            titleBottomTop,
+                            0.dp,
+                            if (sharedHeaderPath) smoothPath((p() - 0.35f) / 0.65f) else p(),
+                        )
                         // Once Spotify's control deck has left, keep the only remaining
                         // player chrome against the bottom edge instead of stranding it
                         // where the artwork's title normally sits near mid-screen.
@@ -3448,7 +3468,12 @@ fun NowPlayingScreen(
                         // the header's height, as every list shows one — see
                         // [trackArtSize] — and the credits start past it.
                         val thumbWidth = if (videoMode && !squareVideo) THUMB_SIZE * (16f / 9f) else THUMB_SIZE
-                        fun titleStart(): Dp = lerp(0.dp, thumbWidth + 12.dp, p())
+                        fun titleStart(): Dp = if (sharedHeaderPath) {
+                            lerp(0.dp, artStart() + artSize() + 12.dp,
+                                smoothPath((p() - 0.35f) / 0.35f))
+                        } else {
+                            lerp(0.dp, thumbWidth + 12.dp, p())
+                        }
 
                         // How far down the *screen* the sleeve's bottom edge sits, which
                         // is where the full-bleed banner has to stop for the credits
@@ -4505,9 +4530,9 @@ fun NowPlayingScreen(
                     // (sung line → loading line) grew the deck and shrank the sleeve.
                     val playerAccent = chordState?.accentColor ?: Color.White
                     // Utility row directly above the seekbar:
-                    // - Lyrics mode: Lyrics provider status + [Queue] [Romanization] [Chords] [Translation]
-                    // - Queue mode: Shuffle / Repeat / Autoplay + [Queue]
-                    // - Artwork mode: Lyrics preview (when enabled) + [Queue]
+                    // - Lyrics mode: Lyrics provider status + [Romanization] [Chords] [Translation]
+                    // - Queue mode: Shuffle / Repeat / Autoplay
+                    // - Artwork mode: Lyrics preview (when enabled)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -4522,13 +4547,6 @@ fun NowPlayingScreen(
                                     status = lyricsTranslation.status,
                                     onStatusClick = { showLyricsProviders = true },
                                     modifier = Modifier.weight(1f),
-                                )
-                                UtilityDiscButton(
-                                    icon = BitChordIcons.Queue,
-                                    contentDescription = stringResource(Res.string.up_next),
-                                    active = queueOpen,
-                                    accentColor = playerAccent,
-                                    onClick = toggleQueue,
                                 )
                                 RomanizationToggleButton(
                                     state = lyricsTranslation.romanizationState,
@@ -4587,13 +4605,6 @@ fun NowPlayingScreen(
                                         onClick = onToggleAutoplay,
                                     )
                                 }
-                                UtilityDiscButton(
-                                    icon = BitChordIcons.Queue,
-                                    contentDescription = stringResource(Res.string.up_next),
-                                    active = true,
-                                    accentColor = playerAccent,
-                                    onClick = toggleQueue,
-                                )
                             }
                             else -> {
                                 Box(

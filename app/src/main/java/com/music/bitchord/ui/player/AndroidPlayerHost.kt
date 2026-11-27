@@ -9,9 +9,11 @@ import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,6 +39,7 @@ import com.music.bitchord.ui.components.backdrop.backdrops.rememberSnapshotBackd
 import com.music.bitchord.ui.components.backdrop.backdrops.snapshotBackdropSource
 import com.music.bitchord.ui.components.isGlassSupported
 import com.music.bitchord.ui.components.menuBackdropFrost
+import com.music.bitchord.ui.components.iosMenuPanel
 import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -351,6 +354,23 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         }
     }
 
+    override val supportsEmbeddedParty: Boolean get() = true
+
+    @Composable
+    override fun ListenTogetherDrawerContent(
+        signedIn: Boolean,
+        onSignIn: () -> Unit,
+        onEditServer: () -> Unit,
+    ) {
+        com.music.bitchord.ui.screens.ListenTogetherScreen(
+            signedIn = signedIn,
+            onSignIn = onSignIn,
+            onEditServer = onEditServer,
+            contentPadding = PaddingValues(0.dp),
+            embedded = true,
+        )
+    }
+
     @Composable
     override fun CastDialog(hazeState: HazeState, onDismiss: () -> Unit) =
         com.music.bitchord.ui.components.CastDialog(hazeState = hazeState, onDismiss = onDismiss)
@@ -380,6 +400,13 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         val backdrop = rememberSnapshotBackdrop()
         return remember(backdrop) { BackdropPlayerFrost(backdrop) }
     }
+
+    @Composable
+    override fun Modifier.songOverflowPanel(hazeState: HazeState?, frost: PlayerFrost?): Modifier = iosMenuPanel(
+        translucent = true,
+        backdrop = (frost as? BackdropPlayerFrost)?.backdrop,
+        hazeState = hazeState,
+    )
 
     // The phone is the platform that can turn picked lyrics into a picture: a
     // bitmap, a canvas, the gallery and the chooser are all Android's here. The
@@ -509,7 +536,8 @@ private class MusicStreamVolume(private val context: Context) : SystemVolume {
     }
 }
 
-private class BackdropPlayerFrost(private val backdrop: SnapshotBackdrop) : PlayerFrost {
+private class BackdropPlayerFrost(val backdrop: SnapshotBackdrop) : PlayerFrost {
+    override val hasStill: Boolean get() = backdrop.hasStill
     @Composable
     override fun Modifier.frostSource(): Modifier = snapshotBackdropSource(backdrop)
 

@@ -2967,6 +2967,7 @@ private fun BitChordApp(
                 dismissPlayer()
                 navigator.pushAll(AppRoute.Settings, AppRoute.ListenTogether)
             },
+            onEditPartyServer = { editingPartyServer = true },
             onClearQueue = {
                 // Keep what's playing and context/autoplay; drop user-queued tracks.
                 controller?.let { c ->

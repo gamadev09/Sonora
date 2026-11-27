@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -29,6 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -99,6 +103,7 @@ fun PlayerDrawer(
     hazeState: HazeState,
     title: String,
     onDismiss: () -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     /** Air between the title and whatever the drawer opens with. */
     titleGap: Dp = 14.dp,
@@ -244,17 +249,26 @@ fun PlayerDrawer(
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.25f)),
             )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                color = Color.White,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = titleGap),
-            )
+            Row(Modifier.fillMaxWidth().padding(bottom = titleGap), verticalAlignment = Alignment.CenterVertically) {
+                if (onBack != null) {
+                    Box(
+                        Modifier.size(40.dp).clickable(onClick = onBack),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = title,
+                            tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = Color.White,
+                    modifier = Modifier.padding(start = if (onBack == null) 4.dp else 0.dp),
+                )
+            }
             content()
         }
         }

@@ -4,6 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import com.music.bitchord.data.canvas.CanvasArtwork
 import com.music.bitchord.data.listentogether.PartyMember
@@ -162,6 +165,15 @@ interface PlayerHost {
     fun beginOutputDiscovery(): () -> Unit = { }
     fun connectNetworkOutput(protocol: OutputProtocol, id: String) = Unit
     fun returnToPhone() = Unit
+    val supportsEmbeddedParty: Boolean get() = false
+
+    /** Reuses the platform's party creation, joining, invitation and server UI inside the player drawer. */
+    @Composable
+    fun ListenTogetherDrawerContent(
+        signedIn: Boolean,
+        onSignIn: () -> Unit,
+        onEditServer: () -> Unit,
+    ) = Unit
 
     /**
      * The BitChord watch app as an output: the watch plays the queue the way a
@@ -194,6 +206,11 @@ interface PlayerHost {
      */
     @Composable
     fun rememberPlayerFrost(): PlayerFrost? = null
+
+    /** The platform's actual song overflow panel material, shared with chord options. */
+    @Composable
+    fun Modifier.songOverflowPanel(hazeState: HazeState?, frost: PlayerFrost?): Modifier =
+        playerMenuSurface(RoundedCornerShape(30.dp), hazeState)
 
     /**
      * Whether lines can be put on a share card here. False hides the pick mode

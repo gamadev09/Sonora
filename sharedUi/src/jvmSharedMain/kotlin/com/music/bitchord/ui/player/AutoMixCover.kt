@@ -382,7 +382,7 @@ internal fun AutoMixGestureCover(
 internal fun DecodedCover(result: DecodedAutoMixCover, modifier: Modifier) {
     val context = LocalPlatformContext.current
     val painter = result.painter ?: remember(result.image, context) { result.image.asPainter(context) }
-    Image(painter, contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop)
+    Image(painter, contentDescription = null, modifier = modifier, contentScale = ContentScale.Fit)
 }
 
 @Composable
@@ -391,7 +391,7 @@ internal fun AutoMixPlayerCover(art: PlayerArtwork, frames: AutoMixCoverFrames?,
         AsyncImage(
             model = art.request,
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             onState = art::onState,
             modifier = artworkModifier,
         )

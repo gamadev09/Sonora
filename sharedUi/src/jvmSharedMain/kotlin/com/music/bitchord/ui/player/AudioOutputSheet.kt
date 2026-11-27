@@ -141,6 +141,7 @@ val DlnaIcon: ImageVector by lazy {
 internal fun AudioOutputSheet(
     hazeState: HazeState,
     accountName: String?,
+    signedIn: Boolean,
     onDismiss: () -> Unit,
     onOpenPipeline: () -> Unit,
     onOpenCast: () -> Unit,
@@ -148,9 +149,11 @@ internal fun AudioOutputSheet(
     onOpenDlna: () -> Unit = {},
     onListenTogether: (() -> Unit)? = null,
     onOpenListenTogetherMembers: (() -> Unit)? = null,
+    onEditPartyServer: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    UnifiedAudioOutputSheet(hazeState, accountName, onDismiss, onOpenAirPlay, onListenTogether, onOpenListenTogetherMembers, modifier)
+    UnifiedAudioOutputSheet(hazeState, accountName, signedIn, onDismiss, onOpenAirPlay,
+        onListenTogether, onOpenListenTogetherMembers, onEditPartyServer, modifier)
 }
 
 /**

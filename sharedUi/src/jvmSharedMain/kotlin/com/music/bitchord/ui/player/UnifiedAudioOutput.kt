@@ -1,5 +1,12 @@
 package com.music.bitchord.ui.player
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -72,10 +79,12 @@ import org.jetbrains.compose.resources.stringResource
 internal fun UnifiedAudioOutputSheet(
     hazeState: HazeState,
     accountName: String?,
+    signedIn: Boolean,
     onDismiss: () -> Unit,
     onOpenAirPlay: () -> Unit,
     onListenTogether: (() -> Unit)?,
     onOpenListenTogetherMembers: (() -> Unit)?,
+    onEditPartyServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val host = PlayerPlatform.host
@@ -87,6 +96,9 @@ internal fun UnifiedAudioOutputSheet(
     val party by host.party.collectAsStateWithLifecycle()
     val watch by host.watchOutput.collectAsStateWithLifecycle()
     var searching by remember { mutableStateOf(true) }
+    var showParty by remember { mutableStateOf(false) }
+    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    PlayerBackHandler(enabled = showParty) { showParty = false }
     DisposableEffect(host) { onDispose(host.beginOutputDiscovery()) }
     LaunchedEffect(Unit) {
         host.refreshWatchOutput()
@@ -106,11 +118,33 @@ internal fun UnifiedAudioOutputSheet(
 
     PlayerDrawer(
         hazeState = hazeState,
-        title = stringResource(Res.string.audio_output),
+        title = stringResource(if (showParty) Res.string.listen_together else Res.string.audio_output),
         onDismiss = onDismiss,
+        onBack = if (showParty) ({ showParty = false }) else null,
         modifier = modifier,
         maxHeight = 560.dp,
     ) {
+        AnimatedContent(
+            targetState = showParty,
+            transitionSpec = {
+                if (reduceAnimation) {
+                    fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                } else {
+                    val direction = if (targetState) 1 else -1
+                    slideInHorizontally(tween(220)) { direction * it / 4 } togetherWith
+                        slideOutHorizontally(tween(220)) { -direction * it / 4 }
+                }
+            },
+            label = "audioOutputPartyContent",
+        ) { partyPage ->
+        if (partyPage) {
+            host.ListenTogetherDrawerContent(
+                signedIn = signedIn,
+                onSignIn = { onDismiss(); onListenTogether?.invoke() },
+                onEditServer = onEditPartyServer,
+            )
+        } else {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         ActiveOutputRow(
             title = remoteName ?: local?.let { outputLabel(it, accountName) }.orEmpty(),
             subtitle = if (remoteProtocol == null) stringResource(Res.string.audio_output_playing)
@@ -128,9 +162,11 @@ internal fun UnifiedAudioOutputSheet(
             subtitle = if (party.inParty) stringResource(Res.string.output_session_active, party.members.size) else null,
             icon = Icons.Rounded.Groups,
             onClick = {
-                onDismiss()
-                if (party.inParty && onOpenListenTogetherMembers != null) onOpenListenTogetherMembers()
-                else onListenTogether?.invoke()
+                if (host.supportsEmbeddedParty) showParty = true
+                else {
+                    onDismiss()
+                    onListenTogether?.invoke()
+                }
             },
         )
         Spacer(Modifier.height(10.dp))
@@ -201,6 +237,9 @@ internal fun UnifiedAudioOutputSheet(
                     }
                 }
             }
+        }
+        }
+        }
         }
     }
 }

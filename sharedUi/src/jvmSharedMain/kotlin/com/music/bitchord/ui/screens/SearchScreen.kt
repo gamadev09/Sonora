@@ -456,13 +456,12 @@ private data class SearchSection(val title: String?, val rows: List<SearchResult
 
 /** The unfiltered page is useful only when its mixed result types are readable at a glance. */
 private fun searchSections(rows: List<SearchResult>, filter: SearchFilter): List<SearchSection> {
-    if (filter != SearchFilter.ALL) return listOf(SearchSection(null, rows))
+    if (filter != SearchFilter.ALL) return if (rows.isEmpty()) emptyList() else listOf(SearchSection(null, rows))
     return listOf(
         SearchSection("Songs", rows.filterIsInstance<SearchResult.Track>()),
         SearchSection("Artists", rows.filterIsInstance<SearchResult.Browse>().filter { it.item.type == BrowseType.ARTIST }),
         SearchSection("Albums", rows.filterIsInstance<SearchResult.Browse>().filter { it.item.type == BrowseType.ALBUM }),
         SearchSection("Playlists", rows.filterIsInstance<SearchResult.Browse>().filter { it.item.type == BrowseType.PLAYLIST }),
-        SearchSection("More", rows.filterIsInstance<SearchResult.Browse>().filter { it.item.type == BrowseType.OTHER }),
     ).filter { it.rows.isNotEmpty() }
 }
 

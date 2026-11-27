@@ -64,7 +64,10 @@ object InnertubeParser {
         val topResults: List<SearchResult> = if (includeVideos) emptyList() else {
             collectRenderers(response, "musicCardShelfRenderer")
                 .mapNotNull { card ->
-                    parseCardShelfSong(card)?.let(SearchResult::TopTrack)
+                    parseCardShelfSong(card)
+                        ?.takeIf { !card.isPodcastEpisode() && card.findString("musicVideoType")
+                            ?.let { type -> type == MUSIC_VIDEO_TYPE_ATV } != false }
+                        ?.let(SearchResult::TopTrack)
                         ?: parseCardShelfBrowse(card)?.let(SearchResult::Browse)
                 }
         }
@@ -91,7 +94,7 @@ object InnertubeParser {
                         if (!result.song.isVideo && seen.add("v:${result.song.videoId}")) add(result)
                     }
                     is SearchResult.Browse -> {
-                        if (seen.add("b:${result.item.browseId}")) add(result)
+                        if (result.item.type != BrowseType.OTHER && seen.add("b:${result.item.browseId}")) add(result)
                     }
                     is SearchResult.Track -> Unit
                 }
@@ -102,9 +105,17 @@ object InnertubeParser {
             // first would misread every album as a single song.
                 val browse = parseBrowseItem(renderer)
                 if (browse != null) {
-                    if (seen.add("b:${browse.browseId}")) add(SearchResult.Browse(browse))
+                    if (browse.type != BrowseType.OTHER && seen.add("b:${browse.browseId}")) add(SearchResult.Browse(browse))
                 } else {
                     val fallback = cardCredits.firstOrNull { it.first === renderer }?.second
+                    val mediaType = renderer.findString("musicVideoType")
+                    val supported = if (includeVideos) mediaType == "MUSIC_VIDEO_TYPE_OMV" else
+                        mediaType == null || mediaType == MUSIC_VIDEO_TYPE_ATV
+                    val category = renderer.a("flexColumns").orEmpty().getOrNull(1)
+                        .o("musicResponsiveListItemFlexColumnRenderer").o("text")
+                        .runs().substringBefore('•').trim().lowercase(Locale.ROOT)
+                    if (!supported || renderer.isPodcastEpisode() ||
+                        category == "episode" || category == "podcast") return@forEach
                     parseResponsiveListItem(renderer, fallback ?: Credits())?.let { song ->
                         // The mixed All page stays music-only; the dedicated Videos
                         // filter is the one place music-video uploads belong.
@@ -189,7 +200,8 @@ object InnertubeParser {
         // Music Videos" — would have every row dropped by
         // parseResponsiveListItem anyway, so skip the dead-end card rather
         // than link to an empty page.
-        if (VIDEO_WORD.containsMatchIn(title) || VIDEO_WORD.containsMatchIn(subtitle)) return null
+        if ("PODCAST" in pageType || "NON_MUSIC" in pageType || "USER" in pageType) return null
+        if ("PLAYLIST" in pageType && VIDEO_WORD.containsMatchIn(subtitle)) return null
 
         return BrowseItem(
             browseId = browseId,
@@ -951,11 +963,11 @@ object InnertubeParser {
         // big song's own title promotes — "tum hi ho", "o maahi" — while the
         // real track sits in the rows below, so it doesn't get the top slot.
         // Read off the page type rather than the word, which is translated.
-        if ("NON_MUSIC_AUDIO_TRACK" in pageType) return null
+        if ("NON_MUSIC_AUDIO_TRACK" in pageType || "PODCAST" in pageType || "USER" in pageType) return null
         val title = renderer.o("title").runs()
         if (title.isBlank()) return null
         val subtitle = renderer.o("subtitle").runs()
-        if (VIDEO_WORD.containsMatchIn(title) || VIDEO_WORD.containsMatchIn(subtitle)) return null
+        if ("PLAYLIST" in pageType && VIDEO_WORD.containsMatchIn(subtitle)) return null
 
         return BrowseItem(
             browseId = browseId,

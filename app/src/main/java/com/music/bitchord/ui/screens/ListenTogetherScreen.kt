@@ -5,6 +5,7 @@ import android.content.Intent
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -140,6 +141,7 @@ fun ListenTogetherScreen(
      * @see PartyServerEditor for why it cannot live on this screen.
      */
     onEditServer: () -> Unit,
+    embedded: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -158,6 +160,10 @@ fun ListenTogetherScreen(
     var maxMembers by remember { mutableIntStateOf(5) }
     var pendingServerSwitchInvite by remember { mutableStateOf<Pair<String, String>?>(null) }
     var sheet by remember { mutableStateOf<PartySheet?>(null) }
+    BackHandler(enabled = embedded && sheet != null) {
+        sheet = null
+        failure = null
+    }
 
     // Hoisted so a sheet can be *animated* away rather than dropped out of the
     // composition, which is the only way one sheet can hand over to another:
@@ -178,7 +184,7 @@ fun ListenTogetherScreen(
      * then the invite, from a fresh mount, so it slides.
      */
     val showInviteAfterCreate: suspend () -> Unit = {
-        runCatching { sheetState.hide() }
+        if (!embedded) runCatching { sheetState.hide() }
         sheet = null
         delay(INVITE_SHEET_DELAY_MS)
         // A second is long enough to have gone and opened something else in,
@@ -342,18 +348,7 @@ fun ListenTogetherScreen(
         )
     }
 
-    sheet?.let { open ->
-        ModalBottomSheet(
-            onDismissRequest = {
-                sheet = null
-                // Closed with the message unread is still read: leaving it set
-                // would surface it on the page underneath, as a line about a
-                // sheet that is no longer there.
-                failure = null
-            },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.background,
-        ) {
+    val partySheetContent: @Composable (PartySheet) -> Unit = { open ->
             when (open) {
                 PartySheet.Create -> CreatePartySheet(
                     avatarUrl = ListenTogether.myAvatarUrl(),
@@ -467,16 +462,30 @@ fun ListenTogetherScreen(
                     },
                 )
             }
-        }
+    }
+
+    if (!embedded) sheet?.let { open ->
+        ModalBottomSheet(
+            onDismissRequest = {
+                sheet = null
+                failure = null
+            },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background,
+        ) { partySheetContent(open) }
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .then(if (embedded) Modifier else Modifier.verticalScroll(rememberScrollState()))
             .padding(contentPadding),
     ) {
-        SettingsPageTitle(stringResource(R.string.listen_together))
+        if (!embedded) SettingsPageTitle(stringResource(R.string.listen_together))
+        if (embedded && sheet != null) {
+            partySheetContent(sheet!!)
+            return@Column
+        }
 
         if (!signedIn) {
             SettingsGroup(footer = stringResource(R.string.listen_together_sign_in_footer), topSpacing = 0.dp) {

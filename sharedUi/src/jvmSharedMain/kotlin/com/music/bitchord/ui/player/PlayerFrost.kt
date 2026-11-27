@@ -41,6 +41,8 @@ import kotlinx.coroutines.flow.collectLatest
  */
 @Stable
 interface PlayerFrost {
+    /** True when the captured frame is ready for the menu's opening animation. */
+    val hasStill: Boolean get() = true
     /** What [capture] takes its still of. Draws as if it weren't there. */
     @Composable
     fun Modifier.frostSource(): Modifier
@@ -63,6 +65,7 @@ interface PlayerFrost {
  * the platform can't draw it, or "reduce dynamic blur" is on.
  */
 val LocalPlayerFrost = staticCompositionLocalOf<PlayerFrost?> { null }
+val LocalChordPopupFrost = staticCompositionLocalOf<PlayerFrost?> { null }
 
 /**
  * The player's outermost frame: the player itself, the source of [frost]'s
@@ -109,6 +112,7 @@ internal fun FrostedPlayerFrame(
             CompositionLocalProvider(
                 LocalPlayerChrome provides chrome,
                 LocalChromeSoftened provides softened,
+                LocalChordPopupFrost provides frost?.takeIf { !live },
                 content = content,
             )
         }

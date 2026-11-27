@@ -9,7 +9,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
@@ -45,7 +45,6 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.HazeState
-import kotlin.math.abs
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.chords.ChordEvent
 import com.music.bitchord.playback.chords.chordIndexAt
@@ -69,6 +68,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -318,7 +319,6 @@ private fun GlassCapsuleSelector(
         animationSpec = spec,
         label = "capsuleSelectorOffset",
     )
-    val lag = if (tabStepPx > 0f) (abs(targetOffset - animatedOffset) / tabStepPx).coerceIn(0f, 1f) else 0f
 
     Box(
         modifier = modifier
@@ -343,8 +343,6 @@ private fun GlassCapsuleSelector(
                     .height(with(density) { rowSize.height.toDp() })
                     .graphicsLayer {
                         translationX = animatedOffset
-                        scaleX = 1f + lag * 0.14f
-                        scaleY = 1f - lag * 0.14f * 0.35f
                     }
                     .clip(pillShape)
                     .background(accentColor.copy(alpha = 0.32f))
@@ -360,6 +358,11 @@ private fun GlassCapsuleSelector(
         ) {
             options.forEachIndexed { index, label ->
                 val selected = index == selectedIndex
+                val labelColor by animateColorAsState(
+                    targetValue = if (selected) Color.White else chromeWhite(0.68f),
+                    animationSpec = if (reduceAnimation) snap() else tween(durationMillis = 160),
+                    label = "chordSelectorLabel",
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -376,7 +379,7 @@ private fun GlassCapsuleSelector(
                 ) {
                     Text(
                         text = label,
-                        color = if (selected) Color.White else chromeWhite(0.68f),
+                        color = labelColor,
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                         ),
@@ -411,10 +414,10 @@ internal fun ChordControls(
         Modifier
             .fillMaxWidth()
             .padding(top = 2.dp, bottom = 4.dp)
-            .animateContentSize()
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val inlineCapoFits = maxWidth >= 390.dp
+            val compactCapoBadgeFits = maxWidth >= 280.dp
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -452,8 +455,7 @@ internal fun ChordControls(
                             accentColor = state.accentColor,
                             hazeState = hazeState,
                             modifier = Modifier
-                                .weight(1f)
-                                .widthIn(max = 264.dp),
+                                .width(160.dp),
                         )
                         if (state.guitar && inlineCapoFits) {
                             Spacer(Modifier.weight(0.15f))
@@ -495,7 +497,7 @@ internal fun ChordControls(
                         } else {
                             Spacer(Modifier.weight(1f))
                         }
-                        if (state.guitar && !inlineCapoFits) {
+                        if (state.guitar && !inlineCapoFits && compactCapoBadgeFits) {
                             val badgeShape = RoundedCornerShape(percent = 50)
                             Box(
                                 Modifier
@@ -713,10 +715,19 @@ private fun ChordOptionsPopover(
 ) {
     var mounted by remember { mutableStateOf(expanded) }
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val frost = LocalChordPopupFrost.current
     val progress = remember { Animatable(0f) }
     LaunchedEffect(expanded) {
         if (expanded) {
             mounted = true
+            if (progress.value == 0f) {
+                withFrameNanos { }
+                withFrameNanos { }
+                if (frost != null && !reduceDynamicBlur) {
+                    withTimeoutOrNull(150L) { snapshotFlow { frost.hasStill }.first { it } }
+                }
+            }
             progress.animateTo(
                 1f,
                 if (reduceAnimation) {
@@ -737,7 +748,7 @@ private fun ChordOptionsPopover(
 
     val density = LocalDensity.current
     val yOffsetPx = with(density) { 42.dp.roundToPx() }
-    val menuShape = RoundedCornerShape(22.dp)
+    val menuSurface = with(PlayerPlatform.host) { Modifier.songOverflowPanel(hazeState, frost) }
     val notations = remember { listOf(ChordNotation.AUTO, ChordNotation.SHARPS, ChordNotation.FLATS) }
     val notationLabels = listOf(
         stringResource(Res.string.chord_notation_auto),
@@ -762,14 +773,7 @@ private fun ChordOptionsPopover(
                     alpha = t
                     transformOrigin = TransformOrigin(1f, 0f)
                 }
-                .shadow(
-                    elevation = 16.dp,
-                    shape = menuShape,
-                    ambientColor = Color.Black.copy(alpha = 0.45f),
-                    spotColor = Color.Black.copy(alpha = 0.45f),
-                )
-                .playerMenuSurface(menuShape, hazeState)
-                .glassRim(menuShape)
+                .then(menuSurface)
                 .padding(vertical = 6.dp),
         ) {
             if (showCapoInMenu) {
