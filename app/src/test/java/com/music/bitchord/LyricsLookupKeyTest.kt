@@ -24,4 +24,17 @@ class LyricsLookupKeyTest {
         assertNotEquals(key(), key(order = order.reversed()))
         assertNotEquals(key(), key(prioritize = true))
     }
+
+    @Test
+    fun `metadata corrections and meaningful duration changes trigger a new lookup`() {
+        val base = lyricsLookupKey("abcdefghijk", sources, order, true, "Title", "Artist", "Album", 180_000L)
+        // Minor player duration jitter within the 2s bucket should not re-trigger.
+        val jittered = lyricsLookupKey("abcdefghijk", sources, order, true, "Title", "Artist", "Album", 180_900L)
+        assertEquals(base, jittered)
+
+        val correctedTitle = lyricsLookupKey("abcdefghijk", sources, order, true, "Corrected Title", "Artist", "Album", 180_000L)
+        val correctedDuration = lyricsLookupKey("abcdefghijk", sources, order, true, "Title", "Artist", "Album", 215_000L)
+        assertNotEquals(base, correctedTitle)
+        assertNotEquals(base, correctedDuration)
+    }
 }

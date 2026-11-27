@@ -164,4 +164,54 @@ class LyricsEngineRegressionTest {
         assertEquals(LyricsTimingTier.LINE_SYNCED, assessment.tier)
         assertTrue(LyricsSource.MUSIXMATCH.wordSynced)
     }
+
+    @Test
+    fun lyricsCache_persistsAndNeverDowngradesSuperiorTier() {
+        val tempDir = java.nio.file.Files.createTempDirectory("sonora_lyrics_cache_test").toFile()
+        try {
+            LyricsCache.cacheDir = tempDir
+            LyricsCache.clear()
+
+            val wordSynced = LyricsRepository.Result(
+                LyricsSource.BETTER_LYRICS,
+                listOf(
+                    LyricLine(1000L, "Hello world", words = listOf(LyricWord(1000L, 1500L, "Hello"), LyricWord(1500L, 2000L, "world"))),
+                    LyricLine(3000L, "Second line", words = listOf(LyricWord(3000L, 3500L, "Second"), LyricWord(3500L, 4000L, "line"))),
+                ),
+            )
+            val lineSynced = LyricsRepository.Result(
+                LyricsSource.LRCLIB,
+                listOf(LyricLine(1000L, "Hello world"), LyricLine(3000L, "Second line")),
+            )
+
+            LyricsCache.put("vid123", "Song", "Artist", 180_000L, wordSynced)
+            // Attempt to overwrite with inferior line-synced lyrics -> must be ignored.
+            LyricsCache.put("vid123", "Song", "Artist", 180_000L, lineSynced)
+
+            val loaded = LyricsCache.get(
+                videoId = "vid123",
+                title = "Song",
+                artist = "Artist",
+                durationMs = 181_000L,
+                allowedSources = setOf(LyricsSource.BETTER_LYRICS, LyricsSource.LRCLIB),
+            )
+            assertNotNull(loaded)
+            assertEquals(LyricsSource.BETTER_LYRICS, loaded!!.source)
+            assertEquals(LyricsTimingTier.COMPLETE_WORD, assessLyricsQuality(loaded.lines).tier)
+
+            // Large duration drift must not return mismatched recording.
+            val drifted = LyricsCache.get(
+                videoId = "vid123",
+                title = "Song",
+                artist = "Artist",
+                durationMs = 210_000L,
+                allowedSources = setOf(LyricsSource.BETTER_LYRICS),
+            )
+            assertEquals(null, drifted)
+        } finally {
+            LyricsCache.clear()
+            LyricsCache.cacheDir = null
+            tempDir.deleteRecursively()
+        }
+    }
 }
