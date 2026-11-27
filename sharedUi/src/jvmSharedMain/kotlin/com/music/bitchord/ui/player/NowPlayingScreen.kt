@@ -3388,128 +3388,26 @@ fun NowPlayingScreen(
                     // on screen saying the player is still working.
                     val versionAligning by PlayerSettings.versionAlignmentInProgress.collectAsStateWithLifecycle()
                     val versionSwitching = versionAligning || audioVersionSwitching
-                    // Height the artwork block below turns out not to need, spent by the
-                    // controls at the foot of the screen. Filled in from inside the box,
-                    // where the sleeve's real size is known; see [lastControlSpread].
-                    var controlSpread by remember { mutableStateOf(lastControlSpread) }
                     BoxWithConstraints(
                         modifier = Modifier
                             .weight(1f)
                             .widthIn(max = PLAYER_MAX_WIDTH)
                             .fillMaxWidth()
-                            .padding(top = ART_BOX_TOP_PAD, bottom = 18.dp),
+                            .padding(top = ART_BOX_TOP_PAD, bottom = 4.dp),
                     ) {
                         if (spotifyCanvasPresentation && playerDeckSettledOpen &&
                             maxHeight != spotifyCanvasExpandedTopHeight
                         ) {
                             SideEffect { spotifyCanvasExpandedTopHeight = maxHeight }
                         }
-                        // The height this box would have if the controls at the foot of
-                        // the screen were at their natural size. They aren't: they are
-                        // holding [controlSpread] of extra gap, which came out of here,
-                        // so adding it back cancels the only thing down there that
-                        // depends on what is decided up here.
-                        //
-                        // The sleeve and the slack below are both worked out from this
-                        // rather than from the box as it actually stands, and that is
-                        // what keeps the hand-off from creeping. Measured off the real
-                        // height, granting the gaps 20dp came back as a box 20dp
-                        // shorter and read as a *further* 20dp going spare — so any
-                        // moment the controls were briefly shorter than usual (a track
-                        // change, where the lyric strip drops back to its loading line,
-                        // or coming back from the lyrics panel, where the strip is
-                        // rebuilt from scratch) was pocketed for good. The gaps
-                        // ratcheted open a little at a time and the sleeve paid for it.
-                        val roomy = maxHeight + controlSpread
-                        // The sleeve is square, so it is bounded by whichever of the
-                        // two axes runs out first: the player's width on a phone, or —
-                        // on a tablet, where there is width to spare — the height left
-                        // over once the credits row and the gap above it have had
-                        // theirs. Sizing it off the width alone is what pushed the
-                        // credits down across the scrubber on anything but a phone.
-                        val wantArt = minOf(maxWidth, roomy - ART_TITLE_GAP - HEADER_HEIGHT)
-                        // Held to what the box has actually got, for the single frame it
-                        // takes the gaps below to catch up with a change in their own
-                        // height: a sleeve a few dp under for one frame is a better
-                        // failure than a credits row overhanging the lyric strip.
-                        val fullArt = minOf(wantArt, maxHeight - ART_TITLE_GAP - HEADER_HEIGHT)
-                            .coerceAtLeast(THUMB_SIZE)
-                        // What's left over once the sleeve, the gap and the credits have
-                        // had theirs. A few dp on a phone; the better part of a
-                        // centimetre on anything taller, and since the group is centred,
-                        // half of it used to land between the credits and the lyric strip
-                        // as one wide hole in the middle of the controls.
-                        val slack = (roomy - wantArt - ART_TITLE_GAP - HEADER_HEIGHT)
-                            .coerceAtLeast(0.dp)
-                        // Handed to the two gaps around the transport row instead, which
-                        // is where a tall screen should be doing its breathing.
-                        //
-                        // Assigned, not added to: [slack] is stated in terms the spread
-                        // cannot move, so this is the whole answer in one step, and it
-                        // gives the room back just as readily when the controls grow
-                        // into it again.
-                        //
-                        // The settled spread is retained while either panel is up. It is
-                        // part of the controls' footprint, not part of the artwork, and
-                        // removing it only for lyrics made the half-player jump shorter
-                        // at the exact moment the sleeve started collapsing.
-                        //
-                        // Granted in whole even pixels, and only when it actually moves.
-                        // This is a measurement feeding the layout it was measured from,
-                        // and [roomy] cancels that by adding the grant back — but only if
-                        // this pass's [maxHeight] already reflects the grant about to be
-                        // written, which needs the Column above to have re-measured the
-                        // controls at that grant already. It doesn't always have: on some
-                        // aspect ratios
-                        // the cancellation lands a pass late, the grant overshoots, the
-                        // next pass corrects past it the other way, and the two chase
-                        // each other through the same handful of values forever instead
-                        // of settling — a full-amplitude standing oscillation, not the
-                        // single-pixel shiver this rounding alone was built to absorb.
-                        // See [granted] below for the fix.
-                        // Do not feed transitional artwork measurements back into the controls.
-                        // The settled player's spread is retained throughout the return animation.
-                        // Spotify's compact Canvas state removes the entire deck, making this
-                        // weighted box much taller. That newly empty space is not control slack:
-                        // recording it here inflated both transport gaps when a queue swipe
-                        // brought the deck back. Only measure while the deck is actually present.
-                        val controlDeckIsMeasured = !spotifyCanvasPresentation || playerDeckSettledOpen
-                        // The panels asked about first, so a collapse on its way in
-                        // — whose sleeve leaves rest on its first frame — isn't
-                        // listened for here at all.
-                        if (!lyricsOpen && !queueOpen && !queueDragging && collapseAtRest && controlDeckIsMeasured) {
-                            val target = with(density) {
-                                val half = slack
-                                    .coerceAtMost(CONTROL_GAP_SPREAD_MAX * 2)
-                                    .toPx()
-                                    .div(2f)
-                                    .roundToInt()
-                                (half * 2).toDp()
-                            }
-                            // Stepped towards [target] rather than jumped there in one
-                            // grant, so a late cancellation (see above) decays instead of
-                            // standing: still one pass to settle when the cancellation
-                            // does land on time, and a fast-converging approach rather
-                            // than a full-amplitude swing on the passes where it doesn't.
-                            val granted = with(density) {
-                                val steppedPx = (controlSpread.toPx() +
-                                    (target.toPx() - controlSpread.toPx()) * 0.4f)
-                                    .roundToInt()
-                                steppedPx.toDp()
-                            }
-                            if (granted != controlSpread) {
-                                SideEffect {
-                                    controlSpread = granted
-                                    lastControlSpread = granted
-                                }
-                            }
-                        }
-                        // Artwork and the title row travel together as one block, so
-                        // the pair sits centred while the queue is closed — in whatever
-                        // the controls couldn't take, which on all but the tallest
-                        // screens is nothing.
-                        val groupTop = (maxHeight - fullArt - ART_TITLE_GAP - HEADER_HEIGHT)
-                            .coerceAtLeast(0.dp) / 2
+                        // Pin track metadata directly above the lyrics preview + scrubber +
+                        // transport deck so there is zero dead vertical gap between metadata
+                        // and controls, allocating all recovered height to artwork (main mode)
+                        // and the lyrics viewport (lyrics mode).
+                        val titleBottomTop = (maxHeight - HEADER_HEIGHT).coerceAtLeast(0.dp)
+                        val artAvailableHeight = (titleBottomTop - ART_TITLE_GAP).coerceAtLeast(THUMB_SIZE)
+                        val fullArt = minOf(maxWidth, artAvailableHeight).coerceAtLeast(THUMB_SIZE)
+                        val groupTop = ((artAvailableHeight - fullArt) / 2).coerceAtLeast(0.dp)
                         // Functions of the collapse, called at placement and measure
                         // — see [p]. Composition never reads them.
                         fun artSize(): Dp = lerp(fullArt, THUMB_SIZE, p())
@@ -3518,7 +3416,7 @@ fun NowPlayingScreen(
                         // player and has to be centred in it; collapsed, it belongs
                         // hard against the left edge with the credits beside it.
                         fun artStart(): Dp = lerp((maxWidth - fullArt) / 2, 0.dp, p())
-                        fun regularTitleTop(): Dp = lerp(groupTop + fullArt + ART_TITLE_GAP, 0.dp, p())
+                        fun regularTitleTop(): Dp = lerp(titleBottomTop, 0.dp, p())
                         // Once Spotify's control deck has left, keep the only remaining
                         // player chrome against the bottom edge instead of stranding it
                         // where the artwork's title normally sits near mid-screen.
@@ -4704,15 +4602,15 @@ fun NowPlayingScreen(
                                 (!spotifyCanvasPresentation || spotifyCanvasControlsOpen || mixing),
                         )
                     }
-                    // Unified compact playback deck across artwork, lyrics, and queue modes:
-                    // consistent 8/12dp rhythm, zero layout shift on mode switch, and
-                    // volume housed inside the Audio Output menu.
-                    Spacer(Modifier.height(8.dp))
+                    // Cohesive compact playback deck across artwork, lyrics, and queue modes:
+                    // tight 4dp rhythm around full-presence transport controls, volume inside
+                    // the Audio Output menu, and zero layout shift when switching modes.
+                    Spacer(Modifier.height(4.dp))
                     transport()
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
 
                     playerActions()
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
                     }
                     }
                     }

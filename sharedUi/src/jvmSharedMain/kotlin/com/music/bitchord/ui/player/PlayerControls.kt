@@ -684,9 +684,9 @@ internal fun TransportRow(
     compact: Boolean = false,
     animationsActive: Boolean = true,
 ) {
-    val playSize = if (compact) 50.dp else 56.dp
-    val playTouch = if (compact) 58.dp else 64.dp
-    val skipSize = if (compact) 36.dp else PLAYER_SKIP_ICON_SIZE
+    val playSize = if (compact) 58.dp else 66.dp
+    val playTouch = if (compact) 68.dp else 74.dp
+    val skipSize = if (compact) 42.dp else PLAYER_SKIP_ICON_SIZE
     val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
     val previousMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
     val nextMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
@@ -1276,8 +1276,8 @@ private fun TransportGlyph(
 }
 
 /** The skip glyphs' width, and their touch box, beside the larger play button. */
-private val PLAYER_SKIP_ICON_SIZE = 40.dp
-private val PLAYER_SKIP_TOUCH_SIZE = 52.dp
+private val PLAYER_SKIP_ICON_SIZE = 48.dp
+private val PLAYER_SKIP_TOUCH_SIZE = 54.dp
 
 /** Draw-only diameter shared by expanded playback controls; hit targets stay unchanged. */
 private val PLAYER_PRESS_CIRCLE_DIAMETER = 60.dp
@@ -1412,28 +1412,62 @@ private fun OutputPartyPill(
     val badge = rememberPartyBadge()
     val shown by PlayerSettings.showListenTogetherButton.collectAsStateWithLifecycle()
     val output = rememberOutputGlyph()
+    val deviceLabel = rememberOutputDeviceLabel()
     // Party half hidden only outside a party: once in one, this is the way to
-    // who's in it. Without it the output glyph stands alone, drawn like the
-    // lyrics and queue glyphs either side rather than as half a capsule.
+    // who's in it. Without it the output button shows the icon + active device name
+    // cleanly integrated in a single compact pill.
     if (!shown && !badge.inParty) {
-        BottomGlyph(
-            icon = output.icon,
-            iconSize = output.size * (BOTTOM_ICON_SIZE / PILL_OUTPUT_SIZE),
-            contentDescription = stringResource(Res.string.audio_output),
-            onClick = onOutput,
-            vibrant = true,
-        )
+        val chrome = LocalPlayerChrome.current
+        val haptics = rememberHaptics()
+        Row(
+            modifier = Modifier
+                .let { m -> androidx.compose.foundation.layout.run { m.sizeIn(minHeight = BOTTOM_ACTION_SIZE) } }
+                .clip(CircleShape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        haptics.play(Haptic.Tap)
+                        onOutput()
+                    },
+                )
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = output.icon,
+                contentDescription = stringResource(Res.string.audio_output),
+                tint = brightRowInk(),
+                modifier = Modifier
+                    .size(output.size)
+                    .brightRowChrome(chrome),
+            )
+            if (!deviceLabel.isNullOrBlank()) {
+                Text(
+                    text = deviceLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = brightRowInk(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .let { m -> androidx.compose.foundation.layout.run { m.sizeIn(maxWidth = 128.dp) } }
+                        .brightRowChrome(chrome),
+                )
+            }
+        }
         return
     }
-    Pill {
-        PillSegment(
-            icon = output.icon,
-            iconSize = output.size,
-            contentDescription = stringResource(Res.string.audio_output),
-            onClick = onOutput,
-            vibrant = true,
-        )
-        PillDivider()
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Pill {
+            PillSegment(
+                icon = output.icon,
+                iconSize = output.size,
+                contentDescription = stringResource(Res.string.audio_output),
+                onClick = onOutput,
+                vibrant = true,
+            )
+            PillDivider()
         PillSegment(
             // Person rather than Groups: the three-person glyph is drawn half
             // the height of Headphones and wider than the segment holding it,
@@ -1455,6 +1489,34 @@ private fun OutputPartyPill(
             highlighted = badge.inParty,
             trailingLabel = badge.members.takeIf { badge.inParty }?.toString(),
         )
+        }
+        if (!deviceLabel.isNullOrBlank()) {
+            val chrome = LocalPlayerChrome.current
+            Text(
+                text = deviceLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = brightRowInk(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .let { m -> androidx.compose.foundation.layout.run { m.sizeIn(maxWidth = 136.dp) } }
+                    .brightRowChrome(chrome),
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberOutputDeviceLabel(): String? {
+    val cast by PlayerPlatform.host.castState.collectAsStateWithLifecycle()
+    val watch by PlayerPlatform.host.watchOutput.collectAsStateWithLifecycle()
+    val active = rememberAudioOutputs().firstOrNull { it.isActive }
+    return when {
+        cast.connectedName != null -> cast.connectedName
+        watch.active -> watch.name ?: stringResource(Res.string.audio_output)
+        active != null && active.name.isNotBlank() -> active.name
+        else -> null
     }
 }
 

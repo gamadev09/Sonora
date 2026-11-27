@@ -3619,7 +3619,7 @@ private fun BitChordApp(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 20.dp, vertical = 8.dp)
-                                                .clip(RoundedCornerShape(16.dp))
+                                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                                                 .background(MaterialTheme.colorScheme.surfaceContainer)
                                                 .padding(16.dp),
                                             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -3653,14 +3653,19 @@ private fun BitChordApp(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .horizontalScroll(rememberScrollState()),
+                                                    .let { m ->
+                                                        androidx.compose.foundation.horizontalScroll(
+                                                            m,
+                                                            androidx.compose.foundation.rememberScrollState(),
+                                                        )
+                                                    },
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
                                                 com.music.bitchord.data.recommendations.TastePreferences.SUGGESTED_GENRES.forEach { genre ->
                                                     val picked = genre in selectedTasteGenres
                                                     Box(
                                                         modifier = Modifier
-                                                            .clip(RoundedCornerShape(50))
+                                                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                                                             .background(
                                                                 if (picked) MaterialTheme.colorScheme.onSurface
                                                                 else MaterialTheme.colorScheme.surfaceContainerHigh,

@@ -254,7 +254,7 @@ internal fun ChordControls(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp)
+            .padding(vertical = 4.dp)
             .animateContentSize()
     ) {
         // Single compact toolbar combining instrument selection, inline capo stepper,
