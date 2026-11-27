@@ -139,6 +139,8 @@
     <string name="clear_search">Limpar pesquisa</string>
     <string name="downloaded">Baixado</string>
     <string name="explore">Explorar</string>
+    <string name="new_music">Novidades</string>
+    <string name="global_charts">Lançamentos globais e paradas</string>
     <string name="library">Biblioteca</string>
     <string name="library_sign_in_description">Faça login em sua conta do Google para ver suas músicas curtidas, playlists e histórico do YouTube Music.</string>
     <string name="new_playlist">Nova playlist</string>

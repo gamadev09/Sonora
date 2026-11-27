@@ -27,6 +27,7 @@
     <string name="home">Inicio</string>
     <string name="play">Reproducir</string>
     <string name="explore">Explorar</string>
+    <string name="new_music">Novedades</string>
     <string name="listen_now">Escuchar ahora</string>
     <string name="downloads">Descargas</string>
     <string name="downloaded_songs">Canciones descargadas</string>

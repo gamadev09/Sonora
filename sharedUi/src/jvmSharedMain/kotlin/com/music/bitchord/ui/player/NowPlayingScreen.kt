@@ -1067,7 +1067,6 @@ fun NowPlayingScreen(
     val seekToLyric: (Long) -> Unit = { lineTimeMs ->
         onSeek(adjustedLyricsSeekTarget(lineTimeMs, lyricsOffsetMs))
     }
-    val hideVolumeBar by PlayerSettings.hideVolumeBar.collectAsStateWithLifecycle()
     val disableBlendEffects by PlayerSettings.disableBlendEffects.collectAsStateWithLifecycle()
     // The lyric slot above the scrubber: the tallest line it holds — titleMedium's
     // own line box — and the 4dp each of them is padded by above and below.
@@ -4482,17 +4481,14 @@ fun NowPlayingScreen(
                     // fading it away behind the queue left this the one place in the
                     // player where the current line simply vanished.
                     //
-                    // Switched off in Settings it goes entirely, rather than sitting
-                    // there saying no lyrics were found: none were looked for. It is
-                    // accompanied by a dedicated lyrics button in the bottom row. Its
-                    // one-line slot remains, invisibly, so opening lyrics cannot grow
-                    // the half-player merely to make room for the source label.
+                    // Switched off in Settings it goes entirely, including its slot.
+                    // Lyrics mode uses that band for its status and source controls.
                     // One fixed slot for whichever line fills it. They were each
                     // left to their own height — the sung line a 20sp box, the
                     // loading, "not available", status and blank lines titleMedium's
                     // 24sp, taller again in Devanagari or Thai — so every track change
                     // (sung line → loading line) grew the deck and shrank the sleeve.
-                    Box(
+                    if (lyricsOpen || (syncedLyricsEnabled && !hideLyricsPreview)) Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(lyricSlotHeight),
@@ -4512,17 +4508,6 @@ fun NowPlayingScreen(
                             // the queue behind it the same way the "Up next" glyph
                             // closes lyrics behind the queue.
                             onClick = openLyrics,
-                        )
-                    }
-                    if (!lyricsOpen && !syncedLyricsEnabled) {
-                        Text(
-                            text = "\u00A0",
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .offset(y = 6.dp)
-                                .padding(vertical = 4.dp),
                         )
                     }
                     if (lyricsOpen) {

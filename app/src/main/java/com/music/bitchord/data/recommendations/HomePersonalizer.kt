@@ -108,10 +108,9 @@ object HomePersonalizer {
             .take(8)
         val liked = likeStatuses.filterValues { it == LikeStatus.LIKE }.keys
         val disliked = likeStatuses.filterValues { it == LikeStatus.DISLIKE }.keys
-        // Tracks sampled briefly (< 20s) with 0 completed plays indicate repeated skips.
-        val skipped = allTimeSongs
-            .filter { it.plays == 0 && it.ms in 1L..20_000L }
-            .mapTo(HashSet()) { it.song.videoId }
+        // Aggregate listening time cannot distinguish one accidental skip from
+        // repeated skips. Only explicit dislikes are used as a negative signal.
+        val skipped = emptySet<String>()
 
         return ListenerProfile(
             recentSongs = recentSongs,
@@ -138,14 +137,18 @@ object HomePersonalizer {
     ): List<HomeShelf> {
         val cleaned = rawShelves.mapNotNull { shelf ->
             val filtered = shelf.items
-                .filterNot { item -> item.videoId != null && item.videoId in profile.dislikedIds }
+                .filter { item ->
+                    (item.videoId == null || item.videoId !in profile.dislikedIds) &&
+                        (item.videoId == null || item.videoId !in profile.skippedIds) &&
+                        itemAffinityScore(item, profile) > 0
+                }
                 .sortedByDescending { item -> itemAffinityScore(item, profile) }
             if (filtered.isEmpty()) null else shelf.copy(items = filtered)
         }
 
         if (!profile.hasPreferences) {
-            // New user with no history or taste seeds yet: keep non-chart shelves first.
-            return cleaned.sortedBy { if (isGenericWorldwideShelf(it.title)) 500 else 100 }
+            // A cold start needs explicit taste choices before recommendations.
+            return emptyList()
         }
 
         // Home must NOT display generic worldwide charts or random trending content.
@@ -267,11 +270,16 @@ object HomePersonalizer {
             }
         }
 
-        val combined = (localShelves + nonGeneric)
+        val seen = HashSet<String>()
+        return (localShelves + nonGeneric)
             .distinctBy { it.title.lowercase(Locale.ROOT) }
             .sortedBy { homeShelfPriorityRank(it, profile) }
-
-        return if (combined.isNotEmpty()) combined else cleaned
+            .mapNotNull { shelf ->
+                val unique = shelf.items.filter { item ->
+                    seen.add(item.videoId ?: item.browseId ?: "${item.title}|${item.subtitle}")
+                }
+                shelf.copy(items = unique).takeIf { unique.isNotEmpty() }
+            }
     }
 
     /**
@@ -298,7 +306,7 @@ object HomePersonalizer {
             return NewFeedPartition(personalized = emptyList(), global = cleaned)
         }
 
-        val allItems = cleaned.flatMap { it.items }
+        val allItems = cleaned.filterNot { isGenericWorldwideShelf(it.title) }.flatMap { it.items }
             .filter { it.videoId == null || it.videoId !in profile.skippedIds }
             .distinctBy { it.videoId ?: it.browseId ?: it.title }
 
@@ -308,8 +316,7 @@ object HomePersonalizer {
         // Tier 1: Latest releases from favourite & frequently played artists.
         if (profile.preferredArtistNames.isNotEmpty()) {
             val fromFavArtists = allItems.filter { item ->
-                val text = "${item.title} ${item.subtitle}".lowercase(Locale.ROOT)
-                profile.preferredArtistNames.any { artist -> artist.length >= 2 && text.contains(artist) }
+                matchesArtist(item, profile)
             }
             if (fromFavArtists.isNotEmpty()) {
                 val items = rotateList(fromFavArtists, refreshSeed).take(12)
@@ -344,11 +351,15 @@ object HomePersonalizer {
         for (shelf in cleaned) {
             val lower = shelf.title.lowercase(Locale.ROOT)
             val isGlobal = isGenericWorldwideShelf(lower) || lower.contains("new release")
-            val hasAffinity = shelf.items.any { itemAffinityScore(it, profile) > 0 }
-            if (!isGlobal && (hasAffinity || lower.contains("playlist") || lower.contains("emerging") || lower.contains("similar"))) {
-                personalizedShelves += shelf
+            val remaining = shelf.items.filter { item ->
+                (item.videoId ?: item.browseId ?: item.title) !in usedKeys
+            }
+            val relevantItems = remaining.filter { itemAffinityScore(it, profile) > 0 }
+            if (!isGlobal && relevantItems.isNotEmpty()) {
+                personalizedShelves += shelf.copy(items = relevantItems)
+                relevantItems.forEach { usedKeys.add(it.videoId ?: it.browseId ?: it.title) }
             } else {
-                globalShelves += shelf
+                if (remaining.isNotEmpty()) globalShelves += shelf.copy(items = remaining)
             }
         }
 
@@ -372,18 +383,34 @@ object HomePersonalizer {
         val vid = item.videoId
         if (vid != null) {
             if (vid in profile.likedIds) score += 40
+            if (profile.recentSongs.any { it.song.videoId == vid } ||
+                profile.allTimeSongs.any { it.song.videoId == vid }) score += 35
             if (vid in profile.skippedIds) score -= 35
             if (vid in profile.dislikedIds) score -= 100
         }
-        val text = "${item.title} ${item.subtitle}".lowercase(Locale.ROOT)
-        if (profile.preferredArtistNames.any { artist -> artist.length >= 2 && text.contains(artist) }) {
+        val browseId = item.browseId
+        if (browseId != null && profile.topArtists.any { it.browseId == browseId }) score += 40
+        if (browseId != null && profile.topAlbums.any { it.browseId == browseId }) score += 30
+        if (matchesArtist(item, profile)) {
             score += 30
         }
-        if (profile.preferredGenreNames.any { genre -> genre.length >= 3 && text.contains(genre) }) {
+        val text = "${item.title} ${item.subtitle}"
+        if (profile.preferredGenreNames.any { genre -> genre.length >= 3 && containsWholePhrase(text, genre) }) {
             score += 20
         }
         return score
     }
+
+    private fun matchesArtist(item: ShelfItem, profile: ListenerProfile): Boolean {
+        if (item.browseId != null && profile.topArtists.any { it.browseId == item.browseId }) return true
+        return profile.preferredArtistNames.any { artist ->
+            artist.length >= 2 && containsWholePhrase(item.subtitle, artist)
+        }
+    }
+
+    private fun containsWholePhrase(text: String, phrase: String): Boolean =
+        Regex("(?<![\\p{L}\\p{N}])${Regex.escape(phrase)}(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+            .containsMatchIn(text)
 
     private fun homeShelfPriorityRank(shelf: HomeShelf, profile: ListenerProfile): Int {
         val lower = shelf.title.lowercase(Locale.ROOT)

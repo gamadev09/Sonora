@@ -77,6 +77,8 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.playingRowMatcher
 import com.music.bitchord.data.model.UiState
 import com.music.bitchord.data.model.SearchHistoryEntity
+import com.music.bitchord.data.model.MoodGenre
+import com.music.bitchord.data.model.MoodGenreSection
 import com.music.bitchord.data.model.EntityType
 import com.music.bitchord.ui.components.MessageState
 import com.music.bitchord.ui.components.PAGE_GUTTER
@@ -170,6 +172,10 @@ fun SearchScreen(
      * about the results, and the switcher would just push them down.
      */
     sourceSwitcher: (@Composable () -> Unit)? = null,
+    browseCategories: UiState<List<MoodGenreSection>>? = null,
+    preferredGenres: Set<String> = emptySet(),
+    onCategoryClick: (MoodGenre) -> Unit = {},
+    onCategoriesRetry: () -> Unit = {},
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -327,21 +333,26 @@ fun SearchScreen(
                         )
                     }
                 }
-                results == null -> if (history.isEmpty()) {
-                    item(key = "search:empty", contentType = "message") {
-                        MessageState(stringResource(Res.string.search_empty))
+                results == null -> {
+                    if (history.isNotEmpty()) {
+                        recentSearches(
+                            history = history,
+                            currentSong = currentSong,
+                            isPlaying = isPlaying,
+                            onClick = onHistoryClick,
+                            onSongLongPress = onSongLongPress,
+                            onRemove = onHistoryRemove,
+                            onClear = onHistoryClear,
+                            onSongSwipe = onSongSwipe,
+                        )
                     }
-                } else {
-                    recentSearches(
-                        history = history,
-                        currentSong = currentSong,
-                        isPlaying = isPlaying,
-                        onClick = onHistoryClick,
-                        onSongLongPress = onSongLongPress,
-                        onRemove = onHistoryRemove,
-                        onClear = onHistoryClear,
-                        onSongSwipe = onSongSwipe,
-                    )
+                    if (query.isBlank() && browseCategories != null) {
+                        moodGenreBrowse(browseCategories, preferredGenres, onCategoryClick, onCategoriesRetry)
+                    } else if (history.isEmpty() && query.isBlank()) {
+                        item(key = "search:empty", contentType = "message") {
+                            MessageState(stringResource(Res.string.search_empty))
+                        }
+                    }
                 }
                 results is UiState.Loading -> songListSkeleton(circular = filter == SearchFilter.ARTISTS)
                 results is UiState.Error -> item(key = "search:error", contentType = "message") {

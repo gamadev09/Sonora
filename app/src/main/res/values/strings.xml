@@ -26,6 +26,8 @@
     <string name="home">Home</string>
     <string name="play">Play</string>
     <string name="explore">Explore</string>
+    <string name="new_music">New</string>
+    <string name="auto_refresh">Auto</string>
     <string name="listen_now">Listen Now</string>
     <string name="downloads">Downloads</string>
     <string name="downloaded_songs">Downloaded songs</string>

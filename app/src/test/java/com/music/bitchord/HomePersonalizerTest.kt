@@ -114,12 +114,55 @@ class HomePersonalizerTest {
     }
 
     @Test
-    fun `new users without listening history keep clean provider feed`() {
+    fun `new users without listening history do not receive unrelated provider feed`() {
         val raw = listOf(
             HomeShelf("Discover something new", listOf(shelfItem("x1", "Fresh", "Artist"))),
         )
         val result = HomePersonalizer.personalizeShelves(raw, ListenerProfile())
-        assertEquals(1, result.size)
-        assertEquals("Discover something new", result.single().title)
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `relevant shelf title does not admit unrelated tracks or duplicate recordings`() {
+        val profile = ListenerProfile(seedGenres = setOf("Electronic"))
+        val raw = listOf(
+            HomeShelf("Made for you", listOf(
+                shelfItem("related", "Night Drive", "Electronic"),
+                shelfItem("unrelated", "Country Road", "Country"),
+            )),
+            HomeShelf("Recommended albums", listOf(
+                shelfItem("related", "Night Drive", "Electronic"),
+                shelfItem("other", "House Music", "Electronic"),
+            )),
+        )
+        val ids = HomePersonalizer.personalizeShelves(raw, profile)
+            .flatMap { it.items }.mapNotNull { it.videoId }
+        assertEquals(listOf("related", "other"), ids)
+    }
+
+    @Test
+    fun `artist names require a whole phrase match`() {
+        val profile = ListenerProfile(topArtists = listOf(
+            RankedEntry("Muse", null, null, "UC_MUSE", 200_000L, 3),
+        ))
+        val raw = listOf(HomeShelf("Recommended", listOf(
+            shelfItem("wrong", "A Song", "Museum Ensemble"),
+            shelfItem("right", "Another Song", "Muse"),
+        )))
+        val ids = HomePersonalizer.personalizeShelves(raw, profile)
+            .flatMap { it.items }.mapNotNull { it.videoId }
+        assertTrue("right" in ids)
+        assertFalse("wrong" in ids)
+    }
+
+    @Test
+    fun `global chart title cannot turn into a personalised release`() {
+        val profile = ListenerProfile(topArtists = listOf(
+            RankedEntry("Muse", null, null, "UC_MUSE", 200_000L, 3),
+        ))
+        val chart = HomeShelf("Worldwide Charts", listOf(shelfItem("chart", "Hit", "Muse")))
+        val partition = HomePersonalizer.personalizeNewShelves(listOf(chart), profile)
+        assertTrue(partition.personalized.isEmpty())
+        assertEquals("Worldwide Charts", partition.global.single().title)
     }
 }

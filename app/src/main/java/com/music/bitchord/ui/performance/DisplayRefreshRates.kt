@@ -23,4 +23,4 @@ fun Display?.supportedPerformanceRefreshRates(): List<Int> {
 
 /** Maps a saved preference to a real mode, including preferences restored on another device. */
 fun Display?.resolvePerformanceRefreshRate(preferred: Int): Int =
-    supportedPerformanceRefreshRates().minBy { abs(it - preferred) }
+    if (preferred == 0) 0 else supportedPerformanceRefreshRates().minBy { abs(it - preferred) }

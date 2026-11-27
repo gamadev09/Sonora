@@ -139,6 +139,8 @@
     <string name="clear_search">Suche löschen</string>
     <string name="downloaded">Heruntergeladen</string>
     <string name="explore">Entdecken</string>
+    <string name="new_music">Neu</string>
+    <string name="global_charts">Weltweite Neuerscheinungen und Charts</string>
     <string name="library">Bibliothek</string>
     <string name="library_sign_in_description">Melde dich mit deinem Google-Konto an, um deine gelikten Songs, Playlists und den YouTube-Music-Verlauf zu sehen.</string>
     <string name="new_playlist">Neue Playlist</string>

@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.ui.components.BottomFadeScrim
 import com.music.bitchord.ui.components.BottomTab
 import com.music.bitchord.ui.components.FloatingBottomBar
@@ -159,6 +160,8 @@ private fun ChromeStack(scrolled: Boolean, withMiniPlayer: Boolean) {
                     song = PreviewSong,
                     isPlaying = true,
                     isLoading = false,
+                    position = remember { PlaybackPosition() },
+                    durationMs = 0L,
                     hazeState = hazeState,
                     onPlayPause = {},
                     onNext = {},
@@ -227,6 +230,8 @@ private fun MiniPlayerPreview() {
                 song = PreviewSong,
                 isPlaying = true,
                 isLoading = false,
+                position = remember { PlaybackPosition() },
+                durationMs = 0L,
                 hazeState = haze,
                 onPlayPause = {}, onNext = {}, onPrevious = {}, onExpand = {},
                 modifier = Modifier.fillMaxWidth(),
@@ -235,6 +240,8 @@ private fun MiniPlayerPreview() {
                 song = PreviewSong.copy(title = "A considerably longer track title that has to truncate"),
                 isPlaying = false,
                 isLoading = false,
+                position = remember { PlaybackPosition() },
+                durationMs = 0L,
                 hazeState = haze,
                 onPlayPause = {}, onNext = {}, onPrevious = {}, onExpand = {},
                 modifier = Modifier.fillMaxWidth(),
@@ -243,6 +250,8 @@ private fun MiniPlayerPreview() {
                 song = PreviewSong,
                 isPlaying = false,
                 isLoading = true,
+                position = remember { PlaybackPosition() },
+                durationMs = 0L,
                 hazeState = haze,
                 onPlayPause = {}, onNext = {}, onPrevious = {}, onExpand = {},
                 modifier = Modifier.fillMaxWidth(),

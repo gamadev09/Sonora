@@ -477,17 +477,12 @@ object AppSettings {
      */
     val onboardingComplete = MutableStateFlow(false)
 
-    /** Requests a sustained high-refresh UI. Off keeps Android's automatic policy. */
-    val highPerformanceMode = MutableStateFlow(false)
-
-    /** Preferred UI refresh rate while [highPerformanceMode] is enabled. */
+    /** 0 lets Android select a refresh rate; otherwise this is a user preference. */
     val performanceRefreshRate = MutableStateFlow(DEFAULT_PERFORMANCE_REFRESH_RATE)
 
     /** Stop playback when the app is swiped away from the recent apps screen. */
     val stopOnTaskRemoved = MutableStateFlow(true)
 
-    /** Hides the volume slider on the main player, leaving the rest of the layout to reflow. */
-    val hideVolumeBar = MutableStateFlow(false)
 
     /** Hides the device status bar (clock, battery, notifications) while the main player is open. */
     val hideStatusBarInPlayer = MutableStateFlow(false)
@@ -1110,12 +1105,17 @@ object AppSettings {
         showListenTogetherButton.value = prefs.getBoolean(KEY_LISTEN_TOGETHER_BUTTON, false)
         reduceAnimation.value = prefs.getBoolean(KEY_REDUCE_ANIMATION, false)
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
-        highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
-            prefs.getInt(KEY_PERFORMANCE_REFRESH_RATE, DEFAULT_PERFORMANCE_REFRESH_RATE),
+            if (prefs.contains(KEY_HIGH_PERFORMANCE_MODE) &&
+                !prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false) &&
+                prefs.getInt(KEY_PERFORMANCE_REFRESH_RATE, 0) > 60
+            ) 0
+            else if (prefs.contains(KEY_PERFORMANCE_REFRESH_RATE))
+                prefs.getInt(KEY_PERFORMANCE_REFRESH_RATE, DEFAULT_PERFORMANCE_REFRESH_RATE)
+            else if (prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)) 120
+            else DEFAULT_PERFORMANCE_REFRESH_RATE,
         )
         stopOnTaskRemoved.value = prefs.getBoolean(KEY_STOP_ON_TASK_REMOVED, true)
-        hideVolumeBar.value = prefs.getBoolean(KEY_HIDE_VOLUME_BAR, false)
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
         hideSongStatus.value = prefs.getBoolean(KEY_HIDE_SONG_STATUS, false)
         hideLyricsPreview.value = prefs.getBoolean(KEY_HIDE_LYRICS_PREVIEW, false)
@@ -1140,10 +1140,6 @@ object AppSettings {
         lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
         translationLanguage.value = prefs.getString(KEY_TRANSLATION_LANGUAGE, "").orEmpty()
-        if (highPerformanceMode.value) {
-            reduceAnimation.value = false
-            reduceDynamicBlur.value = false
-        }
         animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
         canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
         disableSpotifyCanvas.value = prefs.getBoolean(KEY_DISABLE_SPOTIFY_CANVAS, false)
@@ -1553,10 +1549,7 @@ object AppSettings {
 
     fun setReduceAnimation(value: Boolean) {
         reduceAnimation.value = value
-        if (value) highPerformanceMode.value = false
-        val editor = prefs.edit().putBoolean(KEY_REDUCE_ANIMATION, value)
-        if (value) editor.putBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
-        editor.apply()
+        prefs.edit().putBoolean(KEY_REDUCE_ANIMATION, value).apply()
     }
 
     fun setOnboardingComplete() {
@@ -1567,11 +1560,6 @@ object AppSettings {
     fun setStopOnTaskRemoved(value: Boolean) {
         stopOnTaskRemoved.value = value
         prefs.edit().putBoolean(KEY_STOP_ON_TASK_REMOVED, value).apply()
-    }
-
-    fun setHideVolumeBar(value: Boolean) {
-        hideVolumeBar.value = value
-        prefs.edit().putBoolean(KEY_HIDE_VOLUME_BAR, value).apply()
     }
 
     fun setHideStatusBarInPlayer(value: Boolean) {
@@ -1652,10 +1640,7 @@ object AppSettings {
 
     fun setReduceDynamicBlur(value: Boolean) {
         reduceDynamicBlur.value = value
-        if (value) highPerformanceMode.value = false
-        val editor = prefs.edit().putBoolean(KEY_REDUCE_BLUR, value)
-        if (value) editor.putBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
-        editor.apply()
+        prefs.edit().putBoolean(KEY_REDUCE_BLUR, value).apply()
     }
 
     fun setLiquidGlass(value: Boolean) {
@@ -1673,24 +1658,11 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_PROGRESSIVE_BLUR, value).apply()
     }
 
-    fun setHighPerformanceMode(value: Boolean) {
-        highPerformanceMode.value = value
-        if (value) {
-            reduceAnimation.value = false
-            reduceDynamicBlur.value = false
-        }
-        val editor = prefs.edit().putBoolean(KEY_HIGH_PERFORMANCE_MODE, value)
-        if (value) {
-            editor.putBoolean(KEY_REDUCE_ANIMATION, false)
-            editor.putBoolean(KEY_REDUCE_BLUR, false)
-        }
-        editor.apply()
-    }
-
     fun setPerformanceRefreshRate(value: Int) {
         val normalized = normalizePerformanceRefreshRate(value)
         performanceRefreshRate.value = normalized
-        prefs.edit().putInt(KEY_PERFORMANCE_REFRESH_RATE, normalized).apply()
+        prefs.edit().putInt(KEY_PERFORMANCE_REFRESH_RATE, normalized)
+            .remove(KEY_HIGH_PERFORMANCE_MODE).apply()
     }
 
     fun setLyricsBlur(value: Boolean) {
@@ -2393,10 +2365,10 @@ object AppSettings {
     const val MIN_UPGRADE_LENGTH_SLACK_SECONDS = 0
     const val MAX_UPGRADE_LENGTH_SLACK_SECONDS = 10
 
-    private const val DEFAULT_PERFORMANCE_REFRESH_RATE = 120
+    private const val DEFAULT_PERFORMANCE_REFRESH_RATE = 0
 
     private fun normalizePerformanceRefreshRate(value: Int): Int =
-        value.takeIf { it in 50..240 } ?: DEFAULT_PERFORMANCE_REFRESH_RATE
+        value.takeIf { it == 0 || it in listOf(60, 90, 120) } ?: DEFAULT_PERFORMANCE_REFRESH_RATE
 
     fun normalizeSignatureApiUrl(raw: String): String =
         raw.trim().trimEnd('/').take(500)
@@ -2450,7 +2422,6 @@ object AppSettings {
     private const val KEY_HIGH_PERFORMANCE_MODE = "high_performance_mode"
     private const val KEY_PERFORMANCE_REFRESH_RATE = "performance_refresh_rate"
     private const val KEY_STOP_ON_TASK_REMOVED = "stop_on_task_removed"
-    private const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
     private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"
     private const val KEY_HIDE_SONG_STATUS = "hide_song_status"
     private const val KEY_HIDE_LYRICS_PREVIEW = "hide_lyrics_preview"

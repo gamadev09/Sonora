@@ -152,7 +152,6 @@ import com.music.bitchord.ui.components.languageDisplayNameRes
 import com.music.bitchord.ui.components.MessageState
 import com.music.bitchord.ui.components.SearchField
 import com.music.bitchord.ui.components.thumbnailBorder
-import com.music.bitchord.ui.performance.resolvePerformanceRefreshRate
 import com.music.bitchord.ui.performance.supportedPerformanceRefreshRates
 import com.music.bitchord.data.model.Account
 import com.music.bitchord.data.LocalMediaRepository
@@ -290,7 +289,6 @@ fun SettingsScreen(
     val syncDownloadedPlaylists by AppSettings.syncDownloadedPlaylists.collectAsStateWithLifecycle()
     val downloadLikedSongs by AppSettings.downloadLikedSongs.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
-    val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
     val hideStatusBarInPlayer by AppSettings.hideStatusBarInPlayer.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
     val showQueueHistory by AppSettings.showQueueHistory.collectAsStateWithLifecycle()
@@ -305,14 +303,13 @@ fun SettingsScreen(
     val smartVersionAlignment by AppSettings.smartVersionAlignment.collectAsStateWithLifecycle()
     val filterNonMusicAudio by AppSettings.filterNonMusicAudio.collectAsStateWithLifecycle()
     val localMusicFolderUri by AppSettings.localMusicFolderUri.collectAsStateWithLifecycle()
-    val highPerformanceMode by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
     val performanceRefreshRate by AppSettings.performanceRefreshRate.collectAsStateWithLifecycle()
     val currentDisplay = LocalView.current.display
     val supportedRefreshRates = remember(currentDisplay) {
         currentDisplay.supportedPerformanceRefreshRates()
     }
-    val selectedPerformanceRefreshRate = remember(currentDisplay, performanceRefreshRate) {
-        currentDisplay.resolvePerformanceRefreshRate(performanceRefreshRate)
+    val selectedPerformanceRefreshRate = remember(supportedRefreshRates, performanceRefreshRate) {
+        performanceRefreshRate.takeIf { it == 0 || it in supportedRefreshRates } ?: 0
     }
 
     LaunchedEffect(selectedPerformanceRefreshRate, performanceRefreshRate) {
@@ -1177,22 +1174,25 @@ fun SettingsScreen(
                     onClick = { AppSettings.setDisableBlendEffects(!disableBlendEffects) },
                 )
             }
-            if (supportedRefreshRates.size > 1) {
+            if (supportedRefreshRates.isNotEmpty()) {
                 val refreshRateTitle = stringResource(R.string.refresh_rate)
                 row(refreshRateTitle, "hz", "frame rate", "smooth") {
                     SettingsRow(
                         icon = SfIcons.FrameRate,
                         title = refreshRateTitle,
-                        subtitle = "$selectedPerformanceRefreshRate Hz",
+                        subtitle = if (selectedPerformanceRefreshRate == 0) stringResource(R.string.auto_refresh)
+                            else "$selectedPerformanceRefreshRate Hz",
                     )
                     SegmentedControl(
-                        options = supportedRefreshRates.map { "$it Hz" },
-                        selectedIndex = supportedRefreshRates.indexOf(selectedPerformanceRefreshRate).coerceAtLeast(0),
+                        options = listOf(stringResource(R.string.auto_refresh), "60 Hz", "90 Hz", "120 Hz"),
+                        selectedIndex = listOf(0, 60, 90, 120).indexOf(selectedPerformanceRefreshRate).coerceAtLeast(0),
                         onSelect = { index ->
-                            val rate = supportedRefreshRates[index]
+                            val rate = listOf(0, 60, 90, 120)[index]
                             AppSettings.setPerformanceRefreshRate(rate)
-                            AppSettings.setHighPerformanceMode(rate > 60)
                         },
+                        disabled = listOf(60, 90, 120).mapIndexedNotNull { index, rate ->
+                            (index + 1).takeIf { rate !in supportedRefreshRates }
+                        }.toSet(),
                         modifier = Modifier.padding(
                             start = TEXT_INSET,
                             end = ROW_INSET,
@@ -1438,28 +1438,6 @@ fun SettingsScreen(
             }
         }
 
-        if (shows(SettingsCategory.PERFORMANCE)) SearchableSettingsGroup(search, header = stringResource(R.string.performance)) {
-            val highPerformanceModeTitle = stringResource(R.string.high_performance_mode)
-            row(highPerformanceModeTitle, "frame rate", "refresh rate", "hz", "battery", "smooth") {
-                SettingsRow(
-                    icon = SfIcons.Performance,
-                    title = highPerformanceModeTitle,
-                    subtitle = if (highPerformanceMode) {
-                        stringResource(R.string.high_performance_active, selectedPerformanceRefreshRate)
-                    } else {
-                        stringResource(R.string.high_performance_subtitle)
-                    },
-                    trailing = {
-                        IosSwitch(
-                            checked = highPerformanceMode,
-                            onCheckedChange = AppSettings::setHighPerformanceMode,
-                        )
-                    },
-                    onClick = { AppSettings.setHighPerformanceMode(!highPerformanceMode) },
-                )
-            }
-        }
-
         if (shows(SettingsCategory.LOCAL_MUSIC)) SearchableSettingsGroup(search, header = stringResource(R.string.local_music)) {
             val localMusicFolderTitle = stringResource(R.string.local_music_folder)
             row(localMusicFolderTitle, "folder", "offline", "files") {
@@ -1681,21 +1659,6 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setStopOnTaskRemoved(!stopOnTaskRemoved) },
-                )
-            }
-            val hideVolumeBarTitle = stringResource(R.string.hide_volume_bar)
-            row(hideVolumeBarTitle, "volume", "player") {
-                SettingsRow(
-                    icon = SfIcons.VolumeOff,
-                    title = hideVolumeBarTitle,
-                    subtitle = stringResource(R.string.hide_volume_bar_subtitle),
-                    trailing = {
-                        IosSwitch(
-                            checked = hideVolumeBar,
-                            onCheckedChange = AppSettings::setHideVolumeBar,
-                        )
-                    },
-                    onClick = { AppSettings.setHideVolumeBar(!hideVolumeBar) },
                 )
             }
             val listenTogetherButtonTitle = stringResource(R.string.show_listen_together_button)
@@ -2920,7 +2883,6 @@ enum class SettingsCategory(@param:StringRes val title: Int) {
     PLAYBACK(R.string.playback),
     CONTENT_PREFERENCES(R.string.content_preferences),
     APPEARANCE(R.string.appearance),
-    PERFORMANCE(R.string.performance),
     LOCAL_MUSIC(R.string.local_music),
     STORAGE(R.string.storage),
     YOUR_DATA(R.string.your_data),
@@ -2934,7 +2896,6 @@ enum class SettingsCategory(@param:StringRes val title: Int) {
             PLAYBACK -> SfIcons.PlayCircle
             CONTENT_PREFERENCES -> SfIcons.Video
             APPEARANCE -> SfIcons.Appearance
-            PERFORMANCE -> SfIcons.Performance
             LOCAL_MUSIC -> SfIcons.LibraryMusic
             STORAGE -> SfIcons.Storage
             YOUR_DATA -> SfIcons.YourData

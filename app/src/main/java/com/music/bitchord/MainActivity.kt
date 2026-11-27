@@ -2,6 +2,9 @@ package com.music.bitchord
 
 import android.Manifest
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.os.PowerManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -353,6 +356,7 @@ import com.music.bitchord.ui.player.PlayerDock
 import com.music.bitchord.ui.screens.DetailScreen
 import com.music.bitchord.ui.screens.sortedForDetail
 import com.music.bitchord.ui.screens.ExploreScreen
+import com.music.bitchord.ui.screens.NewScreen
 import com.music.bitchord.ui.screens.LocalFolder
 import com.music.bitchord.ui.screens.LocalFolderState
 import com.music.bitchord.ui.screens.LocalFolderTab
@@ -443,8 +447,23 @@ class MainActivity : AppCompatActivity() {
             val iosOverscrollFactory = rememberIosOverscrollFactory()
             val performanceRefreshRate by AppSettings.performanceRefreshRate.collectAsStateWithLifecycle()
             val composeView = LocalView.current
-            LaunchedEffect(performanceRefreshRate, composeView) {
+            DisposableEffect(performanceRefreshRate, composeView) {
+                val power = getSystemService(PowerManager::class.java)
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        applyPerformanceMode(performanceRefreshRate, composeView)
+                    }
+                }
+                val thermalListener = PowerManager.OnThermalStatusChangedListener {
+                    applyPerformanceMode(performanceRefreshRate, composeView)
+                }
+                registerReceiver(receiver, IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED))
+                power?.addThermalStatusListener(mainExecutor, thermalListener)
                 applyPerformanceMode(performanceRefreshRate, composeView)
+                onDispose {
+                    unregisterReceiver(receiver)
+                    power?.removeThermalStatusListener(thermalListener)
+                }
             }
             val darkTheme = when (theme) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -515,7 +534,11 @@ class MainActivity : AppCompatActivity() {
      * hardware limits, which is why Settings describes this as a preference.
      */
     private fun applyPerformanceMode(refreshRate: Int, composeView: View) {
-        val supportedRefreshRate = composeView.display.resolvePerformanceRefreshRate(refreshRate)
+        val power = getSystemService(PowerManager::class.java)
+        val restricted = power?.isPowerSaveMode == true ||
+            (power?.currentThermalStatus ?: PowerManager.THERMAL_STATUS_NONE) >= PowerManager.THERMAL_STATUS_SEVERE
+        val supportedRefreshRate = if (restricted || refreshRate == 0) 0
+            else composeView.display.resolvePerformanceRefreshRate(refreshRate)
         val highRefresh = supportedRefreshRate > 60
         window.attributes = window.attributes.apply {
             preferredRefreshRate = supportedRefreshRate.toFloat()
@@ -586,7 +609,7 @@ private fun BitChordApp(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     // Explore loads the first time it's shown, not at launch beside Home.
     LaunchedEffect(selectedTab) {
-        if (selectedTab == TAB_EXPLORE) viewModel.onExploreShown()
+        if (selectedTab == TAB_SEARCH) viewModel.onSearchShown()
     }
     /**
      * Whether the player's sheet is up. The player is always a full-screen
@@ -924,6 +947,7 @@ private fun BitChordApp(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val exploreState by viewModel.explore.collectAsStateWithLifecycle()
+    val newReleasesState by viewModel.newReleases.collectAsStateWithLifecycle()
     val mixesState by viewModel.mixes.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
     val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
@@ -1276,7 +1300,7 @@ private fun BitChordApp(
     val mixesListState = rememberLazyListState()
     val currentListState = when (selectedTab) {
         TAB_HOME -> homeListState
-        TAB_EXPLORE -> if (selectedMoodGenre == null) exploreListState else moodGenreListState
+        TAB_EXPLORE -> exploreListState
         TAB_RADIO -> mixesListState
         TAB_LIBRARY -> libraryListState
         else -> searchListState
@@ -1309,6 +1333,7 @@ private fun BitChordApp(
     // or switch while the page is open is a different set of them.
     LaunchedEffect(currentFeed, signedIn, account) {
         if (currentFeed == MainViewModel.Feed.MIXES) viewModel.onMixesShown()
+        if (currentFeed == MainViewModel.Feed.EXPLORE) viewModel.onExploreShown()
     }
 
     val currentPull = when (currentFeed) {
@@ -1393,7 +1418,7 @@ private fun BitChordApp(
     // a fold. Keyed on the labels so a locale change still rebuilds it.
     val homeLabel = stringResource(R.string.home)
     val playLabel = stringResource(R.string.play)
-    val exploreLabel = stringResource(R.string.explore)
+    val exploreLabel = stringResource(R.string.new_music)
     val libraryLabel = stringResource(R.string.library)
     val radioLabel = stringResource(R.string.radio)
     val searchLabel = stringResource(R.string.search)
@@ -3699,7 +3724,30 @@ private fun BitChordApp(
                                     }
                                 },
                             )
-                            TAB_EXPLORE -> selectedMoodGenre?.let { category ->
+                            TAB_EXPLORE -> NewScreen(
+                                state = newReleasesState,
+                                globalShelves = newReleasesGlobal,
+                                listState = exploreListState,
+                                onRetry = viewModel::loadExplore,
+                                refreshing = MainViewModel.Feed.EXPLORE in refreshing,
+                                onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
+                                pullState = explorePull,
+                                contentPadding = listPadding,
+                                onShelfItemClick = { item ->
+                                    item.videoId?.let { videoId ->
+                                        playRadio(
+                                            Song(videoId = videoId, title = item.title,
+                                                artist = InnertubeParser.artistFromSubtitle(item.subtitle),
+                                                thumbnailUrl = item.thumbnailUrl, isVideo = item.isVideo),
+                                            QueueSource("New", PlaybackSourceType.EXPLORE, null),
+                                        )
+                                    } ?: item.browseId?.let { browseId ->
+                                        viewModel.openDetail(browseId = browseId, title = item.title,
+                                            subtitle = item.subtitle, thumbnailUrl = item.thumbnailUrl)
+                                    }
+                                },
+                            )
+                            TAB_SEARCH -> selectedMoodGenre?.let { category ->
                                 MoodGenrePlaylistsScreen(
                                     title = category.title,
                                     state = moodGenreShelves,
@@ -3716,7 +3764,7 @@ private fun BitChordApp(
                                                 ),
                                                 QueueSource(
                                                     category.title,
-                                                    PlaybackSourceType.EXPLORE,
+                                                    PlaybackSourceType.SEARCH,
                                                     category.browseId,
                                                 ),
                                             )
@@ -3732,40 +3780,7 @@ private fun BitChordApp(
                                     onRetry = { viewModel.openMoodGenre(category) },
                                     contentPadding = listPadding,
                                 )
-                            } ?: ExploreScreen(
-                                state = exploreState,
-                                listState = exploreListState,
-                                onCategoryClick = viewModel::openMoodGenre,
-                                onRetry = viewModel::loadExplore,
-                                refreshing = MainViewModel.Feed.EXPLORE in refreshing,
-                                onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
-                                pullState = explorePull,
-                                contentPadding = listPadding,
-                                personalizedNewShelves = newReleasesPersonalized,
-                                globalNewShelves = newReleasesGlobal,
-                                onShelfItemClick = { item ->
-                                    item.videoId?.let { videoId ->
-                                        playRadio(
-                                            Song(
-                                                videoId = videoId,
-                                                title = item.title,
-                                                artist = InnertubeParser.artistFromSubtitle(item.subtitle),
-                                                thumbnailUrl = item.thumbnailUrl,
-                                                isVideo = item.isVideo,
-                                            ),
-                                            QueueSource("New", PlaybackSourceType.EXPLORE, null),
-                                        )
-                                    } ?: item.browseId?.let { browseId ->
-                                        viewModel.openDetail(
-                                            browseId = browseId,
-                                            title = item.title,
-                                            subtitle = item.subtitle,
-                                            thumbnailUrl = item.thumbnailUrl,
-                                        )
-                                    }
-                                },
-                            )
-                            TAB_SEARCH -> SearchScreen(
+                            } ?: SearchScreen(
                                 query = query,
                                 onQueryChange = viewModel::onQueryChange,
                                 filter = filter,
@@ -3926,6 +3941,10 @@ private fun BitChordApp(
                                 },
                                 onAddonHistoryRemove = viewModel::removeAddonSearch,
                                 onAddonHistoryClear = viewModel::clearAddonSearchHistory,
+                                browseCategories = exploreState.takeIf { searchSource == SearchSource.YOUTUBE },
+                                preferredGenres = selectedTasteGenres,
+                                onCategoryClick = viewModel::openMoodGenre,
+                                onCategoriesRetry = viewModel::loadCategories,
                                 // The same queue opening the Local Music folder and
                                 // tapping the row there would give.
                                 onLibrarySongClick = { songs, index ->
@@ -4511,6 +4530,8 @@ private fun BitChordApp(
                             song = song,
                             isPlaying = player.isPlaying,
                             isLoading = playPauseBusy,
+                            position = player.position,
+                            durationMs = player.durationMs,
                             animationsActive = !showNowPlaying,
                             hazeState = hazeState,
                             onPlayPause = {

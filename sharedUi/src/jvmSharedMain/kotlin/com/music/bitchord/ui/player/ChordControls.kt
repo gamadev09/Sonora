@@ -35,8 +35,15 @@ import com.music.bitchord.playback.chords.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Tune
+import com.music.bitchord.sharedui.resources.*
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.music.bitchord.ui.icons.BitChordIcons
@@ -73,10 +80,12 @@ internal class ChordUiState(private val scope: CoroutineScope) {
     var simplify by mutableStateOf(false)
     var notation by mutableStateOf(ChordNotation.AUTO)
     var options by mutableStateOf(false)
-    var piano by mutableStateOf(false)
-    var guitar by mutableStateOf(false)
+    var instrument by mutableStateOf(ChordInstrument.INLINE)
+    val piano: Boolean get() = instrument == ChordInstrument.PIANO
+    val guitar: Boolean get() = instrument == ChordInstrument.GUITAR
     var diagramsExpanded by mutableStateOf(true)
     var capo by mutableIntStateOf(0)
+    var capoManuallySet by mutableStateOf(false)
     var accentColor by mutableStateOf(DEFAULT_CHORD_ACCENT)
 
     private val cachedDisplayEvents by derivedStateOf {
@@ -123,6 +132,8 @@ internal class ChordUiState(private val scope: CoroutineScope) {
         canCancel = false
     }
 }
+
+internal enum class ChordInstrument { INLINE, GUITAR, PIANO }
 
 @Composable
 internal fun rememberChordState(
@@ -238,7 +249,11 @@ internal fun ChordAnalysisToggleButton(
         } else {
             Icon(
                 imageVector = BitChordIcons.MusicNote,
-                contentDescription = if (state.events == null) "Find chords" else if (state.show) "Hide chords" else "Show chords",
+                contentDescription = stringResource(when {
+                    state.events == null -> Res.string.chord_find
+                    state.show -> Res.string.chord_hide
+                    else -> Res.string.chord_show
+                }),
                 tint = tint,
                 modifier = Modifier.size(19.dp),
             )
@@ -269,59 +284,108 @@ internal fun ChordControls(
             when {
                 state.loading -> {
                     Text(
-                        "Analysing chords…",
+                        stringResource(Res.string.chord_analyzing),
                         color = chromeWhite(0.75f),
                         style = MaterialTheme.typography.labelMedium,
                     )
                     if (state.canCancel || state.job != null) {
-                        ChordGlassButton(label = "Cancel", onClick = { state.cancelAnalysis(song, source) })
+                        ChordGlassButton(label = stringResource(Res.string.chord_cancel), onClick = { state.cancelAnalysis(song, source) })
                     }
                 }
                 state.events == null -> {
-                    ChordGlassButton(label = "Find chords", onClick = { state.startAnalysis(song, source) })
+                    ChordGlassButton(label = stringResource(Res.string.chord_find), onClick = { state.startAnalysis(song, source) })
                 }
                 else -> {
-                    ChordGlassPill(label = "Guitar", active = state.guitar, onClick = {
-                        state.guitar = !state.guitar
-                        if (state.guitar) {
-                            state.piano = false
-                            state.show = true
-                            state.diagramsExpanded = true
-                            state.capo = suggestedCapo(if (state.simplify) simplifyChordEvents(state.events.orEmpty()) else state.events.orEmpty())
+                    Row(
+                        Modifier.clip(RoundedCornerShape(14.dp))
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        listOf(
+                            ChordInstrument.INLINE to stringResource(Res.string.chord_inline),
+                            ChordInstrument.GUITAR to stringResource(Res.string.chord_guitar),
+                            ChordInstrument.PIANO to stringResource(Res.string.chord_piano),
+                        ).forEach { (instrument, label) ->
+                            val selected = state.instrument == instrument
+                            Box(
+                                Modifier.height(42.dp)
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .background(if (selected) state.accentColor.copy(alpha = 0.35f) else Color.Transparent)
+                                    .clickable(role = Role.RadioButton) {
+                                        if (instrument == ChordInstrument.GUITAR && !state.capoManuallySet) {
+                                            state.capo = suggestedCapo(state.events.orEmpty())
+                                        }
+                                        state.instrument = instrument
+                                        state.show = true
+                                    }
+                                    .padding(horizontal = 10.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(label, color = if (selected) Color.White else chromeWhite(0.72f),
+                                    style = MaterialTheme.typography.labelMedium)
+                            }
                         }
-                    })
-                    ChordGlassPill(label = "Piano", active = state.piano, onClick = {
-                        state.piano = !state.piano
-                        if (state.piano) {
-                            state.guitar = false
-                            state.show = true
-                            state.diagramsExpanded = true
-                        }
-                    })
+                    }
                     if (state.guitar) {
-                        ChordGlassPill(
-                            label = "Capo ${state.capo} −",
-                            active = state.capo > 0,
-                            onClick = { state.capo = (state.capo - 1).coerceAtLeast(0) },
-                        )
-                        ChordGlassPill(
-                            label = "+",
-                            active = false,
-                            onClick = { state.capo = (state.capo + 1).coerceAtMost(11) },
-                        )
+                        Row(
+                            Modifier.clip(RoundedCornerShape(14.dp))
+                                .background(Color.White.copy(alpha = 0.12f)),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(onClick = {
+                                state.capo = (state.capo - 1).coerceAtLeast(0)
+                                state.capoManuallySet = true
+                            }, enabled = state.capo > 0, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Rounded.Remove, stringResource(Res.string.chord_capo_decrease), tint = Color.White)
+                            }
+                            Text(stringResource(Res.string.chord_capo_value, state.capo),
+                                color = Color.White, style = MaterialTheme.typography.labelMedium)
+                            IconButton(onClick = {
+                                state.capo = (state.capo + 1).coerceAtMost(11)
+                                state.capoManuallySet = true
+                            }, enabled = state.capo < 11, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Rounded.Add, stringResource(Res.string.chord_capo_increase), tint = Color.White)
+                            }
+                        }
                     }
-                    if (state.guitar || state.piano) {
-                        ChordGlassPill(
-                            label = if (state.diagramsExpanded) "Hide diagrams" else "Diagrams",
-                            active = state.diagramsExpanded,
-                            onClick = { state.diagramsExpanded = !state.diagramsExpanded },
-                        )
+                    Box {
+                        IconButton(onClick = { state.options = true }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Rounded.Tune, stringResource(Res.string.chord_options), tint = Color.White)
+                        }
+                        DropdownMenu(expanded = state.options, onDismissRequest = { state.options = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.chord_simplify)) },
+                                onClick = { state.simplify = !state.simplify },
+                                trailingIcon = { Switch(checked = state.simplify, onCheckedChange = null,
+                                    colors = SwitchDefaults.colors(checkedThumbColor = state.accentColor,
+                                        checkedTrackColor = state.accentColor.copy(alpha = 0.5f))) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.chord_show_diagrams)) },
+                                onClick = { state.diagramsExpanded = !state.diagramsExpanded },
+                                trailingIcon = { Switch(checked = state.diagramsExpanded, onCheckedChange = null,
+                                    colors = SwitchDefaults.colors(checkedThumbColor = state.accentColor,
+                                        checkedTrackColor = state.accentColor.copy(alpha = 0.5f))) },
+                            )
+                            listOf(
+                                ChordNotation.AUTO to stringResource(Res.string.chord_notation_auto),
+                                ChordNotation.SHARPS to stringResource(Res.string.chord_notation_sharps),
+                                ChordNotation.FLATS to stringResource(Res.string.chord_notation_flats),
+                            ).forEach { (notation, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = { state.notation = notation; state.options = false },
+                                    trailingIcon = { RadioButton(selected = state.notation == notation, onClick = null,
+                                        colors = RadioButtonDefaults.colors(selectedColor = state.accentColor)) },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.chord_reanalyse)) },
+                                onClick = { state.options = false; state.startAnalysis(song, source) },
+                            )
+                        }
                     }
-                    ChordGlassPill(
-                        label = if (state.options) "Done" else "Options",
-                        active = state.options,
-                        onClick = { state.options = !state.options },
-                    )
                 }
             }
         }
@@ -351,28 +415,12 @@ internal fun ChordControls(
             Text(it, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
         }
         if (state.events != null) {
-            AnimatedVisibility(visible = state.options) {
-                Row(
-                    Modifier
-                        .padding(top = 4.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ChordGlassPill(label = "Simplify", active = state.simplify, onClick = { state.simplify = !state.simplify })
-                    ChordGlassPill(
-                        label = "Notes: ${state.notation.name.lowercase()}", active = state.notation != ChordNotation.AUTO,
-                        onClick = { state.notation = ChordNotation.entries[(state.notation.ordinal + 1) % ChordNotation.entries.size] },
-                    )
-                    if (!state.loading) ChordGlassButton(label = "Re-analyse", onClick = { state.startAnalysis(song, source) })
-                }
-            }
             AnimatedVisibility(visible = (state.guitar || state.piano) && state.show && state.diagramsExpanded) {
                 Column { InstrumentChordPanel(state) }
             }
             if (state.events!!.isEmpty()) {
                 Spacer(Modifier.height(3.dp))
-                Text("Not enough audio to estimate chords.", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(Res.string.chord_no_audio), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
             } else if (!synced && state.show) {
                 Spacer(Modifier.height(2.dp))
                 CurrentChord(state)
@@ -381,60 +429,18 @@ internal fun ChordControls(
     }
 }
 
-/** Glass pill button consistent with BitChord player design (frosted glass rim, responsive alpha). */
-@Composable
-private fun ChordGlassPill(
-    label: String,
-    active: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val chrome = LocalPlayerChrome.current
-    val discAlpha = animateFloatAsState(
-        targetValue = if (active) 0.32f else 0.14f,
-        label = "chordPillAlpha",
-    )
-    Box(
-        modifier = modifier
-            .clip(CircleShape)
-            .clickable(
-                role = Role.Button,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .vibrantChrome(chrome)
-                .drawBehind { drawRect(Color.White.copy(alpha = discAlpha.value)) }
-        )
-        Box(Modifier.matchParentSize().glassRim(CircleShape))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                letterSpacing = 0.3.sp,
-            ),
-            color = Color.White.copy(alpha = if (active) 1f else 0.72f),
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-        )
-    }
-}
-
-/** Action button (Find chords / Analyse again / Cancel) in BitChord glass aesthetic. */
+/** Lightweight action button shown only before or during analysis. */
 @Composable
 private fun ChordGlassButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val chrome = LocalPlayerChrome.current
     Box(
         modifier = modifier
-            .clip(CircleShape)
+            .height(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.16f))
             .clickable(
                 role = Role.Button,
                 interactionSource = remember { MutableInteractionSource() },
@@ -443,13 +449,6 @@ private fun ChordGlassButton(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .vibrantChrome(chrome)
-                .background(Color.White.copy(alpha = 0.16f))
-        )
-        Box(Modifier.matchParentSize().glassRim(CircleShape))
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -464,8 +463,8 @@ private fun CurrentChord(state: ChordUiState) {
     val events = remember(state.events, state.simplify, state.notation, state.guitar, state.capo) { state.displayEvents() }
     val current by remember(events, state) { derivedStateOf { chordIndexAt(events, state.positionMs) } }
     Text(
-        "Now: ${events.getOrNull(current)?.label?.takeUnless { it == "N" } ?: "—"}",
-        color = Color.White,
+        stringResource(Res.string.chord_current, events.getOrNull(current)?.label?.takeUnless { it == "N" } ?: "—"),
+        color = state.accentColor,
         style = MaterialTheme.typography.titleMedium,
     )
 }
@@ -552,26 +551,26 @@ private fun InstrumentChordPanel(state: ChordUiState) {
     val current = window.firstOrNull()?.takeIf { position >= it.startMs && position < it.endMs }
     val progress = current?.let { ((position - it.startMs).toFloat() / (it.endMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f
     Spacer(Modifier.height(5.dp))
-    Row(Modifier.fillMaxWidth().animateContentSize(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         window.forEachIndexed { index, event ->
             key(event.startMs, event.label) {
                 val playing = event == current
-                val glow by animateFloatAsState(if (playing) 1f else 0f, label = "playingChordGlow")
                 val tint = state.accentColor
                 Column(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                        .background(tint.copy(alpha = 0.03f + glow * 0.16f))
-                        .border(1.dp, tint.copy(alpha = 0.1f + glow * 0.7f), RoundedCornerShape(12.dp))
-                        .padding(vertical = 5.dp),
+                    Modifier.width(if (state.piano) 220.dp else 122.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (playing) tint.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.08f))
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(if (playing) "NOW" else if (index == 0) "NEXT" else "UP NEXT", color = if (playing) tint else chromeWhite(0.45f), style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                    Text(stringResource(if (playing) Res.string.chord_now else if (index == 0) Res.string.chord_next else Res.string.chord_up_next),
+                        color = if (playing) tint else chromeWhite(0.82f), style = MaterialTheme.typography.labelSmall)
                     val shape = guitarShape(event.label)
-                    if (state.piano && pianoChordNotes(event.label) != null) PianoDiagram(event.label, if (playing) tint else chromeWhite(0.45f))
-                    else if (!state.piano && shape != null) GuitarDiagram(event.label, shape, if (playing) tint else chromeWhite(0.45f))
-                    else Text(if (event.label == "N") "Rest" else event.label, color = chromeWhite(0.65f), modifier = Modifier.height(68.dp).padding(top = 18.dp))
-                    if (playing) LinearProgressIndicator(progress = { progress }, modifier = Modifier.width(48.dp).height(2.5.dp), color = tint, trackColor = tint.copy(alpha = 0.12f))
-                    else Spacer(Modifier.height(2.5.dp))
+                    if (state.piano && pianoChordNotes(event.label) != null) PianoDiagram(event.label, if (playing) tint else chromeWhite(0.9f))
+                    else if (!state.piano && shape != null) GuitarDiagram(event.label, shape, if (playing) tint else chromeWhite(0.9f))
+                    else Text(if (event.label == "N") "Rest" else event.label, color = chromeWhite(0.9f), modifier = Modifier.height(92.dp).padding(top = 18.dp))
+                    if (playing) LinearProgressIndicator(progress = { progress }, modifier = Modifier.width(if (state.piano) 180.dp else 88.dp).height(3.dp), color = tint, trackColor = tint.copy(alpha = 0.12f))
+                    else Spacer(Modifier.height(3.dp))
                 }
             }
         }
@@ -581,21 +580,46 @@ private fun InstrumentChordPanel(state: ChordUiState) {
 @Composable
 private fun GuitarDiagram(label: String, shape: GuitarShape, tint: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-        Text(shape.frets.joinToString(" ") { if (it < 0) "×" else if (it == 0) "○" else "·" }, color = tint, fontSize = 10.sp)
-        Canvas(Modifier.size(56.dp, 58.dp).semantics {
+        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Row(Modifier.width(92.dp)) {
+            shape.frets.forEach { fret ->
+                Text(if (fret < 0) "×" else if (fret == 0) "○" else " ",
+                    modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
+                    color = tint, fontSize = 12.sp)
+            }
+        }
+        Canvas(Modifier.size(92.dp, 94.dp).semantics {
             contentDescription = "$label, low E to high E: ${shape.frets.joinToString { if (it < 0) "muted" else it.toString() }}, frets relative to capo"
         }) {
             val dx = size.width / 7
             val dy = size.height / 5
-            for (string in 0..5) drawLine(tint.copy(alpha = 0.6f), Offset(dx * (string + 1), 0f), Offset(dx * (string + 1), dy * 4), 1.dp.toPx())
-            for (fret in 0..4) drawLine(tint.copy(alpha = 0.6f), Offset(dx, dy * fret), Offset(dx * 6, dy * fret), if (fret == 0 && shape.firstFret == 1) 2.5.dp.toPx() else 1.dp.toPx())
+            for (string in 0..5) drawLine(tint.copy(alpha = 0.82f), Offset(dx * (string + 1), 0f), Offset(dx * (string + 1), dy * 4), 1.2.dp.toPx())
+            for (fret in 0..4) drawLine(tint.copy(alpha = 0.82f), Offset(dx, dy * fret), Offset(dx * 6, dy * fret), if (fret == 0 && shape.firstFret == 1) 2.5.dp.toPx() else 1.2.dp.toPx())
+            val firstPlayed = shape.frets.indexOfFirst { it >= 0 }
+            val lastPlayed = shape.frets.indexOfLast { it >= 0 }
+            val barre = firstPlayed >= 0 && lastPlayed > firstPlayed &&
+                shape.frets[firstPlayed] == shape.firstFret &&
+                shape.frets[lastPlayed] == shape.firstFret &&
+                shape.frets.subList(firstPlayed, lastPlayed + 1).all { it >= shape.firstFret }
+            if (barre) {
+                val radius = 5.dp.toPx()
+                drawRoundRect(tint, topLeft = Offset(dx * (firstPlayed + 1) - radius,
+                    dy * 0.5f - radius), size = Size(dx * (lastPlayed - firstPlayed) + 2 * radius, 2 * radius),
+                    cornerRadius = CornerRadius(radius))
+            }
             shape.frets.forEachIndexed { string, fret ->
-                if (fret > 0) drawCircle(tint, 3.2.dp.toPx(), Offset(dx * (string + 1), dy * (fret - shape.firstFret + 0.5f)))
+                if (fret > 0 && !(barre && fret == shape.firstFret))
+                    drawCircle(tint, 5.dp.toPx(), Offset(dx * (string + 1), dy * (fret - shape.firstFret + 0.5f)))
+            }
+        }
+        Row(Modifier.width(92.dp)) {
+            listOf("E", "A", "D", "G", "B", "e").forEach { name ->
+                Text(name, modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
+                    color = chromeWhite(0.85f), fontSize = 11.sp)
             }
         }
         if (shape.firstFret > 1) {
-            Text("${shape.firstFret}fr", color = chromeWhite(0.65f), fontSize = 9.sp)
+            Text("${shape.firstFret}fr", color = chromeWhite(0.85f), fontSize = 11.sp)
         }
     }
 }
@@ -606,9 +630,9 @@ private fun PianoDiagram(label: String, tint: Color) {
     val notes = remember(label) { pianoChordNotes(label).orEmpty().toSet() }
     val whiteKeys = remember { (0..23).filter { it % 12 in listOf(0, 2, 4, 5, 7, 9, 11) } }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         Spacer(Modifier.height(4.dp))
-        Canvas(Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(48.dp).semantics {
+        Canvas(Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(68.dp).semantics {
             contentDescription = "Piano $label, highlighted notes: ${notes.sorted().joinToString { spellChord(listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")[it % 12], label.contains('♭')) }}"
         }) {
             val keyWidth = size.width / whiteKeys.size
@@ -625,6 +649,9 @@ private fun PianoDiagram(label: String, tint: Color) {
                 drawRect(if (note in notes) tint else Color(0xFF292929), Offset(x, 0f), Size(keyWidth * 0.64f, size.height * 0.60f))
             }
         }
+        Text(notes.sorted().joinToString(" · ") {
+            spellChord(listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")[it % 12], label.contains('♭'))
+        }, color = chromeWhite(0.9f), style = MaterialTheme.typography.labelSmall)
         Spacer(Modifier.height(4.dp))
     }
 }

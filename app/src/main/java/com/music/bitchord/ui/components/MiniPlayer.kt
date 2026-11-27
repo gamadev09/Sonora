@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,7 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.PointerInputChange
@@ -60,6 +63,7 @@ import com.music.bitchord.ui.components.thumbnailBorder
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 import com.music.bitchord.playback.MusicOnlyPlayback
+import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.ui.player.PlayerDock
 import com.music.bitchord.ui.player.PlayerSkipGlyph
 import com.music.bitchord.ui.player.PlayerSkipMotion
@@ -354,6 +358,8 @@ fun MiniPlayer(
     song: Song,
     isPlaying: Boolean,
     isLoading: Boolean,
+    position: PlaybackPosition,
+    durationMs: Long,
     hazeState: HazeState,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -419,6 +425,19 @@ fun MiniPlayer(
             // its own confirmation. The glyphs on it still buzz.
             .clickable(onClick = onExpand),
     ) {
+        val progressColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isLoading) 0.38f else 0.62f)
+        Spacer(
+            Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .height(2.dp)
+                .drawBehind {
+                    if (durationMs > 0L) {
+                        val fraction = (position.positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                        drawRect(progressColor, size = Size(size.width * fraction, size.height))
+                    }
+                },
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()

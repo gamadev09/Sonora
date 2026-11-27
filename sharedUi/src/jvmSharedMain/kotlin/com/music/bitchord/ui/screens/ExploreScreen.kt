@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -167,7 +168,7 @@ fun ExploreScreen(
 }
 
 @Composable
-private fun MoodGenreRow(
+internal fun MoodGenreRow(
     row: List<MoodGenre>,
     columns: Int,
     onCategoryClick: (MoodGenre) -> Unit,
@@ -187,6 +188,39 @@ private fun MoodGenreRow(
         }
         // Short rows keep their cards the size of a full row's.
         repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+/** Search's idle browse grid uses the same category cards as the former Explore page. */
+internal fun LazyListScope.moodGenreBrowse(
+    state: UiState<List<MoodGenreSection>>,
+    preferredGenres: Set<String>,
+    onCategoryClick: (MoodGenre) -> Unit,
+    onRetry: () -> Unit,
+) {
+    when (state) {
+        UiState.Loading -> item(key = "browse:loading") { ExploreSkeletonRows(2) }
+        is UiState.Error -> item(key = "browse:error") {
+            MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry)
+        }
+        is UiState.Success -> {
+            state.data.forEachIndexed { sectionIndex, section ->
+                item(key = "browse:heading:$sectionIndex") {
+                    Text(
+                        text = section.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
+                    )
+                }
+                section.items.sortedByDescending { item ->
+                    preferredGenres.any { it.equals(item.title, ignoreCase = true) }
+                }.chunked(2).forEachIndexed { rowIndex, row ->
+                    item(key = "browse:row:$sectionIndex:$rowIndex") {
+                        MoodGenreRow(row = row, columns = 2, onCategoryClick = onCategoryClick)
+                    }
+                }
+            }
+        }
     }
 }
 

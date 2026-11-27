@@ -289,7 +289,6 @@ interface PlayerSettingsSource {
     /** Hides the lyrics preview strip on the main and mini player screens. */
     val hideLyricsPreview: StateFlow<Boolean>
     val showQueueHistory: StateFlow<Boolean>
-    val hideVolumeBar: StateFlow<Boolean>
     /** Hide the device status bar while the player is up. Always false where there is none. */
     val hideStatusBar: StateFlow<Boolean>
     val lastPlayerScreen: StateFlow<LastPlayerScreen>
