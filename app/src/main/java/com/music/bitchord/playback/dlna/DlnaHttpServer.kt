@@ -173,7 +173,7 @@ class DlnaHttpServer {
 
             val respHeaders = "HTTP/1.1 200 OK\r\n" +
                 "Content-Type: $contentType\r\n" +
-                "Server: BitChord-DLNA/1.0 UPnP/1.0 DLNADOC/1.50\r\n" +
+                "Server: Sonora-DLNA/1.0 UPnP/1.0 DLNADOC/1.50\r\n" +
                 "Accept-Ranges: none\r\n" +
                 "transferMode.dlna.org: Streaming\r\n" +
                 "contentFeatures.dlna.org: ${DlnaProtocol.DLNA_CONTENT_FEATURES}\r\n" +
@@ -182,7 +182,7 @@ class DlnaHttpServer {
                 "Cache-Control: no-cache, no-store, must-revalidate\r\n" +
                 "Pragma: no-cache\r\n" +
                 "Expires: 0\r\n" +
-                "ICY-NAME: BitChord Stream\r\n" +
+                "ICY-NAME: Sonora Stream\r\n" +
                 "ICY-METADATA: 0\r\n" +
                 "Access-Control-Allow-Origin: *\r\n\r\n"
             val headerBytes = respHeaders.toByteArray(Charsets.US_ASCII)

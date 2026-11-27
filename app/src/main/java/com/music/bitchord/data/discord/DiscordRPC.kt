@@ -22,13 +22,13 @@ import java.util.Locale
  * The presence Discord renders from one [updateSong] call:
  *
  * ```
- *   Listening to BitChord          <- activityName, or the app's own name
+ *   Listening to Sonora            <- activityName, or the app's own name
  *   ┌────┐  Song title             <- details
  *   │art │  Artist                 <- state
  *   └────┘  Hi-Res Lossless · FLAC · 4608 kbps · 24-bit · 96 kHz
  *           ▁▁▁▁▁▁ 1:04 / 3:47     <- from the timestamps
  *   [ Listen on YouTube Music ]    <- button 1
- *   [ Visit BitChord           ]   <- button 2
+ *   [ Visit Sonora             ]   <- button 2
  * ```
  */
 class DiscordRPC(
@@ -119,7 +119,7 @@ class DiscordRPC(
             //
             // A track with no artwork — or with artwork Discord can't reach,
             // which is anything that isn't an http URL — sends none, and Discord
-            // draws the BitChord application's own icon in its place.
+            // draws the Sonora application's own icon in its place.
             // Discord fetches it with no fallback, so a YouTube cover goes at
             // the size every video has rather than one an old upload 404s on.
             largeImage = song.artworkAt(ART_PX)
@@ -146,17 +146,17 @@ class DiscordRPC(
     /**
      * The name Discord puts after "Listening to". Taken from the app's own
      * label so it tracks a rename, with the dev flavor's suffix dropped —
-     * a side-by-side dev install should still look like bitchord to everyone
+     * a side-by-side dev install should still look like Sonora to everyone
      * else on Discord.
      */
     private fun appName(): String =
         context.getString(R.string.app_name).removeSuffix(" Dev")
 
     companion object {
-        const val PROJECT_URL = "https://github.com/kushagrasinghx/BitChord"
+        const val PROJECT_URL = "https://github.com/gamadev09/Sonora"
 
         const val DEFAULT_BUTTON_1 = "Listen on YouTube Music"
-        const val DEFAULT_BUTTON_2 = "Visit BitChord"
+        const val DEFAULT_BUTTON_2 = "Visit Sonora"
 
         /** Discord draws the sleeve at roughly 96dp; 480px covers it on any density. */
         private const val ART_PX = 480
