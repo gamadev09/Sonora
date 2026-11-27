@@ -314,7 +314,7 @@ private fun GlassCapsuleSelector(
     val tabWidthPx = if (rowSize.width > 0) (rowSize.width - gapPx * (n - 1)) / n else 0f
     val tabStepPx = if (rowSize.width > 0) (rowSize.width + gapPx) / n else 0f
     val targetOffset = if (tabStepPx > 0f) selectedIndex.coerceIn(0, n - 1) * tabStepPx else 0f
-    val animatedOffset by animateFloatAsState(
+    val animatedOffsetState = animateFloatAsState(
         targetValue = targetOffset,
         animationSpec = spec,
         label = "capsuleSelectorOffset",
@@ -342,7 +342,7 @@ private fun GlassCapsuleSelector(
                     .width(with(density) { tabWidthPx.toDp() })
                     .height(with(density) { rowSize.height.toDp() })
                     .graphicsLayer {
-                        translationX = animatedOffset
+                        translationX = animatedOffsetState.value
                     }
                     .clip(pillShape)
                     .background(accentColor.copy(alpha = 0.32f))
@@ -922,7 +922,7 @@ internal fun ChordOptionsPopover(
 /** Compact Sonora-styled toggle pill for chord options, avoiding oversized Material switches. */
 @Composable
 private fun ChordOptionToggle(checked: Boolean, accent: Color) {
-    val thumbBias by animateFloatAsState(targetValue = if (checked) 1f else 0f, label = "chordToggle")
+    val thumbBiasState = animateFloatAsState(targetValue = if (checked) 1f else 0f, label = "chordToggle")
     Box(
         modifier = Modifier
             .size(width = 38.dp, height = 22.dp)
@@ -934,7 +934,7 @@ private fun ChordOptionToggle(checked: Boolean, accent: Color) {
         Box(
             modifier = Modifier
                 .size(18.dp)
-                .graphicsLayer { translationX = thumbBias * 16.dp.toPx() }
+                .graphicsLayer { translationX = thumbBiasState.value * 16.dp.toPx() }
                 .clip(CircleShape)
                 .background(Color.White),
         )

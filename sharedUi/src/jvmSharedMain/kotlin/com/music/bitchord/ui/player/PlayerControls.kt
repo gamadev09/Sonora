@@ -820,7 +820,7 @@ internal fun CircleGlyphContainer(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val haptics = rememberHaptics()
-    val discAlpha by animateFloatAsState(
+    val discAlphaState = animateFloatAsState(
         targetValue = if (active) 0.34f else CIRCLE_DISC_ALPHA,
         label = "glyphDisc",
     )
@@ -843,7 +843,7 @@ internal fun CircleGlyphContainer(
             Modifier
                 .matchParentSize()
                 .vibrantChrome(chrome)
-                .background(discFill(chrome, discAlpha)),
+                .drawBehind { drawRect(discFill(chrome, discAlphaState.value)) },
         )
         Box(Modifier.matchParentSize().glassRim(CircleShape))
         content()

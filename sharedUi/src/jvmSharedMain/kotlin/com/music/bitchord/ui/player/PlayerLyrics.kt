@@ -2222,7 +2222,7 @@ internal fun LyricsContent(
                 animationSpec = tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING),
                 label = "lyricBlur",
             )
-            val lineAlpha by animateFloatAsState(
+            val lineAlphaState = animateFloatAsState(
                 targetValue = when {
                     !isSynced -> 0.95f
                     isActive -> 1f
@@ -2274,7 +2274,7 @@ internal fun LyricsContent(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .graphicsLayer { alpha = lineAlpha }
+                            .graphicsLayer { alpha = lineAlphaState.value }
                             .padding(bottom = if (gapChords != null) 4.dp else 0.dp),
                     ) {
                         if (gapChords != null && chordState != null) {
@@ -2381,7 +2381,7 @@ internal fun LyricsContent(
                     STAGGER_FRACTION * run.durationMs
                 val interaction = remember { MutableInteractionSource() }
                 val pressed by interaction.collectIsPressedAsState()
-                val scale by animateFloatAsState(
+                val scaleState = animateFloatAsState(
                     targetValue = when {
                         pressed -> PRESSED_SCALE
                         isActive -> 1f
@@ -2414,10 +2414,11 @@ internal fun LyricsContent(
                         end = if (duet && !alignEnd) DUET_LANE else 0.dp,
                     )
                     .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
+                        val s = scaleState.value
+                        scaleX = s
+                        scaleY = s
                         transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0.5f)
-                        alpha = lineAlpha
+                        alpha = lineAlphaState.value
                         val blurPx = blurState.value.toPx()
                         renderEffect = if (renderEffectBlurSupported) {
                             cachedBlurEffect(blurPx)
@@ -3319,7 +3320,7 @@ private fun LyricsUnavailableLine(trackKey: Any, modifier: Modifier = Modifier) 
         delay(LYRICS_UNAVAILABLE_HOLD_MS)
         visible = false
     }
-    val alpha by animateFloatAsState(
+    val alphaState = animateFloatAsState(
         targetValue = if (visible) 0.55f else 0f,
         animationSpec = tween(durationMillis = LYRICS_UNAVAILABLE_FADE_MS),
         label = "lyricsUnavailableAlpha",
@@ -3332,7 +3333,7 @@ private fun LyricsUnavailableLine(trackKey: Any, modifier: Modifier = Modifier) 
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .padding(vertical = 4.dp)
-            .graphicsLayer { this.alpha = alpha },
+            .graphicsLayer { this.alpha = alphaState.value },
     )
 }
 
