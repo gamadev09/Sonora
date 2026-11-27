@@ -244,7 +244,7 @@ private val HEADER_HEIGHT = 60.dp
 private val ART_TITLE_GAP = 20.dp
 
 /** How much lower the sleeve's foot (stats, Best Part) sits over full-screen art than on the card. */
-private val BANNER_FOOT_DROP = 26.dp
+private val BANNER_FOOT_DROP = 10.dp
 /**
  * How long the sleeve takes to travel the whole way between the full player and
  * the queue's header.
@@ -3399,14 +3399,19 @@ fun NowPlayingScreen(
                         ) {
                             SideEffect { spotifyCanvasExpandedTopHeight = maxHeight }
                         }
-                        // Pin track metadata directly above the lyrics preview + scrubber +
-                        // transport deck so there is zero dead vertical gap between metadata
-                        // and controls, allocating all recovered height to artwork (main mode)
-                        // and the lyrics viewport (lyrics mode).
+                        // Mode-specific vertical geometry:
+                        // - Artwork mode: pin artwork directly above the track metadata with
+                        //   consistent [ART_TITLE_GAP] spacing and pin metadata directly above
+                        //   the playback deck, eliminating dead space between Best Part / artwork
+                        //   and the track title on tall screens.
+                        // - Lyrics mode: collapsed header sits at y = 0; LyricsPanel fills all
+                        //   remaining available height below [HEADER_HEIGHT].
+                        // - Queue mode: collapsed header sits at y = 0; InlineQueue fills the
+                        //   full available host height below [HEADER_HEIGHT].
                         val titleBottomTop = (maxHeight - HEADER_HEIGHT).coerceAtLeast(0.dp)
                         val artAvailableHeight = (titleBottomTop - ART_TITLE_GAP).coerceAtLeast(THUMB_SIZE)
                         val fullArt = minOf(maxWidth, artAvailableHeight).coerceAtLeast(THUMB_SIZE)
-                        val groupTop = ((artAvailableHeight - fullArt) / 2).coerceAtLeast(0.dp)
+                        val groupTop = (artAvailableHeight - fullArt).coerceAtLeast(0.dp)
                         // Functions of the collapse, called at placement and measure
                         // — see [p]. Composition never reads them.
                         fun artSize(): Dp = lerp(fullArt, THUMB_SIZE, p())
