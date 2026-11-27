@@ -133,7 +133,7 @@ class VocalSeparationTest {
 
         // 1. Inactive -> byte-identical passthrough.
         val block = AudioBlock(capacityFrames = 512, channelCount = 2)
-        block.frameCount = 256
+        block.setFrameCount(256)
         for (i in 0 until 512) block.samples[i] = 0.75f
         processor.setBlockTimestampUs(0L)
         processor.process(block)
@@ -155,7 +155,7 @@ class VocalSeparationTest {
         )
         var frameCursor = 0L
         while (frameCursor < 2560L) {
-            block.frameCount = 256
+            block.setFrameCount(256)
             for (i in 0 until 512) block.samples[i] = 0.75f
             processor.setBlockTimestampUs(frameCursor * 1_000_000L / 44_100L)
             processor.process(block)
