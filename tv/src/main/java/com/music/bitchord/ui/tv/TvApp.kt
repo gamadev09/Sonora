@@ -99,7 +99,7 @@ import kotlinx.coroutines.launch
 /** The tabs of the top bar. Now Playing is a tab too, but it opens the player rather than a page. */
 enum class TvDestination(val label: String) {
     HOME("Home"),
-    EXPLORE("Explore"),
+    EXPLORE("New"),
     LIBRARY("Library"),
     SEARCH("Search"),
     SETTINGS("Settings"),
@@ -525,6 +525,14 @@ private fun TvMainShell(
                         .focusRequester(contentFocus)
                         .focusGroup(),
                 ) {
+                    val baseDensity = androidx.compose.ui.platform.LocalDensity.current
+                    val browseDensity = remember(baseDensity) {
+                        androidx.compose.ui.unit.Density(
+                            density = baseDensity.density * 1.12f,
+                            fontScale = baseDensity.fontScale * 1.10f,
+                        )
+                    }
+                    CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides browseDensity) {
                     stateHolder.SaveableStateProvider(destination.name) {
                         when (destination) {
                             TvDestination.HOME -> TvHomeScreen(
@@ -559,6 +567,7 @@ private fun TvMainShell(
                                 onRunSetupAgain = onRunSetupAgain,
                             )
                         }
+                    }
                     }
                 }
             }

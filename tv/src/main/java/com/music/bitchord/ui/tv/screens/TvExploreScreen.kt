@@ -30,8 +30,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.session.MediaController
 import com.music.bitchord.data.model.BrowseType
+import com.music.bitchord.data.model.HomeShelf
 import com.music.bitchord.data.model.MoodGenre
 import com.music.bitchord.data.model.MoodGenreSection
+import com.music.bitchord.data.model.ShelfItem
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.UiState
 import com.music.bitchord.playback.playSongs
@@ -39,7 +41,9 @@ import com.music.bitchord.ui.MainViewModel
 import com.music.bitchord.ui.screens.MOOD_CARD_ASPECT
 import com.music.bitchord.ui.tv.components.TvChromeScrollEffect
 import com.music.bitchord.ui.tv.components.TvErrorState
+import com.music.bitchord.ui.tv.components.TvLockup
 import com.music.bitchord.ui.tv.components.TvMoodCard
+import com.music.bitchord.ui.tv.components.TvRow
 import com.music.bitchord.ui.tv.dialogs.TvSongMenu
 import com.music.bitchord.ui.tv.theme.TvDimensions
 import com.music.bitchord.ui.tv.theme.TvGlass
@@ -47,9 +51,8 @@ import com.music.bitchord.ui.tv.theme.TvType
 import kotlinx.coroutines.launch
 
 /**
- * Explore, laid out as the phone's: every mood and genre in one grid (the
- * server's sections only decide the order), each a colour-striped duotone
- * sleeve. Choosing one opens its playlists as shelves; Back returns to the grid.
+ * New tab: personalized YouTube Music new releases & recommendations based on
+ * what the user likes, followed by the Moods & Genres discovery grid.
  */
 @Composable
 fun TvExploreScreen(
@@ -63,12 +66,50 @@ fun TvExploreScreen(
     val mood = selected
     if (mood == null) {
         val explore by viewModel.explore.collectAsState()
+        val home by viewModel.home.collectAsState()
+        val discoverySections = remember(home) {
+            val all = (home as? UiState.Success)?.data.orEmpty()
+            val prioritized = all.filter { section ->
+                val t = section.title.lowercase()
+                t.contains("new") ||
+                    t.contains("release") ||
+                    t.contains("recommend") ||
+                    t.contains("chart") ||
+                    t.contains("trend") ||
+                    t.contains("discover") ||
+                    t.contains("mix") ||
+                    t.contains("for you") ||
+                    t.contains("similar") ||
+                    t.contains("fresh")
+            }
+            (prioritized.ifEmpty { all.drop(1) }).take(4)
+        }
+        val scope = rememberCoroutineScope()
+        var menuSong by remember { mutableStateOf<Song?>(null) }
         TvMoodGrid(
             state = explore,
+            discoverySections = discoverySections,
+            onPlaySong = { song ->
+                scope.launch {
+                    mediaController?.playSongs(listOf(song), 0)
+                    onNavigateToNowPlaying()
+                }
+            },
+            onOpenDetail = onNavigateToDetail,
+            onSongMenu = { menuSong = it },
             onCategory = viewModel::openMoodGenre,
             onRetry = { viewModel.loadExplore() },
             modifier = modifier,
         )
+        menuSong?.let { song ->
+            TvSongMenu(
+                song = song,
+                viewModel = viewModel,
+                mediaController = mediaController,
+                onNavigateToDetail = onNavigateToDetail,
+                onDismiss = { menuSong = null },
+            )
+        }
     } else {
         BackHandler { viewModel.closeMoodGenre() }
         TvMoodPage(
@@ -85,6 +126,10 @@ fun TvExploreScreen(
 @Composable
 private fun TvMoodGrid(
     state: UiState<List<MoodGenreSection>>,
+    discoverySections: List<HomeShelf>,
+    onPlaySong: (Song) -> Unit,
+    onOpenDetail: (browseId: String, title: String, subtitle: String, thumbnailUrl: String?, type: BrowseType) -> Unit,
+    onSongMenu: (Song) -> Unit,
     onCategory: (MoodGenre) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -105,6 +150,44 @@ private fun TvMoodGrid(
         horizontalArrangement = Arrangement.spacedBy(MOOD_SPACING),
         verticalArrangement = Arrangement.spacedBy(MOOD_SPACING),
     ) {
+        if (discoverySections.isNotEmpty()) {
+            discoverySections.forEach { section ->
+                item(
+                    key = "new_shelf_${section.title}",
+                    span = { GridItemSpan(maxLineSpan) },
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = section.title,
+                            style = TvType.Title,
+                            color = TvGlass.TextPrimary,
+                        )
+                        TvRow(
+                            items = section.items,
+                            key = { idx, it -> "${section.title}_${it.videoId ?: it.browseId ?: idx}" },
+                        ) { _, item ->
+                            TvLockup(
+                                title = item.title,
+                                subtitle = item.subtitle,
+                                artworkUrl = item.thumbnailUrl,
+                                onClick = { openShelfItem(item, onPlaySong, onOpenDetail) },
+                                onLongClick = item.toSong()?.let { song -> { onSongMenu(song) } },
+                            )
+                        }
+                    }
+                }
+            }
+            item(key = "moods_header", span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    text = "Moods & Genres",
+                    style = TvType.Title,
+                    color = TvGlass.TextPrimary,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 2.dp),
+                )
+            }
+        }
         when (state) {
             UiState.Loading -> items(16) {
                 Box(
