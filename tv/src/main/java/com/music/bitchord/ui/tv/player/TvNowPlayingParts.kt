@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -135,6 +136,32 @@ fun TvPlayerBackground(
 ) {
     if (style == TvPlayerStyle.AMOLED) {
         Box(modifier = modifier.fillMaxSize().background(Color.Black))
+        return
+    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val isWeakTv = remember(context) { com.music.bitchord.ui.tv.TvDeviceCapabilities.profile(context).isWeakTv }
+    if (isWeakTv) {
+        val dominant = com.music.bitchord.ui.tv.components.rememberDominantCardColor(artworkUrl)
+        val animatedTint by androidx.compose.animation.animateColorAsState(
+            targetValue = dominant,
+            animationSpec = tween(420),
+            label = "weakTvBackdropTint",
+        )
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .drawWithCache {
+                    val brush = Brush.verticalGradient(
+                        0f to animatedTint.copy(alpha = 0.52f),
+                        0.55f to animatedTint.copy(alpha = 0.24f),
+                        1f to Color(0xFF07070A),
+                    )
+                    onDrawBehind {
+                        drawRect(Color(0xFF07070A))
+                        drawRect(brush)
+                    }
+                },
+        )
         return
     }
     val mesh = rememberArtworkMesh(imageUrl = artworkUrl)
