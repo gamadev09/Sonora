@@ -628,13 +628,13 @@ private fun TvScrubber(
             }
         }
     }
-    val thickness by animateDpAsState(if (focused) 6.dp else 4.dp, tween(160), label = "scrubThickness")
+    val thickness by animateDpAsState(if (focused) 11.dp else 7.dp, tween(160), label = "scrubThickness")
 
     Column {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(18.dp)
+                .height(20.dp)
                 .focusRequester(focusRequester)
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -657,20 +657,19 @@ private fun TvScrubber(
                     val top = (size.height - h) / 2f
                     val radius = CornerRadius(h / 2f)
                     drawRoundRect(
-                        color = Color.White.copy(alpha = if (focused) 0.30f else 0.22f),
+                        color = Color.White.copy(alpha = if (focused) 0.28f else 0.20f),
                         topLeft = Offset(0f, top),
                         size = Size(size.width, h),
                         cornerRadius = radius,
                     )
-                    drawRoundRect(
-                        color = Color.White.copy(alpha = if (focused) 1f else 0.88f),
-                        topLeft = Offset(0f, top),
-                        size = Size(size.width * fraction, h),
-                        cornerRadius = radius,
-                    )
-                    if (focused) {
-                        val x = (size.width * fraction).coerceIn(h, size.width - h)
-                        drawCircle(Color.White, radius = h * 1.15f, center = Offset(x, size.height / 2f))
+                    val fillW = (size.width * fraction).coerceAtLeast(if (fraction > 0f) h else 0f)
+                    if (fillW > 0f) {
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = if (focused) 1f else 0.85f),
+                            topLeft = Offset(0f, top),
+                            size = Size(fillW, h),
+                            cornerRadius = radius,
+                        )
                     }
                 },
         )
