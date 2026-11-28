@@ -68,7 +68,11 @@ import com.music.bitchord.R
 import com.music.bitchord.data.model.BrowseType
 import com.music.bitchord.data.settings.TvSettings
 import com.music.bitchord.playback.PlayerState
+import com.music.bitchord.playback.playSongs
 import com.music.bitchord.ui.MainViewModel
+import com.music.bitchord.ui.tv.auth.TvAuthServer
+import com.music.bitchord.ui.tv.auth.TvRemoteAdvertiser
+import com.music.bitchord.ui.tv.auth.TvRemoteStatus
 import com.music.bitchord.ui.tv.components.LocalTvChrome
 import com.music.bitchord.ui.tv.components.TvArtwork
 import com.music.bitchord.ui.tv.components.TvChrome
@@ -88,7 +92,9 @@ import com.music.bitchord.ui.tv.screens.TvSearchScreen
 import com.music.bitchord.ui.tv.screens.TvSettingsScreen
 import com.music.bitchord.ui.tv.theme.TvGlass
 import com.music.bitchord.ui.tv.theme.TvThemeColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** The tabs of the top bar. Now Playing is a tab too, but it opens the player rather than a page. */
 enum class TvDestination(val label: String) {
@@ -172,6 +178,77 @@ fun TvApp(
     LaunchedEffect(isCurrentProfileLocked) {
         if (isCurrentProfileLocked && !sessionAuthenticated) {
             showAccountDialog = true
+        }
+    }
+
+    // Keep the local LAN remote server & mDNS advertiser active while Sonora is open on TV
+    // so the phone's AirPlay / Output sheet can discover and control playback.
+    val appContext = LocalContext.current.applicationContext
+    val remoteScope = rememberCoroutineScope()
+    val latestController by rememberUpdatedState(mediaController)
+    val latestPlayerState by rememberUpdatedState(playerState)
+
+    LaunchedEffect(appContext) {
+        val started = TvAuthServer.ensureRunning()
+        if (started != null) {
+            TvRemoteAdvertiser.start(appContext, started.first)
+        }
+    }
+    DisposableEffect(appContext) {
+        val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        TvAuthServer.statusProvider = {
+            val ps = latestPlayerState
+            val s = ps.song
+            val maxVol = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 15
+            val curVol = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: (maxVol / 2)
+            val volPct = ((curVol * 100f) / maxVol).toInt().coerceIn(0, 100)
+            TvRemoteStatus(
+                isPlaying = ps.isPlaying,
+                title = s?.title ?: "Nothing playing",
+                artist = s?.artist?.ifBlank { "Sonora" } ?: "Sonora",
+                artworkUrl = s?.thumbnailUrl,
+                currentPositionMs = ps.position.positionMs,
+                durationMs = ps.durationMs,
+                volumePercent = volPct,
+                videoId = s?.videoId,
+            )
+        }
+        TvAuthServer.onPlayPauseAction = {
+            remoteScope.launch(Dispatchers.Main) {
+                latestController?.let { if (it.isPlaying) it.pause() else it.play() }
+            }
+        }
+        TvAuthServer.onNextAction = {
+            remoteScope.launch(Dispatchers.Main) { latestController?.seekToNextMediaItem() }
+        }
+        TvAuthServer.onPreviousAction = {
+            remoteScope.launch(Dispatchers.Main) { latestController?.seekToPrevious() }
+        }
+        TvAuthServer.onSeekAction = { ms ->
+            remoteScope.launch(Dispatchers.Main) { latestController?.seekTo(ms.coerceAtLeast(0L)) }
+        }
+        TvAuthServer.onVolumeAction = { percent ->
+            audioManager?.let { am ->
+                val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                val target = ((percent / 100f) * maxVol).toInt().coerceIn(0, maxVol)
+                runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+            }
+        }
+        TvAuthServer.onPlaySongAction = { song ->
+            remoteScope.launch(Dispatchers.Main) {
+                latestController?.playSongs(listOf(song), 0)
+                isNowPlayingOpen = true
+            }
+        }
+        onDispose {
+            TvRemoteAdvertiser.stop()
+            TvAuthServer.statusProvider = null
+            TvAuthServer.onPlayPauseAction = null
+            TvAuthServer.onNextAction = null
+            TvAuthServer.onPreviousAction = null
+            TvAuthServer.onSeekAction = null
+            TvAuthServer.onVolumeAction = null
+            TvAuthServer.onPlaySongAction = null
         }
     }
 
