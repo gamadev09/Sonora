@@ -627,6 +627,8 @@ internal fun TvRemoteControlPanel(
     onNext: () -> Unit,
     onVolumeChange: (Int) -> Unit,
     onDisconnect: () -> Unit,
+    phoneTrackTitle: String? = null,
+    onSendCurrentSong: (() -> Unit)? = null,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     Column(
@@ -729,6 +731,32 @@ internal fun TvRemoteControlPanel(
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = Color.White.copy(alpha = 0.72f),
             )
+        }
+
+        if (onSendCurrentSong != null && !phoneTrackTitle.isNullOrBlank()) {
+            Button(
+                onClick = onSendCurrentSong,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent.copy(alpha = 0.22f),
+                    contentColor = Color.White,
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Tv,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Play \"$phoneTrackTitle\" on TV",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.W600,
+                )
+            }
         }
 
         Row(

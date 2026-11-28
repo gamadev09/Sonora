@@ -231,6 +231,48 @@ object TvRemoteController {
         sendAction("volume", mapOf("level" to clamped.toString()))
     }
 
+    /** Sends a song from the phone to play immediately on the connected TV. */
+    fun playSong(
+        videoId: String,
+        title: String,
+        artist: String,
+        thumbnailUrl: String? = null,
+    ) {
+        val device = _state.value.connectedDevice ?: return
+        if (videoId.isBlank()) return
+        scope.launch {
+            runCatching {
+                val params = buildString {
+                    append("videoId=").append(URLEncoder.encode(videoId, "UTF-8"))
+                    append("&title=").append(URLEncoder.encode(title.ifBlank { "Track" }, "UTF-8"))
+                    append("&artist=").append(URLEncoder.encode(artist, "UTF-8"))
+                    if (!thumbnailUrl.isNullOrBlank()) {
+                        append("&thumbnailUrl=").append(URLEncoder.encode(thumbnailUrl, "UTF-8"))
+                    }
+                }
+                val conn = (URL("http://${device.host}:${device.port}/api/play").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 2_500
+                    readTimeout = 2_500
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+                }
+                try {
+                    conn.outputStream.use { it.write(params.toByteArray(Charsets.UTF_8)) }
+                    conn.responseCode
+                } finally {
+                    conn.disconnect()
+                }
+                delay(400L)
+                fetchStatus(device)?.let { refreshed ->
+                    _state.update { it.copy(status = refreshed, error = null) }
+                }
+            }.onFailure { err ->
+                Log.w(TAG, "playSong failed", err)
+            }
+        }
+    }
+
     private fun sendAction(action: String, extra: Map<String, String> = emptyMap()) {
         val device = _state.value.connectedDevice ?: return
         scope.launch {

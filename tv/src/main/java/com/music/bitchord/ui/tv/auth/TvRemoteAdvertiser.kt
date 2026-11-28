@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import org.json.JSONObject
 import java.net.DatagramPacket
@@ -28,10 +29,14 @@ object TvRemoteAdvertiser {
     private var udpSocket: DatagramSocket? = null
     private val running = AtomicBoolean(false)
 
-    private fun friendlyDeviceName(): String {
+    private fun friendlyDeviceName(context: Context): String {
+        val systemName = runCatching {
+            Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
+        }.getOrNull()?.trim()
+        if (!systemName.isNullOrBlank()) return systemName
         val model = Build.MODEL.orEmpty().trim().replace('_', ' ')
         return if (model.isNotBlank() && !model.equals("SMART TV", ignoreCase = true)) {
-            "Sonora ($model)"
+            model
         } else {
             "Sonora"
         }
@@ -41,7 +46,7 @@ object TvRemoteAdvertiser {
         if (port <= 0) return
         stop()
         running.set(true)
-        val serviceName = friendlyDeviceName()
+        val serviceName = friendlyDeviceName(context)
 
         // 1. UDP broadcast discovery responder (sub-20ms LAN discovery)
         Thread {

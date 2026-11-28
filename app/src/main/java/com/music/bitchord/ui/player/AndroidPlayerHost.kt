@@ -314,6 +314,12 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
     @Composable
     override fun TvRemoteDrawerContent() {
         val tvState by com.music.bitchord.playback.tvremote.TvRemoteController.state.collectAsStateWithLifecycle()
+        val mediaController = com.music.bitchord.playback.rememberMediaController()
+        val activeItem = mediaController?.currentMediaItem
+        val phoneVideoId = activeItem?.mediaId?.takeIf { it.isNotBlank() }
+        val phoneTitle = activeItem?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+        val phoneArtist = activeItem?.mediaMetadata?.artist?.toString().orEmpty()
+        val phoneThumb = activeItem?.mediaMetadata?.artworkUri?.toString()
         if (tvState.connectedDevice != null) {
             com.music.bitchord.ui.components.TvRemoteControlPanel(
                 status = tvState.status,
@@ -323,6 +329,20 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
                 onNext = { com.music.bitchord.playback.tvremote.TvRemoteController.next() },
                 onVolumeChange = { com.music.bitchord.playback.tvremote.TvRemoteController.setVolume(it) },
                 onDisconnect = { com.music.bitchord.playback.tvremote.TvRemoteController.disconnect() },
+                phoneTrackTitle = phoneTitle,
+                onSendCurrentSong = if (phoneVideoId != null && phoneTitle != null) {
+                    {
+                        com.music.bitchord.playback.tvremote.TvRemoteController.playSong(
+                            videoId = phoneVideoId,
+                            title = phoneTitle,
+                            artist = phoneArtist,
+                            thumbnailUrl = phoneThumb,
+                        )
+                        mediaController?.pause()
+                    }
+                } else {
+                    null
+                },
             )
         }
     }
