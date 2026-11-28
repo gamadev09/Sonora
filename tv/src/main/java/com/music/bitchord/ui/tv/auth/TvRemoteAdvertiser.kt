@@ -27,7 +27,7 @@ object TvRemoteAdvertiser {
         val serviceName = if (model.isNotBlank() && !model.equals("SMART TV", ignoreCase = true)) {
             "Sonora ($model)"
         } else {
-            "Sonora TV"
+            "Sonora"
         }
         val info = NsdServiceInfo().apply {
             this.serviceName = serviceName

@@ -225,14 +225,14 @@ private fun TvSignInStep(viewModel: MainViewModel, onContinue: () -> Unit) {
 
     LaunchedEffect(signedIn) {
         if (signedIn) {
-            TvAuthServer.stop()
+            TvAuthServer.clearPairingSession()
             onContinue()
         }
     }
 
     DisposableEffect(signedIn, showTvWebLogin, refreshTick) {
         if (signedIn || showTvWebLogin) {
-            TvAuthServer.stop()
+            TvAuthServer.clearPairingSession()
             onDispose { }
         } else {
             val job = scope.launch {
@@ -258,7 +258,7 @@ private fun TvSignInStep(viewModel: MainViewModel, onContinue: () -> Unit) {
             }
             onDispose {
                 job.cancel()
-                TvAuthServer.stop()
+                TvAuthServer.clearPairingSession()
             }
         }
     }

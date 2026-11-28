@@ -1065,7 +1065,7 @@ private fun TvPhoneSignIn(
         }
         onDispose {
             job.cancel()
-            TvAuthServer.stop()
+            TvAuthServer.clearPairingSession()
         }
     }
 

@@ -617,3 +617,131 @@ private fun CastActionRow(label: String, onClick: () -> Unit) {
         )
     }
 }
+
+@Composable
+private fun TvRemoteControlPanel(
+    status: TvRemoteController.TvStatus?,
+    error: String?,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onVolumeChange: (Int) -> Unit,
+    onDisconnect: () -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (!error.isNullOrBlank()) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = Color(0xFFFF9B96),
+            )
+        }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = status?.title ?: "Connecting…",
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.5.sp, fontWeight = FontWeight.W600),
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = status?.artist ?: "Sonora",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                color = Color.White.copy(alpha = 0.62f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPrevious) {
+                Icon(
+                    imageVector = Icons.Rounded.SkipPrevious,
+                    contentDescription = "Previous",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+            IconButton(
+                onClick = onPlayPause,
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(23.dp))
+                    .background(accent),
+            ) {
+                Icon(
+                    imageVector = if (status?.isPlaying == true) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = if (status?.isPlaying == true) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+            IconButton(onClick = onNext) {
+                Icon(
+                    imageVector = Icons.Rounded.SkipNext,
+                    contentDescription = "Next",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
+
+        var sliderVol by remember(status?.volumePercent) {
+            mutableStateOf((status?.volumePercent ?: 50) / 100f)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.VolumeUp,
+                contentDescription = "TV Volume",
+                tint = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp),
+            )
+            Slider(
+                value = sliderVol,
+                onValueChange = { sliderVol = it },
+                onValueChangeFinished = { onVolumeChange((sliderVol * 100f).toInt()) },
+                colors = SliderDefaults.colors(
+                    thumbColor = Color.White,
+                    activeTrackColor = accent,
+                    inactiveTrackColor = Color.White.copy(alpha = 0.2f),
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "${(sliderVol * 100).toInt()}%",
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = Color.White.copy(alpha = 0.72f),
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = onDisconnect) {
+                Text(
+                    text = "Disconnect Remote",
+                    color = Color(0xFFFF8A80),
+                    fontSize = 13.sp,
+                )
+            }
+        }
+    }
+}
