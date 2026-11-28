@@ -163,6 +163,13 @@ interface PlayerHost {
     /** Streaming to a DLNA / UPnP speaker. */
     val dlnaState: StateFlow<CastUi> get() = NoCast
 
+    /** Controlling Sonora on a TV over the local Wi-Fi. */
+    val tvRemoteConnectedName: StateFlow<String?> get() = NoTvRemoteName
+
+    /** Inline remote control panel for a connected TV inside the audio output drawer. */
+    @Composable
+    fun TvRemoteDrawerContent() = Unit
+
     /** Discovery belongs to the open sheet; the returned callback stops only its scans. */
     val discoveredOutputs: StateFlow<List<DiscoveredOutputUi>> get() = NoDiscoveredOutputs
     fun beginOutputDiscovery(): () -> Unit = { }
@@ -230,9 +237,10 @@ interface PlayerHost {
 }
 
 private val NoCast = MutableStateFlow(CastUi())
+private val NoTvRemoteName = MutableStateFlow<String?>(null)
 private val NoDiscoveredOutputs = MutableStateFlow<List<DiscoveredOutputUi>>(emptyList())
 
-enum class OutputProtocol { CAST, AIRPLAY, DLNA }
+enum class OutputProtocol { CAST, AIRPLAY, DLNA, TV_REMOTE }
 
 data class DiscoveredOutputUi(
     val protocol: OutputProtocol,

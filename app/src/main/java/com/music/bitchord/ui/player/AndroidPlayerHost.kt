@@ -305,12 +305,50 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
             .stateIn(scope, SharingStarted.Eagerly, CastUi(supported = true))
     }
 
+    override val tvRemoteConnectedName: StateFlow<String?> by lazy {
+        com.music.bitchord.playback.tvremote.TvRemoteController.state
+            .map { it.connectedDevice?.name }
+            .stateIn(scope, SharingStarted.Eagerly, null)
+    }
+
+    @Composable
+    override fun TvRemoteDrawerContent() {
+        val tvState by com.music.bitchord.playback.tvremote.TvRemoteController.state.collectAsStateWithLifecycle()
+        if (tvState.connectedDevice != null) {
+            com.music.bitchord.ui.components.TvRemoteControlPanel(
+                status = tvState.status,
+                error = tvState.error,
+                onPrevious = { com.music.bitchord.playback.tvremote.TvRemoteController.previous() },
+                onPlayPause = { com.music.bitchord.playback.tvremote.TvRemoteController.playPause() },
+                onNext = { com.music.bitchord.playback.tvremote.TvRemoteController.next() },
+                onVolumeChange = { com.music.bitchord.playback.tvremote.TvRemoteController.setVolume(it) },
+                onDisconnect = { com.music.bitchord.playback.tvremote.TvRemoteController.disconnect() },
+            )
+        }
+    }
+
     override val discoveredOutputs: StateFlow<List<DiscoveredOutputUi>> by lazy {
         CastController.ensureStarted(app)
         AirPlayController.ensureStarted(app)
         DlnaController.ensureStarted(app)
-        combine(CastController.state, AirPlayController.state, DlnaController.state) { cast, airplay, dlna ->
+        combine(
+            CastController.state,
+            AirPlayController.state,
+            DlnaController.state,
+            com.music.bitchord.playback.tvremote.TvRemoteController.state,
+        ) { cast, airplay, dlna, tv ->
             buildList {
+                tv.devices.forEach {
+                    add(
+                        DiscoveredOutputUi(
+                            OutputProtocol.TV_REMOTE,
+                            it.id,
+                            it.name,
+                            connected = tv.connectedDevice?.id == it.id,
+                            connecting = false,
+                        ),
+                    )
+                }
                 cast.devices.forEach { add(DiscoveredOutputUi(OutputProtocol.CAST, it.id, it.name, it.connected, it.connecting)) }
                 airplay.devices.forEach { add(DiscoveredOutputUi(OutputProtocol.AIRPLAY, it.id, it.name,
                     airplay.connectedHost == it.host, airplay.connectingHost == it.host, it.requiresPassword)) }
@@ -327,11 +365,15 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
         val stopCast = CastController.discover(active = true)
         val stopAirPlay = AirPlayController.discover(app)
         val stopDlna = DlnaController.discover(app)
-        return { stopCast(); stopAirPlay(); stopDlna() }
+        val stopTv = com.music.bitchord.playback.tvremote.TvRemoteController.discover(app)
+        return { stopCast(); stopAirPlay(); stopDlna(); stopTv() }
     }
 
     override fun connectNetworkOutput(protocol: OutputProtocol, id: String) {
         when (protocol) {
+            OutputProtocol.TV_REMOTE -> {
+                com.music.bitchord.playback.tvremote.TvRemoteController.connectById(id)
+            }
             OutputProtocol.CAST -> {
                 if (AirPlayController.state.value.connected) AirPlayController.disconnect(resumeHere = false)
                 if (DlnaController.state.value.connected) DlnaController.disconnect(resumeHere = false)

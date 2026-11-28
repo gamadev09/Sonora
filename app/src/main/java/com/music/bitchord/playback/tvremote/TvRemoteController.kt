@@ -18,18 +18,25 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.NetworkInterface
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLEncoder
 
 /**
- * Discovers Sonora TV instances on the local Wi-Fi via mDNS (`_sonora-remote._tcp.`)
- * and controls their playback from the phone's AirPlay / Output sheet.
+ * Discovers Sonora on TV over the local Wi-Fi (via fast UDP LAN broadcast + mDNS `_sonora-remote._tcp.`)
+ * and controls playback from the phone's Audio Output / AirPlay sheet.
  */
 object TvRemoteController {
 
     private const val TAG = "TvRemoteController"
     private const val SERVICE_TYPE = "_sonora-remote._tcp."
+    private const val DISCOVERY_UDP_PORT = 8766
+    private const val DISCOVERY_PROBE = "SONORA_DISCOVER"
     private const val POLL_INTERVAL_MS = 1_500L
 
     data class TvDevice(
@@ -64,69 +71,126 @@ object TvRemoteController {
 
     private var pollJob: Job? = null
 
+    private fun registerDiscovered(rawName: String, host: String, port: Int) {
+        if (!TvPairingCrypto.isPrivateLanIpv4(host) || port !in 1..65535) return
+        val cleanName = rawName
+            .replace("Sonora TV", "Sonora")
+            .trim()
+            .ifBlank { "Sonora" }
+        val device = TvDevice(
+            id = "$host:$port",
+            name = cleanName,
+            host = host,
+            port = port,
+        )
+        _state.update { s ->
+            val updated = (s.devices.filterNot { it.id == device.id } + device)
+                .sortedBy { it.name }
+            s.copy(devices = updated)
+        }
+    }
+
     fun discover(context: Context): () -> Unit {
-        val mgr = context.applicationContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
-            ?: return {}
-
-        val discoveryListener = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(regType: String) {}
-            override fun onDiscoveryStopped(serviceType: String) {}
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                runCatching { mgr.stopServiceDiscovery(this) }
-            }
-
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                runCatching { mgr.stopServiceDiscovery(this) }
-            }
-
-            override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                if (!serviceInfo.serviceType.contains("sonora-remote")) return
-                @Suppress("DEPRECATION")
-                mgr.resolveService(
-                    serviceInfo,
-                    object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
-                        override fun onServiceResolved(info: NsdServiceInfo) {
-                            @Suppress("DEPRECATION")
-                            val host = info.host?.hostAddress ?: return
-                            val port = info.port
-                            if (!TvPairingCrypto.isPrivateLanIpv4(host) || port !in 1..65535) return
-                            val cleanName = info.serviceName
-                                .replace("Sonora TV", "Sonora")
-                                .trim()
-                                .ifBlank { "Sonora" }
-                            val device = TvDevice(
-                                id = "$host:$port",
-                                name = cleanName,
-                                host = host,
-                                port = port,
-                            )
-                            _state.update { s ->
-                                val updated = (s.devices.filterNot { it.id == device.id } + device)
-                                    .sortedBy { it.name }
-                                s.copy(devices = updated)
-                            }
-                        }
-                    },
-                )
-            }
-
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                val lostName = serviceInfo.serviceName
-                _state.update { s ->
-                    s.copy(devices = s.devices.filterNot { it.name == lostName })
-                }
+        // 1. Fast UDP broadcast probe (works even when Android mDNS is filtered)
+        val udpJob = scope.launch {
+            while (isActive) {
+                runCatching { probeLanUdp() }
+                delay(3_000L)
             }
         }
 
-        runCatching {
-            mgr.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
-        }.onFailure {
-            Log.w(TAG, "Failed to start mDNS discovery for TV remote", it)
+        // 2. mDNS / DNS-SD discovery
+        val mgr = context.applicationContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
+        val discoveryListener = if (mgr != null) {
+            object : NsdManager.DiscoveryListener {
+                override fun onDiscoveryStarted(regType: String) {}
+                override fun onDiscoveryStopped(serviceType: String) {}
+                override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                    runCatching { mgr.stopServiceDiscovery(this) }
+                }
+                override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
+                    runCatching { mgr.stopServiceDiscovery(this) }
+                }
+                override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+                    if (!serviceInfo.serviceType.contains("sonora-remote")) return
+                    @Suppress("DEPRECATION")
+                    mgr.resolveService(
+                        serviceInfo,
+                        object : NsdManager.ResolveListener {
+                            override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
+                            override fun onServiceResolved(info: NsdServiceInfo) {
+                                @Suppress("DEPRECATION")
+                                val host = info.host?.hostAddress ?: return
+                                registerDiscovered(info.serviceName, host, info.port)
+                            }
+                        },
+                    )
+                }
+                override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
+            }
+        } else {
+            null
+        }
+
+        if (mgr != null && discoveryListener != null) {
+            runCatching {
+                mgr.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+            }.onFailure {
+                Log.w(TAG, "Failed to start mDNS discovery for TV remote", it)
+            }
         }
 
         return {
-            runCatching { mgr.stopServiceDiscovery(discoveryListener) }
+            udpJob.cancel()
+            if (mgr != null && discoveryListener != null) {
+                runCatching { mgr.stopServiceDiscovery(discoveryListener) }
+            }
+        }
+    }
+
+    private fun probeLanUdp() {
+        val probeBytes = DISCOVERY_PROBE.toByteArray(Charsets.UTF_8)
+        DatagramSocket().use { socket ->
+            socket.broadcast = true
+            socket.soTimeout = 1_200
+
+            val targets = LinkedHashSet<InetAddress>()
+            targets.add(InetAddress.getByName("255.255.255.255"))
+            runCatching {
+                val ifaces = NetworkInterface.getNetworkInterfaces()
+                while (ifaces != null && ifaces.hasMoreElements()) {
+                    val iface = ifaces.nextElement()
+                    if (iface.isLoopback || !iface.isUp) continue
+                    for (addr in iface.interfaceAddresses) {
+                        addr.broadcast?.let { targets.add(it) }
+                    }
+                }
+            }
+
+            for (target in targets) {
+                runCatching {
+                    socket.send(DatagramPacket(probeBytes, probeBytes.size, target, DISCOVERY_UDP_PORT))
+                }
+            }
+
+            val deadline = System.currentTimeMillis() + 1_200L
+            val buf = ByteArray(512)
+            while (System.currentTimeMillis() < deadline) {
+                try {
+                    val reply = DatagramPacket(buf, buf.size)
+                    socket.receive(reply)
+                    val host = reply.address?.hostAddress ?: continue
+                    val body = String(reply.data, 0, reply.length, Charsets.UTF_8).trim()
+                    val json = JSONObject(body)
+                    val port = json.optInt("port", 8765)
+                    val name = json.optString("name", "Sonora")
+                    registerDiscovered(name, host, port)
+                } catch (_: SocketTimeoutException) {
+                    break
+                } catch (_: Exception) {
+                    // Ignore malformed replies
+                }
+            }
         }
     }
 
@@ -144,6 +208,11 @@ object TvRemoteController {
                 delay(POLL_INTERVAL_MS)
             }
         }
+    }
+
+    fun connectById(id: String) {
+        val device = _state.value.devices.firstOrNull { it.id == id } ?: return
+        connect(device)
     }
 
     fun disconnect() {

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -93,6 +94,7 @@ internal fun UnifiedAudioOutputSheet(
     val cast by host.castState.collectAsStateWithLifecycle()
     val airplay by host.airPlayState.collectAsStateWithLifecycle()
     val dlna by host.dlnaState.collectAsStateWithLifecycle()
+    val tvRemoteName by host.tvRemoteConnectedName.collectAsStateWithLifecycle()
     val party by host.party.collectAsStateWithLifecycle()
     val watch by host.watchOutput.collectAsStateWithLifecycle()
     var searching by remember { mutableStateOf(true) }
@@ -153,9 +155,14 @@ internal fun UnifiedAudioOutputSheet(
                 OutputProtocol.CAST -> Icons.Rounded.Cast
                 OutputProtocol.AIRPLAY -> Icons.Rounded.Airplay
                 OutputProtocol.DLNA -> DlnaIcon
+                OutputProtocol.TV_REMOTE -> Icons.Rounded.Tv
                 null -> local?.let(::iconFor) ?: Icons.Rounded.PhoneAndroid
             },
         )
+        if (tvRemoteName != null) {
+            Spacer(Modifier.height(10.dp))
+            host.TvRemoteDrawerContent()
+        }
         Spacer(Modifier.height(10.dp))
         UnifiedDeviceRow(
             title = stringResource(Res.string.listen_together),
@@ -360,10 +367,12 @@ private fun OutputProtocol.label(): String = when (this) {
     OutputProtocol.CAST -> "Google Cast"
     OutputProtocol.AIRPLAY -> "AirPlay"
     OutputProtocol.DLNA -> "DLNA"
+    OutputProtocol.TV_REMOTE -> "TV Remote"
 }
 
 private fun OutputProtocol.icon(): androidx.compose.ui.graphics.vector.ImageVector = when (this) {
     OutputProtocol.CAST -> Icons.Rounded.Cast
     OutputProtocol.AIRPLAY -> Icons.Rounded.Airplay
     OutputProtocol.DLNA -> DlnaIcon
+    OutputProtocol.TV_REMOTE -> Icons.Rounded.Tv
 }

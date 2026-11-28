@@ -619,7 +619,7 @@ private fun CastActionRow(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TvRemoteControlPanel(
+internal fun TvRemoteControlPanel(
     status: TvRemoteController.TvStatus?,
     error: String?,
     onPrevious: () -> Unit,
