@@ -701,38 +701,6 @@ internal fun TvRemoteControlPanel(
             }
         }
 
-        var sliderVol by remember(status?.volumePercent) {
-            mutableStateOf((status?.volumePercent ?: 50) / 100f)
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.VolumeUp,
-                contentDescription = "TV Volume",
-                tint = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.size(18.dp),
-            )
-            Slider(
-                value = sliderVol,
-                onValueChange = { sliderVol = it },
-                onValueChangeFinished = { onVolumeChange((sliderVol * 100f).toInt()) },
-                colors = SliderDefaults.colors(
-                    thumbColor = Color.White,
-                    activeTrackColor = accent,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.2f),
-                ),
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = "${(sliderVol * 100).toInt()}%",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = Color.White.copy(alpha = 0.72f),
-            )
-        }
-
         if (onSendCurrentSong != null && !phoneTrackTitle.isNullOrBlank()) {
             Button(
                 onClick = onSendCurrentSong,

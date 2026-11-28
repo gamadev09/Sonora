@@ -414,6 +414,8 @@ class AndroidPlayerHost(context: Context) : PlayerHost {
 
     override fun returnToPhone() {
         when {
+            com.music.bitchord.playback.tvremote.TvRemoteController.state.value.connected ->
+                com.music.bitchord.playback.tvremote.TvRemoteController.disconnect()
             CastController.state.value.casting -> CastController.disconnect(resumeHere = true)
             AirPlayController.state.value.connected -> AirPlayController.disconnect(resumeHere = true)
             DlnaController.state.value.connected -> DlnaController.disconnect(resumeHere = true)
@@ -539,10 +541,14 @@ private class CastAwareVolume(
             DlnaController.volume,
             DlnaController.state.map { it.connected },
         ) { dlnaVol, dlnaConnected -> dlnaVol to dlnaConnected },
-        WearBridge.watchOutput,
+        combine(
+            com.music.bitchord.playback.tvremote.TvRemoteController.state,
+            WearBridge.watchOutput,
+        ) { tv, watch -> tv to watch },
         DacVolume.level,
-    ) { (phone, castVol, casting), (airVol, airConnected), (dlnaVol, dlnaConnected), watch, dac ->
+    ) { (phone, castVol, casting), (airVol, airConnected), (dlnaVol, dlnaConnected), (tv, watch), dac ->
         when {
+            tv.connected -> ((tv.status?.volumePercent ?: 50) / 100f).coerceIn(0f, 1f)
             casting -> castVol
             airConnected -> airVol
             dlnaConnected -> dlnaVol
@@ -560,9 +566,13 @@ private class CastAwareVolume(
         CastController.state.map { it.casting },
         AirPlayController.state.map { it.connected },
         DlnaController.state.map { it.connected },
-        WearBridge.watchOutput,
-    ) { sysAdj, casting, airConnected, dlnaConnected, watch ->
+        combine(
+            com.music.bitchord.playback.tvremote.TvRemoteController.state.map { it.connected },
+            WearBridge.watchOutput,
+        ) { tvConnected, watch -> tvConnected to watch },
+    ) { sysAdj, casting, airConnected, dlnaConnected, (tvConnected, watch) ->
         when {
+            tvConnected -> true
             casting -> true
             airConnected -> true
             dlnaConnected -> true
@@ -575,6 +585,8 @@ private class CastAwareVolume(
     override fun set(level: Float) {
         if (!adjustable.value) return
         when {
+            com.music.bitchord.playback.tvremote.TvRemoteController.state.value.connected ->
+                com.music.bitchord.playback.tvremote.TvRemoteController.setVolume((level.coerceIn(0f, 1f) * 100f).toInt())
             CastController.state.value.casting -> CastController.setVolume(level)
             AirPlayController.state.value.connected -> AirPlayController.setVolume(level)
             DlnaController.state.value.connected -> DlnaController.setVolume(level)

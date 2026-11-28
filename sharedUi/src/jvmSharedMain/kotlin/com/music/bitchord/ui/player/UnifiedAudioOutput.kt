@@ -108,8 +108,9 @@ internal fun UnifiedAudioOutputSheet(
         searching = false
     }
 
-    val remoteName = cast.connectedName ?: airplay.connectedName ?: dlna.connectedName
+    val remoteName = tvRemoteName ?: cast.connectedName ?: airplay.connectedName ?: dlna.connectedName
     val remoteProtocol = when {
+        tvRemoteName != null -> OutputProtocol.TV_REMOTE
         cast.connectedName != null -> OutputProtocol.CAST
         airplay.connectedName != null -> OutputProtocol.AIRPLAY
         dlna.connectedName != null -> OutputProtocol.DLNA
