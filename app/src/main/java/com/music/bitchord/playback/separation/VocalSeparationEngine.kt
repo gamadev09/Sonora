@@ -137,6 +137,7 @@ class VocalSeparationEngine(
         staging: StemCacheStore.StagingFiles,
         priority: AudioIntelligencePriority,
         onProgress: (Float) -> Unit,
+        onChunkReady: ((Long) -> Unit)? = null,
     ): SeparationMetrics {
         checkStorageAvailable(staging.vocalsPart.parentFile ?: context.noBackupFilesDir)
 
@@ -340,6 +341,9 @@ class VocalSeparationEngine(
 
                             chunksProcessed++
                             chunkIndex++
+                            vocalsOut.flush()
+                            instOut.flush()
+                            onChunkReady?.invoke(writtenFrames)
                             val progress = (writtenFrames.toFloat() / totalExpectedSamples.toFloat()).coerceIn(0f, 0.99f)
                             onProgress(progress)
 

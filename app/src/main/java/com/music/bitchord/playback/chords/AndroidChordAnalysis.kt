@@ -111,11 +111,19 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
         lateinit var job: Job
         job = appScope.launch {
             try {
-                val events = analyze(song) { progress ->
-                    flow.update { snap ->
-                        if (snap.loading && snap.generation == nextGen) snap.copy(progress = progress) else snap
-                    }
-                }
+                val events = analyzeInternal(
+                    song = song,
+                    onProgress = { progress ->
+                        flow.update { snap ->
+                            if (snap.loading && snap.generation == nextGen) snap.copy(progress = progress) else snap
+                        }
+                    },
+                    onPartialEvents = { partial ->
+                        flow.update { snap ->
+                            if (snap.loading && snap.generation == nextGen) snap.copy(events = partial) else snap
+                        }
+                    },
+                )
                 flow.value = ChordJobSnapshot(
                     loading = false,
                     progress = 1f,
@@ -153,10 +161,17 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
     }
 
     override suspend fun analyze(song: Song, onProgress: (Float) -> Unit): List<ChordEvent> =
+        analyzeInternal(song, onProgress, onPartialEvents = null)
+
+    private suspend fun analyzeInternal(
+        song: Song,
+        onProgress: (Float) -> Unit,
+        onPartialEvents: ((List<ChordEvent>) -> Unit)?,
+    ): List<ChordEvent> =
         withContext(Dispatchers.IO) {
             analyzeMutex.withLock {
                 val input = input(song) ?: error("Download this song, or let it finish caching, then try again.")
-                val events = analyzeInput(input, onProgress)
+                val events = analyzeInput(input, onProgress, onPartialEvents)
                 currentCoroutineContext().ensureActive()
                 if (events.isNotEmpty()) {
                     cacheWriteMutex.withLock { write(cacheFile(input), events) }
@@ -166,7 +181,11 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
             }
         }
 
-    private suspend fun analyzeInput(input: Input, onProgress: (Float) -> Unit): List<ChordEvent> = coroutineScope {
+    private suspend fun analyzeInput(
+        input: Input,
+        onProgress: (Float) -> Unit,
+        onPartialEvents: ((List<ChordEvent>) -> Unit)? = null,
+    ): List<ChordEvent> = coroutineScope {
         val updates = Channel<Float>(Channel.CONFLATED)
         val notifier = launch(Dispatchers.Main) { for (value in updates) onProgress(value) }
         val prevPriority = Process.getThreadPriority(Process.myTid())
@@ -178,6 +197,7 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
                 ?: error("Use a supported audio file no longer than 30 minutes.")
             var analyzer = ChordAnalyzer()
             var nextProgress = 0.0
+            var nextPartialAt = 3.0
             val outcome = AudioDecoder.streamRegionWithFallback(
                 openSource = input.open,
                 startSeconds = 0.0,
@@ -186,6 +206,7 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
                 onReset = {
                     analyzer = ChordAnalyzer()
                     nextProgress = 0.0
+                    nextPartialAt = 3.0
                     updates.trySend(0f)
                 },
             ) { samples, at, rate ->
@@ -194,6 +215,11 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
                 if (at >= nextProgress) {
                     updates.trySend((at / duration).toFloat().coerceIn(0f, 0.99f))
                     nextProgress = at + 0.5
+                }
+                if (onPartialEvents != null && at >= nextPartialAt) {
+                    val partial = analyzer.finish()
+                    if (partial.isNotEmpty()) onPartialEvents(partial)
+                    nextPartialAt = at + 4.0
                 }
             }
             coroutine.ensureActive()
