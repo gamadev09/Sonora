@@ -210,9 +210,20 @@ internal fun TvNowPlayingStage(
     val lyricsFontScale by TvSettings.tvLyricsFontScale.collectAsStateWithLifecycle()
     val lyricsCenterFocus by TvSettings.tvLyricsCenterFocus.collectAsStateWithLifecycle()
     var canvas by remember(song.videoId) { mutableStateOf<CanvasArtwork?>(null) }
-    LaunchedEffect(song.videoId, canvasEnabled, disableSpotifyCanvas) {
-        canvas = null
-        canvas = if (canvasEnabled) CanvasRepository.canvasFor(song) else null
+    LaunchedEffect(song.videoId, song.albumName, canvasEnabled, disableSpotifyCanvas) {
+        if (!canvasEnabled) {
+            canvas = null
+            return@LaunchedEffect
+        }
+        canvas = CanvasRepository.cached(song)
+            ?: canvas?.takeIf {
+                (!disableSpotifyCanvas || it.source != CanvasSource.SPOTIFY) &&
+                    it.matches(song.title, song.artist, song.albumName)
+            }
+        if (canvas == null && song.albumName == null) {
+            delay(800L)
+        }
+        canvas = CanvasRepository.canvasFor(song) ?: canvas
     }
     val side = animateFloatAsState(if (showRightStage) 1f else 0f, tween(520), label = "artToSide")
     val captionShown = animateFloatAsState(if (controlsVisible) 0f else 1f, tween(320), label = "captionFade")
