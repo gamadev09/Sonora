@@ -217,7 +217,7 @@ class AndroidChordAnalysis(context: Context) : ChordAnalysisSource {
                     nextProgress = at + 0.5
                 }
                 if (onPartialEvents != null && at >= nextPartialAt) {
-                    val partial = analyzer.finish()
+                    val partial = analyzer.finish((at * 1000.0).toLong())
                     if (partial.isNotEmpty()) onPartialEvents(partial)
                     nextPartialAt = at + 4.0
                 }
