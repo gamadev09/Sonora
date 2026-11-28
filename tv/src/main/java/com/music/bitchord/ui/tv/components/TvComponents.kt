@@ -114,8 +114,9 @@ private fun sampleDominantColor(bitmap: Bitmap): Color {
     var g = 0L
     var b = 0L
     var weight = 0L
-    for (x in 0 until bitmap.width) {
-        for (y in 0 until bitmap.height) {
+    val step = if (bitmap.width >= 16 && bitmap.height >= 16) 2 else 1
+    for (x in 0 until bitmap.width step step) {
+        for (y in 0 until bitmap.height step step) {
             val pixel = bitmap.getPixel(x, y)
             if ((pixel ushr 24) < 100) continue
             val pr = (pixel shr 16) and 0xff

@@ -22,13 +22,22 @@ import androidx.compose.material.icons.rounded.Airplay
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Tv
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -60,6 +69,7 @@ import com.music.bitchord.playback.airplay.AirPlayAuthRequiredException
 import com.music.bitchord.playback.airplay.AirPlayController
 import com.music.bitchord.playback.cast.CastController
 import com.music.bitchord.playback.dlna.DlnaController
+import com.music.bitchord.playback.tvremote.TvRemoteController
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 import com.music.bitchord.ui.player.DlnaIcon
@@ -148,12 +158,18 @@ fun AirPlayDialog(
 ) {
     val context = LocalContext.current
     val airplay by AirPlayController.state.collectAsStateWithLifecycle()
+    val tvRemote by TvRemoteController.state.collectAsStateWithLifecycle()
     val pairingPrompt by AirPlayController.pairingPrompt.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     var picked by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
-        onDispose(AirPlayController.discover(context))
+        val stopAirPlay = AirPlayController.discover(context)
+        val stopTvRemote = TvRemoteController.discover(context)
+        onDispose {
+            stopAirPlay()
+            stopTvRemote()
+        }
     }
     LaunchedEffect(airplay.connectedHost, picked, pairingPrompt) {
         if (picked && airplay.connectedHost != null && pairingPrompt == null) onDismiss()
@@ -197,7 +213,57 @@ fun AirPlayDialog(
                 PipelineRule(Modifier)
             }
 
-            if (airplay.devices.isEmpty()) {
+            if (tvRemote.devices.isNotEmpty()) {
+                tvRemote.devices.forEach { tvDevice ->
+                    val isTvConnected = tvRemote.connectedDevice?.id == tvDevice.id
+                    CastDeviceRow(
+                        name = tvDevice.name,
+                        subtitle = if (isTvConnected) {
+                            tvRemote.status?.title ?: "Remote control active"
+                        } else {
+                            "Control playback on TV"
+                        },
+                        icon = Icons.Rounded.Tv,
+                        connecting = false,
+                        connected = isTvConnected,
+                        connectedLabel = "Controlling",
+                        onClick = {
+                            haptics.play(Haptic.Select)
+                            if (isTvConnected) {
+                                TvRemoteController.disconnect()
+                            } else {
+                                TvRemoteController.connect(tvDevice)
+                            }
+                        },
+                    )
+                    if (isTvConnected) {
+                        TvRemoteControlPanel(
+                            status = tvRemote.status,
+                            error = tvRemote.error,
+                            onPrevious = {
+                                haptics.play(Haptic.Select)
+                                TvRemoteController.previous()
+                            },
+                            onPlayPause = {
+                                haptics.play(Haptic.Select)
+                                TvRemoteController.playPause()
+                            },
+                            onNext = {
+                                haptics.play(Haptic.Select)
+                                TvRemoteController.next()
+                            },
+                            onVolumeChange = { TvRemoteController.setVolume(it) },
+                            onDisconnect = {
+                                haptics.play(Haptic.Select)
+                                TvRemoteController.disconnect()
+                            },
+                        )
+                    }
+                    PipelineRule(Modifier.padding(start = 56.dp))
+                }
+            }
+
+            if (airplay.devices.isEmpty() && tvRemote.devices.isEmpty()) {
                 SearchingRow()
             } else {
                 airplay.devices.forEach { device ->

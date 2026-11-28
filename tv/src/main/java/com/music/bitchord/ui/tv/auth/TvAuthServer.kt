@@ -2,6 +2,8 @@ package com.music.bitchord.ui.tv.auth
 
 import android.content.Context
 import android.util.Log
+import com.music.bitchord.auth.CapturedSession
+import com.music.bitchord.auth.TvPairingCrypto
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.model.SearchFilter
 import com.music.bitchord.data.model.SearchResult
@@ -29,6 +31,8 @@ data class TvRemoteStatus(
     val artworkUrl: String?,
     val currentPositionMs: Long,
     val durationMs: Long,
+    val volumePercent: Int = 50,
+    val videoId: String? = null,
 )
 
 object TvAuthServer {
@@ -46,6 +50,7 @@ object TvAuthServer {
     var onNextAction: (() -> Unit)? = null
     var onPreviousAction: (() -> Unit)? = null
     var onSeekAction: ((Long) -> Unit)? = null
+    var onVolumeAction: ((Int) -> Unit)? = null
     var onPlaySongAction: ((Song) -> Unit)? = null
     var onKeyAction: ((String) -> Unit)? = null
 
@@ -75,10 +80,30 @@ object TvAuthServer {
         return null
     }
 
+    @Volatile
+    private var legacyCookieCallback: ((String) -> Unit)? = null
+
+    /**
+     * Ensures the local LAN server is running without tearing down existing connections.
+     * Returns `(port, ip)` when active.
+     */
+    suspend fun ensureRunning(
+        onCookieReceived: ((String) -> Unit)? = null,
+    ): Pair<Int, String>? = withContext(Dispatchers.IO) {
+        if (onCookieReceived != null) legacyCookieCallback = onCookieReceived
+        val existing = serverSocket
+        if (isRunning.get() && existing != null && !existing.isClosed) {
+            val ip = getLocalIpAddress() ?: return@withContext null
+            return@withContext Pair(existing.localPort, ip)
+        }
+        start(onCookieReceived)
+    }
+
     suspend fun start(
         onCookieReceived: ((String) -> Unit)? = null,
     ): Pair<Int, String>? = withContext(Dispatchers.IO) {
         stop()
+        if (onCookieReceived != null) legacyCookieCallback = onCookieReceived
 
         val ip = getLocalIpAddress() ?: return@withContext null
         try {
@@ -95,7 +120,7 @@ object TvAuthServer {
                 while (isRunning.get() && !socket.isClosed) {
                     try {
                         val client = socket.accept()
-                        handleClient(client, onCookieReceived)
+                        handleClient(client, legacyCookieCallback)
                     } catch (e: Exception) {
                         if (!isRunning.get()) break
                     }
@@ -109,8 +134,59 @@ object TvAuthServer {
         }
     }
 
+    @Volatile
+    private var activePairingSession: TvPairingCrypto.TvPairSession? = null
+    @Volatile
+    private var pairingAttempts: Int = 0
+    @Volatile
+    private var onPairedSessionCallback: ((CapturedSession) -> Unit)? = null
+
+    data class EncryptedPairingInfo(
+        val ip: String,
+        val port: Int,
+        val qrUri: String,
+        val httpUrl: String,
+        val expiresAtMs: Long,
+    )
+
+    /**
+     * Starts an ephemeral, single-use AES-256-GCM pairing session.
+     * The QR code encodes `sonora://tv-pair?host=...&port=...&sid=...&k=...`.
+     */
+    suspend fun startEncryptedPairing(
+        onSessionPaired: (CapturedSession) -> Unit,
+        onLegacyCookieReceived: ((String) -> Unit)? = null,
+    ): EncryptedPairingInfo? {
+        val started = ensureRunning(onCookieReceived = onLegacyCookieReceived) ?: return null
+        val (port, ip) = started
+        activePairingSession?.wipe()
+        val session = TvPairingCrypto.generateSession()
+        activePairingSession = session
+        pairingAttempts = 0
+        onPairedSessionCallback = onSessionPaired
+        return EncryptedPairingInfo(
+            ip = ip,
+            port = port,
+            qrUri = session.buildQrUri(ip, port),
+            httpUrl = "http://$ip:$port/",
+            expiresAtMs = session.expiresAtMs,
+        )
+    }
+
+    /** Clears only the ephemeral QR pairing session while keeping LAN remote control alive. */
+    fun clearPairingSession() {
+        activePairingSession?.wipe()
+        activePairingSession = null
+        onPairedSessionCallback = null
+        pairingAttempts = 0
+    }
+
     fun stop() {
         isRunning.set(false)
+        activePairingSession?.wipe()
+        activePairingSession = null
+        onPairedSessionCallback = null
+        pairingAttempts = 0
         try {
             serverSocket?.close()
         } catch (_: Exception) {}
@@ -154,7 +230,7 @@ object TvAuthServer {
                 when {
                     // 1. API: Get Current Status
                     path == "/api/status" -> {
-                        val status = statusProvider?.invoke() ?: TvRemoteStatus(false, "No Song Playing", "Sonora TV", null, 0, 0)
+                        val status = statusProvider?.invoke() ?: TvRemoteStatus(false, "No Song Playing", "Sonora", null, 0, 0)
                         val json = JSONObject().apply {
                             put("isPlaying", status.isPlaying)
                             put("title", status.title)
@@ -162,6 +238,8 @@ object TvAuthServer {
                             put("artworkUrl", status.artworkUrl ?: "")
                             put("currentPositionMs", status.currentPositionMs)
                             put("durationMs", status.durationMs)
+                            put("volumePercent", status.volumePercent)
+                            put("videoId", status.videoId ?: "")
                         }
                         sendJsonResponse(writer, json.toString())
                     }
@@ -181,6 +259,10 @@ object TvAuthServer {
                             "seek" -> {
                                 val ms = (parseFormParam(requestBody, "ms") ?: parseQueryParam(query, "ms"))?.toLongOrNull() ?: 0L
                                 onSeekAction?.invoke(ms)
+                            }
+                            "volume" -> {
+                                val level = (parseFormParam(requestBody, "level") ?: parseQueryParam(query, "level"))?.toIntOrNull()
+                                if (level != null) onVolumeAction?.invoke(level.coerceIn(0, 100))
                             }
                             "key_up", "key_down", "key_left", "key_right", "key_select", "key_back" -> {
                                 onKeyAction?.invoke(action)
@@ -229,7 +311,35 @@ object TvAuthServer {
                         sendJsonResponse(writer, """{"success":true}""")
                     }
 
-                    // 5. Auth Cookie Submission
+                    // 5a. Encrypted Phone-App Pairing (AES-256-GCM, single-use, 2-min TTL)
+                    path == "/pair" && method == "POST" -> {
+                        val session = activePairingSession
+                        if (session == null || session.isExpired()) {
+                            activePairingSession?.wipe()
+                            activePairingSession = null
+                            sendJsonError(writer, 410, "Pairing code expired. Refresh the QR code on your TV.")
+                        } else if (pairingAttempts >= TvPairingCrypto.MAX_ATTEMPTS) {
+                            session.wipe()
+                            activePairingSession = null
+                            sendJsonError(writer, 429, "Too many failed attempts. Refresh the QR code on your TV.")
+                        } else {
+                            val decrypted = TvPairingCrypto.decryptSession(requestBody, session.sid, session.keyBytes)
+                            if (decrypted != null) {
+                                val callback = onPairedSessionCallback
+                                session.wipe()
+                                activePairingSession = null
+                                onPairedSessionCallback = null
+                                sendJsonResponse(writer, """{"success":true}""")
+                                callback?.invoke(decrypted)
+                                clearPairingSession()
+                            } else {
+                                pairingAttempts++
+                                sendJsonError(writer, 403, "Invalid or tampered pairing payload.")
+                            }
+                        }
+                    }
+
+                    // 5b. Legacy Auth Cookie Submission (Web browser fallback)
                     path == "/submit" && method == "POST" -> {
                         val cookieValue = parseCookieFromBody(requestBody)
                         if (!cookieValue.isNullOrBlank()) {
@@ -256,6 +366,22 @@ object TvAuthServer {
                 try { client.close() } catch (_: Exception) {}
             }
         }.start()
+    }
+
+    private fun sendJsonError(writer: PrintWriter, statusCode: Int, message: String) {
+        val body = JSONObject().put("error", message).toString()
+        val reason = when (statusCode) {
+            403 -> "Forbidden"
+            410 -> "Gone"
+            429 -> "Too Many Requests"
+            else -> "Bad Request"
+        }
+        writer.print("HTTP/1.1 $statusCode $reason\r\n")
+        writer.print("Content-Type: application/json; charset=UTF-8\r\n")
+        writer.print("Content-Length: ${body.toByteArray().size}\r\n")
+        writer.print("Connection: close\r\n\r\n")
+        writer.print(body)
+        writer.flush()
     }
 
     private fun sendJsonResponse(writer: PrintWriter, json: String) {
@@ -328,7 +454,7 @@ object TvAuthServer {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Sonora TV • Mobile Remote</title>
+<title>Sonora • Remote</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body { background: #08080B; color: #FFF; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; min-height: 100vh; padding: 18px; display: flex; flex-direction: column; align-items: center; }
@@ -365,7 +491,7 @@ body { background: #08080B; color: #FFF; font-family: -apple-system, BlinkMacSys
 <body>
 <div class="header">
   <div class="logo-badge">♪</div>
-  <h1>Sonora TV Remote</h1>
+  <h1>Sonora Remote</h1>
 </div>
 
 <div class="card">
@@ -373,7 +499,7 @@ body { background: #08080B; color: #FFF; font-family: -apple-system, BlinkMacSys
     <img id="trackArt" class="art" src="" style="display:none;" />
     <div class="info">
       <div id="trackTitle" class="title">Loading TV...</div>
-      <div id="trackArtist" class="artist">Connecting to Sonora TV</div>
+      <div id="trackArtist" class="artist">Connecting to Sonora</div>
     </div>
   </div>
   <div class="progress-bar" id="pBar" onclick="handleSeek(event)">
@@ -418,7 +544,7 @@ function fmtTime(ms) {
 function updateStatus() {
   fetch('/api/status').then(r => r.json()).then(data => {
     document.getElementById('trackTitle').innerText = data.title || "No Song Playing";
-    document.getElementById('trackArtist').innerText = data.artist || "Sonora TV";
+    document.getElementById('trackArtist').innerText = data.artist || "Sonora";
     let art = document.getElementById('trackArt');
     if (data.artworkUrl) { art.src = data.artworkUrl; art.style.display = 'block'; } else { art.style.display = 'none'; }
     document.getElementById('playBtn').innerText = data.isPlaying ? '❚❚' : '▶';
@@ -471,7 +597,7 @@ updateStatus();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sonora TV • 1-Tap Sign In</title>
+<title>Sonora • Sign In</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #08080B; color: #FFF; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; }
@@ -486,7 +612,7 @@ textarea { width: 100%; height: 90px; background: rgba(0,0,0,0.5); border: 1px s
 <body>
 <div class="card" style="text-align: center;">
   <div style="width: 52px; height: 52px; border-radius: 50%; background: #FA2D48; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">♪</div>
-  <h1 style="font-size: 22px; font-weight: 800; margin-bottom: 6px;">Sign In to Sonora TV</h1>
+  <h1 style="font-size: 22px; font-weight: 800; margin-bottom: 6px;">Sign In to Sonora</h1>
   <p style="font-size: 14px; color: #A0A0AB;">Fast & easy login from your mobile phone</p>
 
   <div class="step-box" style="text-align: left; margin-top: 18px;">
@@ -523,7 +649,7 @@ textarea { width: 100%; height: 90px; background: rgba(0,0,0,0.5); border: 1px s
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sonora TV • Connected</title>
+<title>Sonora • Connected</title>
 <style>
 body { background: #08080B; color: #FFF; font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
 .card { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 24px; padding: 32px; max-width: 380px; }
@@ -534,7 +660,7 @@ body { background: #08080B; color: #FFF; font-family: -apple-system, sans-serif;
 <div class="card">
   <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
   <h1 style="font-size: 22px; font-weight: bold; margin-bottom: 8px;">Paired Successfully!</h1>
-  <p style="font-size: 14px; color: #AAA;">Your Sonora TV is now connected. You can now use the mobile remote to control playback.</p>
+  <p style="font-size: 14px; color: #AAA;">Your TV is now connected to Sonora. You can now use the remote to control playback.</p>
   <a href="/remote" class="btn">📱 Open TV Remote</a>
 </div>
 </body>

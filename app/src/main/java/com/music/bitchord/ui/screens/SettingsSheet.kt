@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
@@ -462,6 +463,7 @@ fun SettingsScreen(
             )
 
             SearchableSettingsGroup(search, header = stringResource(R.string.settings_group_account)) {
+                var showTvPairDialog by remember { mutableStateOf(false) }
                 val accountTitle = stringResource(R.string.account_integrations)
                 // What the row opens is the scrobbling screen, so the services it
                 // signs into are worth typing at this field even though none of
@@ -484,6 +486,22 @@ fun SettingsScreen(
                         subtitle = account?.email?.takeIf { it.isNotBlank() }
                             ?: stringResource(if (signedIn) R.string.signed_in else R.string.not_signed_in),
                         onClick = onAccountScrobbling,
+                    )
+                }
+                row("Pair with TV", "tv", "qr", "android tv", "google tv", "sign in") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Tv,
+                        title = "Pair with TV",
+                        subtitle = "Sign in to Sonora on your TV using its QR code",
+                        onClick = { showTvPairDialog = true },
+                    )
+                }
+                if (showTvPairDialog) {
+                    TvPairDialog(
+                        initialRequest = null,
+                        accountLabel = account?.name?.takeIf { it.isNotBlank() } ?: account?.email,
+                        signedIn = signedIn,
+                        onDismiss = { showTvPairDialog = false },
                     )
                 }
             }

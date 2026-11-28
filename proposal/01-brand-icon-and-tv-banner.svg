@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="canvasBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0E17"/>
+      <stop offset="100%" stop-color="#06080E"/>
+    </linearGradient>
+    <radialGradient id="topGlow" cx="50%" cy="0%" r="70%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.22"/>
+      <stop offset="55%" stop-color="#38BDF8" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#06080E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="iconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#131722"/>
+      <stop offset="100%" stop-color="#080A10"/>
+    </linearGradient>
+    <radialGradient id="iconGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.28"/>
+      <stop offset="60%" stop-color="#38BDF8" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bannerGlow" cx="28%" cy="50%" r="58%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.28"/>
+      <stop offset="55%" stop-color="#38BDF8" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#080A10" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.14"/>
+    </linearGradient>
+    <linearGradient id="pillFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.97"/>
+      <stop offset="55%" stop-color="#EEF6FF" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#DCE8FF" stop-opacity="0.80"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sheet Background -->
+  <rect width="1920" height="1080" fill="url(#canvasBg)"/>
+  <rect width="1920" height="1080" fill="url(#topGlow)"/>
+
+  <!-- Header -->
+  <text x="110" y="108" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="42" font-weight="700">01 · Sonora TV Brand Assets — App Icon, Leanback Banner &amp; TvAppMark</text>
+  <text x="110" y="150" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="22">Replaces legacy red BitChord TV icon, TvAppMark gradient, and tv_banner.png across mdpi / hdpi / xhdpi</text>
+
+  <!-- Left Card: Adaptive App Icon & TvAppMark -->
+  <rect x="110" y="210" width="520" height="720" rx="28" fill="#FFFFFF" fill-opacity="0.04" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1.5"/>
+  <text x="155" y="272" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24" font-weight="600">Launcher Icon &amp; In-App TvAppMark</text>
+  <text x="155" y="304" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="17">Matches Logo.svg smoked-glass squircle</text>
+
+  <!-- Large Squircle Icon (320x320) -->
+  <g transform="translate(210, 360)">
+    <rect x="0" y="0" width="320" height="320" rx="74" fill="url(#iconBg)"/>
+    <rect x="0" y="0" width="320" height="320" rx="74" fill="url(#iconGlow)"/>
+    <rect x="1" y="1" width="318" height="318" rx="73" fill="none" stroke="url(#rim)" stroke-width="2"/>
+    <!-- 5 Frosted Pills scaled from Logo.svg (320/512 = 0.625) -->
+    <g transform="scale(0.625)">
+      <rect x="125" y="224" width="38" height="104" rx="19" fill="url(#pillFill)"/>
+      <rect x="181" y="152" width="38" height="166" rx="19" fill="url(#pillFill)"/>
+      <rect x="237" y="132" width="38" height="248" rx="19" fill="url(#pillFill)"/>
+      <rect x="293" y="194" width="38" height="166" rx="19" fill="url(#pillFill)"/>
+      <rect x="349" y="184" width="38" height="104" rx="19" fill="url(#pillFill)"/>
+    </g>
+  </g>
+
+  <!-- Before/After note -->
+  <rect x="155" y="730" width="430" height="150" rx="18" fill="#0B0E17" fill-opacity="0.7" stroke="#FFFFFF" stroke-opacity="0.08"/>
+  <text x="182" y="772" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="18" font-weight="600">Updated Surfaces</text>
+  <text x="182" y="806" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16">• tv/src/main/res/drawable*/tv_banner.png</text>
+  <text x="182" y="834" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16">• TvAppMark() in TvApp.kt (Setup &amp; Account)</text>
+  <text x="182" y="862" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16">• TV launcher mipmap / adaptive foreground</text>
+
+  <!-- Right Card: Android TV Leanback Banner (16:9 / 320x180 ratio -> 960x540 preview) -->
+  <rect x="680" y="210" width="1130" height="720" rx="28" fill="#FFFFFF" fill-opacity="0.04" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1.5"/>
+  <text x="725" y="272" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24" font-weight="600">Android TV Leanback Banner (320×180 dp · 16:9)</text>
+  <text x="725" y="304" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="17">Clean high-contrast card for Google TV / Android TV home rows — readable from 10 feet</text>
+
+  <!-- Banner Preview (960x540) -->
+  <g transform="translate(765, 345)">
+    <rect x="0" y="0" width="960" height="540" rx="34" fill="url(#iconBg)"/>
+    <rect x="0" y="0" width="960" height="540" rx="34" fill="url(#bannerGlow)"/>
+    <rect x="1.5" y="1.5" width="957" height="537" rx="33" fill="none" stroke="url(#rim)" stroke-width="3"/>
+
+    <!-- Left Sonora Mark -->
+    <g transform="translate(115, 130) scale(0.55)">
+      <rect x="125" y="224" width="38" height="104" rx="19" fill="url(#pillFill)"/>
+      <rect x="181" y="152" width="38" height="166" rx="19" fill="url(#pillFill)"/>
+      <rect x="237" y="132" width="38" height="248" rx="19" fill="url(#pillFill)"/>
+      <rect x="293" y="194" width="38" height="166" rx="19" fill="url(#pillFill)"/>
+      <rect x="349" y="184" width="38" height="104" rx="19" fill="url(#pillFill)"/>
+    </g>
+
+    <!-- Right Wordmark + Tagline -->
+    <text x="415" y="286" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="112" font-weight="700" letter-spacing="-2">Sonora</text>
+    <text x="422" y="344" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="30" font-weight="500" letter-spacing="0.5">More than listening.</text>
+  </g>
+</svg>

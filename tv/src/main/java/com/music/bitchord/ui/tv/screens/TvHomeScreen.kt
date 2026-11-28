@@ -166,11 +166,11 @@ internal fun TvShelfFeed(
                 }
             },
         ) { index, shelf ->
-            val onItem: (ShelfItem) -> Unit = { item ->
-                openShelfItem(item, onPlaySong, onNavigateToDetail)
+            val onItem: (ShelfItem) -> Unit = remember(onPlaySong, onNavigateToDetail) {
+                { item -> openShelfItem(item, onPlaySong, onNavigateToDetail) }
             }
-            val onItemMenu: (ShelfItem) -> (() -> Unit)? = { item ->
-                item.toSong()?.let { song -> { onSongMenu(song) } }
+            val onItemMenu: (ShelfItem) -> (() -> Unit)? = remember(onSongMenu) {
+                { item -> item.toSong()?.let { song -> { onSongMenu(song) } } }
             }
             when {
                 picksFirst && index == 0 -> TvShelf(

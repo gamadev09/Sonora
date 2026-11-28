@@ -19,6 +19,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- QR code scanner for encrypted Sonora TV pairing (Settings → Pair with TV). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <!-- Touch feedback. The system's own haptics switch is honoured on top of
          this, so granting it doesn't override a user who turned buzzing off. -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -242,6 +246,16 @@
                     android:scheme="https"
                     android:host="bitchord.kushagrasingh.in"
                     android:pathPattern="/invite/......" />
+            </intent-filter>
+
+            <!-- Sonora TV encrypted QR pairing deep link (sonora://tv-pair?...). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="sonora"
+                    android:host="tv-pair" />
             </intent-filter>
 
             <!-- Custom scheme for Listen Together invites on custom server deployments. -->

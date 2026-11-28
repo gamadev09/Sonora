@@ -487,7 +487,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         baselineSource = null
                         baselineTier = embeddedQuality.tier
                         displayedLyricsTier = embeddedQuality.tier
-                        _lyrics.value = embedded
+                        _lyrics.value = prepareLyricsForDisplay(embedded, durationMs)
                         _lyricsSource.value = null
                         _lyricsChecked.value = true
                         val sufficient = if (prioritizeSyllable) {
@@ -569,7 +569,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 showLyricsResult(found)
             } else if (baselineLines != null) {
                 displayedLyricsTier = baselineTier
-                _lyrics.value = baselineLines
+                _lyrics.value = prepareLyricsForDisplay(baselineLines, durationMs)
                 _lyricsSource.value = baselineSource
                 _lyricsChecked.value = true
             } else {
@@ -754,10 +754,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun showLyricsResult(result: LyricsRepository.Result) {
-        _lyrics.value = result.lines
+        val durationMs = currentLyricsRequest?.durationMs ?: 0L
+        _lyrics.value = prepareLyricsForDisplay(result.lines, durationMs)
         _lyricsSource.value = result.source
         _lyricsChecked.value = true
     }
+
+    private fun prepareLyricsForDisplay(lines: List<LyricLine>, durationMs: Long): List<LyricLine> =
+        if (AppSettings.prioritizeSyllableSync.value) {
+            com.music.bitchord.data.lyrics.WordSyncSynthesizer.ensureWordSync(lines, durationMs)
+        } else {
+            lines
+        }
 
     private val _account = MutableStateFlow<Account?>(null)
     val account: StateFlow<Account?> = _account.asStateFlow()

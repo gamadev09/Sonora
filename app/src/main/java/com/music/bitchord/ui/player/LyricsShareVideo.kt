@@ -449,7 +449,7 @@ internal fun shareVideoIntent(context: Context, video: File): Intent? = runCatch
 /** Copies [video] into the device's Movies/BitChord, where a gallery will find it. */
 internal suspend fun saveVideoToGallery(context: Context, video: File, label: String): Boolean =
     withContext(Dispatchers.IO) {
-        val name = "bitchord-lyrics-${label.replace(' ', '-').lowercase(Locale.ROOT)}.mp4"
+        val name = "sonora-lyrics-${label.replace(' ', '-').lowercase(Locale.ROOT)}.mp4"
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val resolver = context.contentResolver

@@ -32,17 +32,25 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.music.bitchord.data.LikeState
+import com.music.bitchord.data.LocaleTags
+import com.music.bitchord.data.lyrics.LyricLine
+import com.music.bitchord.data.lyrics.LyricsTranslation
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.TvSettings
 import com.music.bitchord.playback.PlayerState
+import com.music.bitchord.playback.separation.VocalSeparationCoordinator
+import com.music.bitchord.ui.player.VocalSeparationUiState
 import com.music.bitchord.playback.toggleAutoplay
 import com.music.bitchord.playback.toggleShuffle
 import com.music.bitchord.ui.MainViewModel
+import com.music.bitchord.ui.tv.TvDeviceCapabilities
+import com.music.bitchord.ui.tv.TvWeakHardwareDialog
 import com.music.bitchord.ui.tv.dialogs.TvSongActionMenuDialog
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -59,7 +67,7 @@ private const val ScrubStepMs = 10_000L
 /** How long the scrubber waits for more presses before it actually seeks. */
 private const val ScrubCommitDelayMs = 650L
 
-private enum class PlayerSheet { Menu }
+private enum class PlayerSheet { Menu, LyricsOptions }
 
 /**
  * Now Playing, as Apple Music has it on Apple TV.
@@ -107,10 +115,22 @@ fun TvNowPlayingScreen(
     val shuffle by com.music.bitchord.playback.QueueShuffle.enabled.collectAsStateWithLifecycle()
     val autoplay by AppSettings.autoplay.collectAsStateWithLifecycle()
     val playerStyle by TvSettings.tvPlayerStyle.collectAsStateWithLifecycle()
+    val syncedLyricsEnabled by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
+    val lyricsSources by AppSettings.lyricsSources.collectAsStateWithLifecycle()
+    val lyricsSourceOrder by AppSettings.lyricsSourceOrder.collectAsStateWithLifecycle()
+    val prioritizeSyllableSync by AppSettings.prioritizeSyllableSync.collectAsStateWithLifecycle()
 
-    // Avoid restarting lyrics fetches on minor duration updates during buffering/DASH adaptation.
+    // Avoid restarting lyrics fetches on minor duration updates during buffering/DASH adaptation,
+    // while still reacting immediately when lyrics sources, order, or word-by-word priority changes.
     val hasDuration = durationMs > 0L
-    LaunchedEffect(song.videoId, hasDuration) {
+    LaunchedEffect(
+        song.videoId,
+        hasDuration,
+        syncedLyricsEnabled,
+        lyricsSources,
+        lyricsSourceOrder,
+        prioritizeSyllableSync,
+    ) {
         if (hasDuration || lyrics == null) {
             viewModel.loadLyrics(
                 videoId = song.videoId,
@@ -122,9 +142,91 @@ fun TvNowPlayingScreen(
         }
     }
 
+    val context = LocalContext.current
+    val hwProfile = remember(context) { TvDeviceCapabilities.profile(context) }
+    val automixEnabled by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
+    val singPrefEnabled by TvSettings.tvSingEnabled.collectAsStateWithLifecycle()
+    val vocalState by VocalSeparationCoordinator.state.collectAsStateWithLifecycle()
+    val singActive = when (val s = vocalState) {
+        is VocalSeparationUiState.DownloadingModel -> s.trackId == song.videoId
+        is VocalSeparationUiState.Processing -> s.trackId == song.videoId
+        is VocalSeparationUiState.Active -> s.trackId == song.videoId
+        else -> false
+    }
+
     var lyricsHidden by rememberSaveable { mutableStateOf(false) }
+    var chordsOpen by rememberSaveable { mutableStateOf(false) }
+    var weakWarningFeature by remember { mutableStateOf<String?>(null) }
+    val autoTranslate by TvSettings.tvLyricsAutoTranslate.collectAsStateWithLifecycle()
+    val autoRomanize by TvSettings.tvLyricsAutoRomanize.collectAsStateWithLifecycle()
+    val translationLang by AppSettings.translationLanguage.collectAsStateWithLifecycle()
+    var subMode by remember(song.videoId) {
+        mutableStateOf(
+            when {
+                autoTranslate -> TvLyricsSubMode.Translate
+                autoRomanize -> TvLyricsSubMode.Romanize
+                else -> TvLyricsSubMode.None
+            },
+        )
+    }
+    var subLines by remember(song.videoId) { mutableStateOf<List<LyricLine>?>(null) }
+    var subLoading by remember(song.videoId) { mutableStateOf(false) }
+    var subStatus by remember(song.videoId) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(song.videoId, lyrics, subMode, translationLang) {
+        val currentLyrics = lyrics
+        if (subMode == TvLyricsSubMode.None || currentLyrics.isNullOrEmpty()) {
+            subLines = null
+            subLoading = false
+            subStatus = null
+            return@LaunchedEffect
+        }
+        subLoading = true
+        subStatus = null
+        val targetTag = LocaleTags.translationWireTarget(
+            translationLang.ifBlank { java.util.Locale.getDefault().toLanguageTag() },
+        )
+        when (subMode) {
+            TvLyricsSubMode.Translate -> {
+                when (val result = LyricsTranslation.translate(song.videoId, currentLyrics, targetTag)) {
+                    is LyricsTranslation.Result.Translated -> {
+                        subLines = result.lines
+                        subStatus = "Translated to $targetTag"
+                    }
+                    is LyricsTranslation.Result.SameLanguage -> {
+                        subLines = null
+                        subStatus = "Lyrics are already in ${result.language}"
+                    }
+                    LyricsTranslation.Result.Unavailable -> {
+                        subLines = null
+                        subStatus = "Translation unavailable for this track"
+                    }
+                }
+            }
+            TvLyricsSubMode.Romanize -> {
+                when (val result = LyricsTranslation.romanize(song.videoId, currentLyrics, targetTag)) {
+                    is LyricsTranslation.RomanizationResult.Romanized -> {
+                        subLines = result.lines
+                        subStatus = "Romanized lyrics active"
+                    }
+                    LyricsTranslation.RomanizationResult.AlreadyRomanized -> {
+                        subLines = null
+                        subStatus = "Lyrics are already in Latin script"
+                    }
+                    LyricsTranslation.RomanizationResult.Unavailable -> {
+                        subLines = null
+                        subStatus = "Romanization unavailable for this track"
+                    }
+                }
+            }
+            TvLyricsSubMode.None -> Unit
+        }
+        subLoading = false
+    }
+
     val hasLyrics = !lyrics.isNullOrEmpty()
     val showLyrics = hasLyrics && !lyricsHidden
+    val showRightStage = showLyrics || chordsOpen
 
     var controlsVisible by remember { mutableStateOf(true) }
     var upNextOpen by remember { mutableStateOf(false) }
@@ -287,7 +389,10 @@ fun TvNowPlayingScreen(
             isPlaying = isPlaying,
             position = position,
             lyrics = lyrics.orEmpty(),
+            subLines = subLines,
             showLyrics = showLyrics,
+            showChords = chordsOpen,
+            showRightStage = showRightStage,
             lyricsLoading = !lyricsChecked && lyrics == null && !lyricsHidden,
             controlsVisible = controlsVisible,
             onSeek = onSeek,
@@ -308,8 +413,12 @@ fun TvNowPlayingScreen(
                 durationMs = durationMs,
                 scrubTarget = scrubTarget,
                 isLiked = isLiked,
+                singActive = singActive,
+                chordsOn = chordsOpen,
+                automixOn = automixEnabled,
                 lyricsAvailable = hasLyrics,
                 lyricsOn = showLyrics,
+                lyricsSubActive = subMode != TvLyricsSubMode.None,
                 upNextOpen = upNextOpen,
                 scrubberFocus = scrubberFocus,
                 onScrub = scrubBy,
@@ -318,7 +427,28 @@ fun TvNowPlayingScreen(
                 },
                 onOpenUpNext = { upNextOpen = true },
                 onToggleLike = { viewModel.toggleLike(song.videoId) },
+                onToggleSing = {
+                    if (singActive) {
+                        VocalSeparationCoordinator.toggle(song)
+                    } else if (hwProfile.isWeakTv && !singPrefEnabled) {
+                        weakWarningFeature = "Sing"
+                    } else {
+                        VocalSeparationCoordinator.install(context.applicationContext)
+                        VocalSeparationCoordinator.toggle(song)
+                    }
+                },
+                onToggleChords = { chordsOpen = !chordsOpen },
+                onToggleAutomix = {
+                    if (automixEnabled) {
+                        AppSettings.setSmartFadeEnabled(false)
+                    } else if (hwProfile.isWeakTv) {
+                        weakWarningFeature = "Automix"
+                    } else {
+                        AppSettings.setSmartFadeEnabled(true)
+                    }
+                },
                 onToggleLyrics = { lyricsHidden = !lyricsHidden },
+                onLyricsOptions = { sheet = PlayerSheet.LyricsOptions },
                 onToggleUpNext = { upNextOpen = !upNextOpen },
                 onMore = { sheet = PlayerSheet.Menu },
                 upNext = {
@@ -367,6 +497,33 @@ fun TvNowPlayingScreen(
             onToggleLike = { viewModel.toggleLike(song.videoId) },
             onDismiss = { sheet = null },
         )
+        PlayerSheet.LyricsOptions -> TvLyricsOptionsDialog(
+            subMode = subMode,
+            subLoading = subLoading,
+            subStatus = subStatus,
+            chordsOpen = chordsOpen,
+            onSelectSubMode = { subMode = it },
+            onToggleChords = { chordsOpen = !chordsOpen },
+            onDismiss = { sheet = null },
+        )
         null -> Unit
+    }
+
+    weakWarningFeature?.let { feature ->
+        TvWeakHardwareDialog(
+            featureName = feature,
+            profile = hwProfile,
+            onKeepOff = { weakWarningFeature = null },
+            onEnableAnyway = {
+                if (feature == "Automix") {
+                    AppSettings.setSmartFadeEnabled(true)
+                } else if (feature == "Sing") {
+                    TvSettings.setTvSingEnabled(true)
+                    VocalSeparationCoordinator.install(context.applicationContext)
+                    VocalSeparationCoordinator.toggle(song)
+                }
+                weakWarningFeature = null
+            },
+        )
     }
 }

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#121520"/>
+      <stop offset="100%" stop-color="#07090F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="0%" r="65%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#07090F" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pillFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="100%" stop-color="#DCE8FF" stop-opacity="0.80"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#glow)"/>
+
+  <!-- Top Brand Mark -->
+  <g transform="translate(88, 60) scale(0.11)">
+    <rect x="125" y="224" width="38" height="104" rx="19" fill="url(#pillFill)"/>
+    <rect x="181" y="152" width="38" height="166" rx="19" fill="url(#pillFill)"/>
+    <rect x="237" y="132" width="38" height="248" rx="19" fill="url(#pillFill)"/>
+    <rect x="293" y="194" width="38" height="166" rx="19" fill="url(#pillFill)"/>
+    <rect x="349" y="184" width="38" height="104" rx="19" fill="url(#pillFill)"/>
+  </g>
+  <text x="158" y="97" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24" font-weight="600">Sonora TV · Setup (Step 2 of 4)</text>
+
+  <!-- Main Glass Container -->
+  <rect x="220" y="170" width="1480" height="740" rx="36" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1.5"/>
+
+  <!-- Left Column: QR Code Card -->
+  <rect x="305" y="255" width="420" height="420" rx="30" fill="#FFFFFF"/>
+  <!-- Stylized Crisp QR Pattern -->
+  <g transform="translate(345, 295)" fill="#0B0E17">
+    <!-- Top-Left Finder -->
+    <rect x="0" y="0" width="84" height="84" rx="10"/>
+    <rect x="14" y="14" width="56" height="56" rx="5" fill="#FFFFFF"/>
+    <rect x="26" y="26" width="32" height="32" rx="4"/>
+    <!-- Top-Right Finder -->
+    <rect x="256" y="0" width="84" height="84" rx="10"/>
+    <rect x="270" y="14" width="56" height="56" rx="5" fill="#FFFFFF"/>
+    <rect x="282" y="26" width="32" height="32" rx="4"/>
+    <!-- Bottom-Left Finder -->
+    <rect x="0" y="256" width="84" height="84" rx="10"/>
+    <rect x="14" y="270" width="56" height="56" rx="5" fill="#FFFFFF"/>
+    <rect x="26" y="282" width="32" height="32" rx="4"/>
+    <!-- Data Modules -->
+    <rect x="108" y="12" width="22" height="22" rx="4"/><rect x="144" y="12" width="22" height="22" rx="4"/><rect x="196" y="12" width="36" height="22" rx="4"/>
+    <rect x="108" y="48" width="48" height="22" rx="4"/><rect x="172" y="48" width="22" height="22" rx="4"/><rect x="210" y="48" width="22" height="22" rx="4"/>
+    <rect x="12" y="108" width="22" height="48" rx="4"/><rect x="48" y="108" width="22" height="22" rx="4"/><rect x="96" y="108" width="48" height="22" rx="4"/>
+    <rect x="160" y="108" width="22" height="22" rx="4"/><rect x="200" y="108" width="44" height="22" rx="4"/><rect x="268" y="108" width="60" height="22" rx="4"/>
+    <rect x="48" y="156" width="36" height="22" rx="4"/><rect x="108" y="156" width="22" height="44" rx="4"/><rect x="148" y="148" width="44" height="44" rx="8" fill="#4F46E5"/>
+    <rect x="210" y="156" width="22" height="44" rx="4"/><rect x="256" y="156" width="36" height="22" rx="4"/><rect x="308" y="156" width="22" height="60" rx="4"/>
+    <rect x="12" y="200" width="60" height="22" rx="4"/><rect x="148" y="210" width="44" height="22" rx="4"/><rect x="248" y="200" width="44" height="22" rx="4"/>
+    <rect x="108" y="256" width="44" height="22" rx="4"/><rect x="172" y="256" width="22" height="56" rx="4"/><rect x="210" y="256" width="48" height="22" rx="4"/>
+    <rect x="280" y="256" width="48" height="48" rx="8"/><rect x="108" y="304" width="22" height="22" rx="4"/><rect x="210" y="304" width="48" height="22" rx="4"/>
+  </g>
+  <text x="515" y="726" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" text-anchor="middle">Or open on your phone:</text>
+  <text x="515" y="762" fill="#E2E8F0" font-family="Consolas, monospace" font-size="24" font-weight="600" text-anchor="middle">http://192.168.1.2:8080/auth</text>
+
+  <!-- Live Status Pill -->
+  <rect x="360" y="796" width="310" height="48" rx="24" fill="#6366F1" fill-opacity="0.18" stroke="#818CF8" stroke-opacity="0.45"/>
+  <circle cx="394" cy="820" r="7" fill="#38BDF8"/>
+  <text x="416" y="827" fill="#E0E7FF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="19" font-weight="500">Waiting for your phone…</text>
+
+  <!-- Right Column: Instructions & Actions -->
+  <text x="815" y="315" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="52" font-weight="700">Sign In with Your Phone</text>
+  <text x="815" y="368" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24">No typing on the TV remote. Scan once and Sonora signs in automatically.</text>
+
+  <!-- Step 1 -->
+  <circle cx="838" cy="445" r="20" fill="#FFFFFF" fill-opacity="0.12"/>
+  <text x="838" y="452" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="700" text-anchor="middle">1</text>
+  <text x="878" y="453" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24">Connect your phone to the same Wi-Fi as this TV.</text>
+
+  <!-- Step 2 -->
+  <circle cx="838" cy="515" r="20" fill="#FFFFFF" fill-opacity="0.12"/>
+  <text x="838" y="522" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="700" text-anchor="middle">2</text>
+  <text x="878" y="523" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24">Scan the QR code with your camera or Sonora mobile app.</text>
+
+  <!-- Step 3 -->
+  <circle cx="838" cy="585" r="20" fill="#FFFFFF" fill-opacity="0.12"/>
+  <text x="838" y="592" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="700" text-anchor="middle">3</text>
+  <text x="878" y="593" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24">Confirm sign-in on your phone — this screen continues automatically.</text>
+
+  <!-- Action Buttons -->
+  <rect x="815" y="685" width="320" height="68" rx="18" fill="#FFFFFF"/>
+  <text x="975" y="728" fill="#0B0E17" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24" font-weight="700" text-anchor="middle">Not Now</text>
+
+  <rect x="1160" y="685" width="320" height="68" rx="18" fill="#FFFFFF" fill-opacity="0.10" stroke="#FFFFFF" stroke-opacity="0.16"/>
+  <text x="1320" y="728" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="23" font-weight="600" text-anchor="middle">Sign In on TV</text>
+</svg>

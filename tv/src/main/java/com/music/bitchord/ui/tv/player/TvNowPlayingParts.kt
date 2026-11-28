@@ -35,7 +35,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -86,6 +90,7 @@ import com.music.bitchord.data.canvas.CanvasSource
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.data.settings.TvSettings
 import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.ic_dolby_atmos
@@ -161,7 +166,10 @@ internal fun TvNowPlayingStage(
     isPlaying: Boolean,
     position: PlaybackPosition,
     lyrics: List<LyricLine>,
+    subLines: List<LyricLine>?,
     showLyrics: Boolean,
+    showChords: Boolean,
+    showRightStage: Boolean,
     lyricsLoading: Boolean,
     controlsVisible: Boolean,
     onSeek: (Long) -> Unit,
@@ -172,25 +180,32 @@ internal fun TvNowPlayingStage(
     val underControls = animateFloatAsState(if (controlsVisible) 1f else 0f, tween(320), label = "lyricsFade")
     val canvasEnabled by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val disableSpotifyCanvas by AppSettings.disableSpotifyCanvas.collectAsStateWithLifecycle()
+    val lyricsFontScale by TvSettings.tvLyricsFontScale.collectAsStateWithLifecycle()
+    val lyricsCenterFocus by TvSettings.tvLyricsCenterFocus.collectAsStateWithLifecycle()
     var canvas by remember(song.videoId) { mutableStateOf<CanvasArtwork?>(null) }
     LaunchedEffect(song.videoId, canvasEnabled, disableSpotifyCanvas) {
         canvas = null
         canvas = if (canvasEnabled) CanvasRepository.canvasFor(song) else null
     }
-    val side = animateFloatAsState(if (showLyrics) 1f else 0f, tween(520), label = "artToSide")
+    val side = animateFloatAsState(if (showRightStage) 1f else 0f, tween(520), label = "artToSide")
     val captionShown = animateFloatAsState(if (controlsVisible) 0f else 1f, tween(320), label = "captionFade")
     val showCaption by remember { derivedStateOf { captionShown.value > 0.01f } }
-    val showLyricsSlot by remember(showLyrics) { derivedStateOf { showLyrics || side.value > 0.01f } }
+    val showLyricsSlot by remember(showRightStage) { derivedStateOf { showRightStage || side.value > 0.01f } }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val centredSize = (maxHeight * 0.62f).coerceAtMost(320.dp)
-        val sideSize = (maxHeight * 0.54f).coerceAtMost(272.dp)
-        val sideStart = 51.dp
-        val lift = 21.dp // sit a little above centre, clear of the transport
+        // Phone-landscape-inspired two-column composition centered within the TV frame:
+        // Lyrics OFF -> large centered cover; Lyrics ON -> glides left (not pushed to the far edge)
+        // with a full-height lyrics column on the right.
+        val stageWidth = maxWidth.coerceAtMost(1160.dp)
+        val stageLeft = (maxWidth - stageWidth) / 2
+        val centredSize = (maxHeight * 0.62f).coerceAtMost(430.dp)
+        val sideSize = (maxHeight * 0.56f).coerceAtMost(388.dp)
+        val sideStart = stageLeft + 44.dp
+        val lift = 28.dp // sit slightly above center so the bigger caption clears the bottom
         val centredX = (maxWidth - centredSize) / 2
         val centredY = (maxHeight - centredSize) / 2 - lift
         val sideY = (maxHeight - sideSize) / 2 - lift
-        val shape = RoundedCornerShape(11.dp)
+        val shape = RoundedCornerShape(22.dp)
 
         Box(
             modifier = Modifier
@@ -204,22 +219,21 @@ internal fun TvNowPlayingStage(
                     scaleY = scale
                     translationX = lerp(0f, (sideStart - centredX).toPx(), s)
                     translationY = lerp(0f, (sideY - centredY).toPx(), s)
-                    shadowElevation = 29.dp.toPx()
+                    shadowElevation = 28.dp.toPx()
                     this.shape = shape
                     clip = true
                 },
         ) {
-            // 320dp at 240dpi is 480px physical; decoding 480px instead of 720px halves bitmap RAM on 1GB TVs.
-            TvArtwork(url = song.thumbnailUrl, px = 480, shape = RectangleShape, modifier = Modifier.fillMaxSize())
+            TvArtwork(url = song.thumbnailUrl, px = 640, shape = RectangleShape, modifier = Modifier.fillMaxSize())
             canvas?.takeIf { !disableSpotifyCanvas || it.source != CanvasSource.SPOTIFY }?.let {
                 CanvasArtworkPlayer(canvas = it, isPlaying = isPlaying, modifier = Modifier.fillMaxSize())
             }
         }
 
-        // With the transport away, the song is named under the cover: the title and
-        // artist the transport carries, riding the same glide to the side.
+        // With the transport away, the song is named under the cover: larger, TV-legible
+        // title & artist riding the same glide from center to left.
         if (showCaption) {
-            val captionGap = 14.dp
+            val captionGap = 18.dp
             val sideCaptionY = sideY + sideSize + captionGap
             Column(
                 modifier = Modifier
@@ -239,16 +253,17 @@ internal fun TvNowPlayingStage(
             ) {
                 Text(
                     text = song.title,
-                    style = TvType.Title.copy(fontSize = 19.sp, lineHeight = 24.sp),
+                    style = TvType.Title.copy(fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold),
                     color = TvGlass.TextPrimary,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (song.artist.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = song.artist,
-                        style = TvType.Body.copy(fontWeight = FontWeight.W400, fontSize = 14.sp),
+                        style = TvType.Body.copy(fontWeight = FontWeight.W500, fontSize = 18.sp, lineHeight = 23.sp),
                         color = TvGlass.TextSecondary,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
@@ -258,10 +273,27 @@ internal fun TvNowPlayingStage(
             }
         }
 
+        // Compact Sing (Vocal Level) pill beneath the cover whenever vocal separation is active.
+        TvSingVocalBar(
+            song = song,
+            modifier = Modifier
+                .offset(x = centredX, y = centredY + centredSize + 14.dp)
+                .width(centredSize)
+                .graphicsLayer {
+                    val s = side.value
+                    val scale = lerp(1f, sideSize / centredSize, s)
+                    transformOrigin = TransformOrigin(0f, 0f)
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = lerp(0f, (sideStart - centredX).toPx(), s)
+                    translationY = lerp(0f, (sideY + sideSize + 14.dp - (centredY + centredSize + 14.dp)).toPx(), s)
+                },
+        )
+
         if (showLyricsSlot) {
             Box(
                 modifier = Modifier
-                    .padding(start = sideStart + sideSize + 51.dp, end = 38.dp)
+                    .padding(start = sideStart + sideSize + 44.dp, end = stageLeft + 24.dp)
                     .fillMaxHeight()
                     .graphicsLayer {
                         alpha = side.value
@@ -290,24 +322,35 @@ internal fun TvNowPlayingStage(
                         }
                     },
             ) {
-                // The shared panel's type is sized for a phone held at arm's
-                // length. Shrink only the glyphs: density stays whole, so its
-                // dp geometry still lands on pixels.
-                val density = LocalDensity.current
-                val lyricDensity = remember(density) {
-                    Density(density = density.density, fontScale = density.fontScale * LYRIC_FONT_SCALE)
-                }
-                CompositionLocalProvider(LocalDensity provides lyricDensity) {
-                    SyncedLyricsPanel(
-                        lines = lyrics,
-                        trackKey = song.videoId,
-                        position = position,
-                        looking = lyricsLoading,
-                        isPlaying = isPlaying,
-                        onSeekToLine = onSeek,
-                        centerFocus = true,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                Column(modifier = Modifier.fillMaxSize().padding(top = 24.dp, bottom = 16.dp)) {
+                    if (showChords) {
+                        TvLiveChordsPanel(
+                            song = song,
+                            position = position,
+                            isPlaying = isPlaying,
+                        )
+                    }
+                    if (showLyrics) {
+                        val density = LocalDensity.current
+                        val lyricDensity = remember(density, lyricsFontScale) {
+                            Density(density = density.density, fontScale = density.fontScale * lyricsFontScale)
+                        }
+                        CompositionLocalProvider(LocalDensity provides lyricDensity) {
+                            SyncedLyricsPanel(
+                                lines = lyrics,
+                                subLines = subLines,
+                                trackKey = song.videoId,
+                                chordSong = if (showChords) song else null,
+                                showChordControls = false,
+                                position = position,
+                                looking = lyricsLoading,
+                                isPlaying = isPlaying,
+                                onSeekToLine = onSeek,
+                                centerFocus = lyricsCenterFocus,
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -317,8 +360,6 @@ internal fun TvNowPlayingStage(
 // ─────────────────────────────────────────────────────────────────────────────
 // Transport
 // ─────────────────────────────────────────────────────────────────────────────
-
-private const val LYRIC_FONT_SCALE = 0.8f
 
 private val ControlsVisibleLyricsMask = Brush.verticalGradient(
     0f to Color.Black,
@@ -347,15 +388,23 @@ internal fun TvTransport(
     durationMs: Long,
     scrubTarget: Long?,
     isLiked: Boolean,
+    singActive: Boolean,
+    chordsOn: Boolean,
+    automixOn: Boolean,
     lyricsAvailable: Boolean,
     lyricsOn: Boolean,
+    lyricsSubActive: Boolean,
     upNextOpen: Boolean,
     scrubberFocus: FocusRequester,
     onScrub: (Long) -> Unit,
     onSelectOnScrubber: () -> Unit,
     onOpenUpNext: () -> Unit,
     onToggleLike: () -> Unit,
+    onToggleSing: () -> Unit,
+    onToggleChords: () -> Unit,
+    onToggleAutomix: () -> Unit,
     onToggleLyrics: () -> Unit,
+    onLyricsOptions: () -> Unit,
     onToggleUpNext: () -> Unit,
     onMore: () -> Unit,
     upNext: @Composable () -> Unit,
@@ -365,31 +414,43 @@ internal fun TvTransport(
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind { drawRect(TransportScrim) }
-            .padding(start = 45.dp, end = 45.dp, top = 77.dp, bottom = 24.dp),
+            .padding(start = 45.dp, end = 45.dp, top = 72.dp, bottom = 24.dp),
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = song.title,
-                    style = TvType.Title.copy(fontSize = 19.sp, lineHeight = 24.sp),
+                    style = TvType.Title.copy(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold),
                     color = TvGlass.TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = listOf(song.artist, song.albumName.orEmpty()).filter { it.isNotBlank() }.joinToString(" — "),
-                    style = TvType.Body.copy(fontWeight = FontWeight.W400, fontSize = 14.sp),
+                    style = TvType.Body.copy(fontWeight = FontWeight.W500, fontSize = 16.sp, lineHeight = 21.sp),
                     color = TvGlass.TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 TvQualityLine(showStats = showStats, modifier = Modifier.padding(top = 6.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TvTransportButton(
                     icon = if (isLiked) BitChordIcons.StarFilled else BitChordIcons.Star,
                     contentDescription = if (isLiked) "Unfavorite" else "Favorite",
                     onClick = onToggleLike,
+                )
+                TvTransportButton(
+                    icon = Icons.Rounded.Mic,
+                    contentDescription = "Sing",
+                    active = singActive,
+                    onClick = onToggleSing,
+                )
+                TvTransportButton(
+                    icon = Icons.Rounded.MusicNote,
+                    contentDescription = "Live Chords",
+                    active = chordsOn,
+                    onClick = onToggleChords,
                 )
                 TvTransportButton(
                     icon = BitChordIcons.LyricsQuote,
@@ -397,6 +458,19 @@ internal fun TvTransport(
                     active = lyricsOn,
                     enabled = lyricsAvailable,
                     onClick = onToggleLyrics,
+                )
+                TvTransportButton(
+                    icon = Icons.Rounded.Translate,
+                    contentDescription = "Lyrics Options",
+                    active = lyricsSubActive,
+                    enabled = lyricsAvailable,
+                    onClick = onLyricsOptions,
+                )
+                TvTransportButton(
+                    icon = Icons.Rounded.AutoAwesome,
+                    contentDescription = "Automix",
+                    active = automixOn,
+                    onClick = onToggleAutomix,
                 )
                 TvTransportButton(
                     icon = BitChordIcons.Queue,
@@ -444,7 +518,7 @@ private fun TvTransportButton(
     onClick: () -> Unit,
     active: Boolean = false,
     enabled: Boolean = true,
-    size: androidx.compose.ui.unit.Dp = 37.dp,
+    size: androidx.compose.ui.unit.Dp = 42.dp,
     badge: String? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }

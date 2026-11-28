@@ -46,6 +46,8 @@ import com.music.bitchord.ui.tv.dialogs.TvThemeDialog
 import com.music.bitchord.ui.tv.dialogs.TvUpdateDialog
 import com.music.bitchord.ui.tv.display.TvRefreshRateController
 import com.music.bitchord.ui.tv.personalization.AppThemeOption
+import com.music.bitchord.ui.tv.player.nextTvLyricsFontScale
+import com.music.bitchord.ui.tv.player.tvLyricsFontScaleLabel
 import com.music.bitchord.ui.tv.theme.TvDimensions
 import com.music.bitchord.ui.tv.theme.TvGlass
 import com.music.bitchord.ui.tv.theme.TvType
@@ -82,6 +84,11 @@ fun TvSettingsScreen(
     val usbDac by AppSettings.preferUsbDac.collectAsState()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsState()
     val lyricsSources by AppSettings.lyricsSources.collectAsState()
+    val lyricsFontScale by TvSettings.tvLyricsFontScale.collectAsState()
+    val lyricsCenterFocus by TvSettings.tvLyricsCenterFocus.collectAsState()
+    val lyricsBlur by AppSettings.lyricsBlur.collectAsState()
+    val lyricsAutoTranslate by TvSettings.tvLyricsAutoTranslate.collectAsState()
+    val lyricsAutoRomanize by TvSettings.tvLyricsAutoRomanize.collectAsState()
     val canvas by AppSettings.animatedCanvas.collectAsState()
     val lyricsCanvas by TvSettings.tvLyricsCanvasEnabled.collectAsState()
     val nerdStats by AppSettings.showNerdStats.collectAsState()
@@ -245,6 +252,54 @@ fun TvSettingsScreen(
                     value = "${lyricsSources.size} On",
                     onFocused = { blurb = "Choose which lyric databases to ask, and in what order." },
                     onClick = { sheet = SettingsSheet.LyricsSources },
+                )
+            }
+            item {
+                TvListRow(
+                    title = "Lyrics Font Size",
+                    value = tvLyricsFontScaleLabel(lyricsFontScale),
+                    onFocused = { blurb = "Adjusts the size of synced lyrics on Now Playing." },
+                    onClick = { TvSettings.setTvLyricsFontScale(nextTvLyricsFontScale(lyricsFontScale)) },
+                )
+            }
+            item {
+                TvListRow(
+                    title = "Lyrics Focus Layout",
+                    value = if (lyricsCenterFocus) "Centered" else "Top",
+                    onFocused = { blurb = "Holds the active sung line centered on screen or aligned near the top." },
+                    onClick = { TvSettings.setTvLyricsCenterFocus(!lyricsCenterFocus) },
+                )
+            }
+            item {
+                TvListRow(
+                    title = "Lyrics Focus Blur",
+                    value = onOff(lyricsBlur),
+                    onFocused = { blurb = "Softly blurs inactive lyric lines so the current line stands out." },
+                    onClick = { AppSettings.setLyricsBlur(!lyricsBlur) },
+                )
+            }
+            item {
+                TvListRow(
+                    title = "Auto-Translate Lyrics",
+                    value = onOff(lyricsAutoTranslate),
+                    onFocused = { blurb = "Automatically shows translated lyrics beneath foreign-language lines." },
+                    onClick = {
+                        val next = !lyricsAutoTranslate
+                        TvSettings.setTvLyricsAutoTranslate(next)
+                        if (next) TvSettings.setTvLyricsAutoRomanize(false)
+                    },
+                )
+            }
+            item {
+                TvListRow(
+                    title = "Auto-Romanize Lyrics",
+                    value = onOff(lyricsAutoRomanize),
+                    onFocused = { blurb = "Automatically shows Romanized pronunciation beneath non-Latin lyrics." },
+                    onClick = {
+                        val next = !lyricsAutoRomanize
+                        TvSettings.setTvLyricsAutoRomanize(next)
+                        if (next) TvSettings.setTvLyricsAutoTranslate(false)
+                    },
                 )
             }
             item {

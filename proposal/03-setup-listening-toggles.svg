@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#121520"/>
+      <stop offset="100%" stop-color="#07090F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="0%" r="65%">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#07090F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#glow)"/>
+
+  <!-- Header -->
+  <text x="960" y="138" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="56" font-weight="700" text-anchor="middle">Listening</text>
+  <text x="960" y="186" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24" text-anchor="middle">Everything is ready by default. You can hide lyrics anytime from Now Playing.</text>
+
+  <!-- Toggle List Container -->
+  <g transform="translate(520, 240)">
+    <!-- Row 1: Synced Lyrics (ON, Focused White Platter) -->
+    <rect x="0" y="0" width="880" height="92" rx="22" fill="#FFFFFF"/>
+    <text x="36" y="42" fill="#0B0E17" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="26" font-weight="700">Synced Lyrics</text>
+    <text x="36" y="72" fill="#475569" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="18">Toggle off anytime using the Lyrics button in Now Playing</text>
+    <rect x="758" y="25" width="90" height="42" rx="21" fill="#4F46E5"/>
+    <text x="803" y="53" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="700" text-anchor="middle">On</text>
+
+    <!-- Row 2: Motion Artwork (ON) -->
+    <rect x="0" y="108" width="880" height="84" rx="22" fill="#FFFFFF" fill-opacity="0.07"/>
+    <text x="36" y="159" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="25" font-weight="600">Motion Artwork</text>
+    <text x="803" y="159" fill="#818CF8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="23" font-weight="700" text-anchor="middle">On</text>
+
+    <!-- Row 3: Live Chords (ON) -->
+    <rect x="0" y="208" width="880" height="84" rx="22" fill="#FFFFFF" fill-opacity="0.07"/>
+    <text x="36" y="259" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="25" font-weight="600">Live Chords</text>
+    <text x="803" y="259" fill="#818CF8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="23" font-weight="700" text-anchor="middle">On</text>
+
+    <!-- Row 4: Automix (ON on capable TV / Prompted on Weak TV) -->
+    <rect x="0" y="308" width="880" height="92" rx="22" fill="#FFFFFF" fill-opacity="0.07"/>
+    <text x="36" y="348" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="25" font-weight="600">Automix</text>
+    <text x="36" y="378" fill="#FBBF24" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="18">On low-RAM TVs, selecting On shows the hardware warning first</text>
+    <text x="803" y="362" fill="#818CF8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="23" font-weight="700" text-anchor="middle">On</text>
+
+    <!-- Row 5: Sing / Vocal Separation -->
+    <rect x="0" y="416" width="880" height="92" rx="22" fill="#FFFFFF" fill-opacity="0.07"/>
+    <text x="36" y="456" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="25" font-weight="600">Sing (Vocal Separation)</text>
+    <text x="36" y="486" fill="#FBBF24" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="18">Prompts on weak TVs before enabling on-device stem processing</text>
+    <text x="803" y="470" fill="#818CF8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="23" font-weight="700" text-anchor="middle">On</text>
+
+    <!-- Row 6: Spatial Audio (OFF by default!) -->
+    <rect x="0" y="524" width="880" height="84" rx="22" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFFFFF" stroke-opacity="0.08"/>
+    <text x="36" y="575" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="25" font-weight="600">Spatial Audio</text>
+    <text x="803" y="575" fill="#64748B" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="23" font-weight="600" text-anchor="middle">Off</text>
+  </g>
+
+  <!-- Continue Button -->
+  <rect x="720" y="920" width="480" height="68" rx="18" fill="#FFFFFF" fill-opacity="0.14"/>
+  <text x="960" y="963" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24" font-weight="600" text-anchor="middle">Continue</text>
+</svg>

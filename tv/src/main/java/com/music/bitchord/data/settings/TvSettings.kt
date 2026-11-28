@@ -30,7 +30,9 @@ object TvSettings {
     val tvNickname = MutableStateFlow("Listener")
     val tvTheme = MutableStateFlow("dynamic_artwork")
     val tvFontFamily = MutableStateFlow("sf_pro")
-    val spatialAudioEnabled = MutableStateFlow(true)
+    val spatialAudioEnabled = MutableStateFlow(false)
+    val tvChordsEnabled = MutableStateFlow(true)
+    val tvSingEnabled = MutableStateFlow(false)
     val soundCheckEnabled = MutableStateFlow(true)
     val addPlaylistSongsToLibrary = MutableStateFlow(true)
     val addFavoriteSongsToLibrary = MutableStateFlow(true)
@@ -38,6 +40,10 @@ object TvSettings {
     val tvLiquidGlassEnabled = MutableStateFlow(true)
     val tvBlurIntensity = MutableStateFlow(0.85f)
     val tvLyricsCanvasEnabled = MutableStateFlow(true)
+    val tvLyricsFontScale = MutableStateFlow(1.20f)
+    val tvLyricsCenterFocus = MutableStateFlow(true)
+    val tvLyricsAutoTranslate = MutableStateFlow(false)
+    val tvLyricsAutoRomanize = MutableStateFlow(false)
     val tvVideoAuto1080p = MutableStateFlow(true)
     val tvNavLayout = MutableStateFlow("left_rail")
     val tvPlayerStyle = MutableStateFlow(TvPlayerStyle.DEFAULT)
@@ -52,7 +58,9 @@ object TvSettings {
         tvNickname.value = prefs.getString(KEY_TV_NICKNAME, "Listener") ?: "Listener"
         tvTheme.value = prefs.getString(KEY_TV_THEME, "dynamic_artwork") ?: "dynamic_artwork"
         tvFontFamily.value = prefs.getString(KEY_TV_FONT, "sf_pro") ?: "sf_pro"
-        spatialAudioEnabled.value = prefs.getBoolean(KEY_TV_SPATIAL_AUDIO, true)
+        spatialAudioEnabled.value = prefs.getBoolean(KEY_TV_SPATIAL_AUDIO, false)
+        tvChordsEnabled.value = prefs.getBoolean(KEY_TV_CHORDS_ENABLED, true)
+        tvSingEnabled.value = prefs.getBoolean(KEY_TV_SING_ENABLED, false)
         soundCheckEnabled.value = prefs.getBoolean(KEY_SOUND_CHECK, true)
         addPlaylistSongsToLibrary.value = prefs.getBoolean(KEY_ADD_PLAYLIST_SONGS_TO_LIBRARY, true)
         addFavoriteSongsToLibrary.value = prefs.getBoolean(KEY_ADD_FAVORITE_SONGS_TO_LIBRARY, true)
@@ -61,6 +69,10 @@ object TvSettings {
         tvLiquidGlassEnabled.value = prefs.getBoolean(KEY_TV_LIQUID_GLASS, true)
         tvBlurIntensity.value = prefs.getFloat(KEY_TV_BLUR_INTENSITY, 0.85f).coerceIn(0.0f, 1.0f)
         tvLyricsCanvasEnabled.value = prefs.getBoolean(KEY_TV_LYRICS_CANVAS, true)
+        tvLyricsFontScale.value = prefs.getFloat(KEY_TV_LYRICS_FONT_SCALE, 1.20f).coerceIn(0.85f, 1.60f)
+        tvLyricsCenterFocus.value = prefs.getBoolean(KEY_TV_LYRICS_CENTER_FOCUS, true)
+        tvLyricsAutoTranslate.value = prefs.getBoolean(KEY_TV_LYRICS_AUTO_TRANSLATE, false)
+        tvLyricsAutoRomanize.value = prefs.getBoolean(KEY_TV_LYRICS_AUTO_ROMANIZE, false)
         tvVideoAuto1080p.value = prefs.getBoolean(KEY_TV_VIDEO_AUTO_1080P, true)
         tvNavLayout.value = prefs.getString(KEY_TV_NAV_LAYOUT, "left_rail") ?: "left_rail"
         tvPlayerStyle.value = runCatching {
@@ -103,6 +115,27 @@ object TvSettings {
         save { putBoolean(KEY_TV_LYRICS_CANVAS, enabled) }
     }
 
+    fun setTvLyricsFontScale(scale: Float) {
+        val clamped = scale.coerceIn(0.85f, 1.60f)
+        tvLyricsFontScale.value = clamped
+        save { putFloat(KEY_TV_LYRICS_FONT_SCALE, clamped) }
+    }
+
+    fun setTvLyricsCenterFocus(enabled: Boolean) {
+        tvLyricsCenterFocus.value = enabled
+        save { putBoolean(KEY_TV_LYRICS_CENTER_FOCUS, enabled) }
+    }
+
+    fun setTvLyricsAutoTranslate(enabled: Boolean) {
+        tvLyricsAutoTranslate.value = enabled
+        save { putBoolean(KEY_TV_LYRICS_AUTO_TRANSLATE, enabled) }
+    }
+
+    fun setTvLyricsAutoRomanize(enabled: Boolean) {
+        tvLyricsAutoRomanize.value = enabled
+        save { putBoolean(KEY_TV_LYRICS_AUTO_ROMANIZE, enabled) }
+    }
+
     fun setTvVideoAuto1080p(enabled: Boolean) {
         tvVideoAuto1080p.value = enabled
         save { putBoolean(KEY_TV_VIDEO_AUTO_1080P, enabled) }
@@ -111,6 +144,16 @@ object TvSettings {
     fun setSpatialAudioEnabled(enabled: Boolean) {
         spatialAudioEnabled.value = enabled
         save { putBoolean(KEY_TV_SPATIAL_AUDIO, enabled) }
+    }
+
+    fun setTvChordsEnabled(enabled: Boolean) {
+        tvChordsEnabled.value = enabled
+        save { putBoolean(KEY_TV_CHORDS_ENABLED, enabled) }
+    }
+
+    fun setTvSingEnabled(enabled: Boolean) {
+        tvSingEnabled.value = enabled
+        save { putBoolean(KEY_TV_SING_ENABLED, enabled) }
     }
 
     fun setSoundCheckEnabled(enabled: Boolean) {
@@ -290,6 +333,8 @@ object TvSettings {
     private const val KEY_TV_THEME = "tv_theme"
     private const val KEY_TV_FONT = "tv_font_family"
     private const val KEY_TV_SPATIAL_AUDIO = "tv_spatial_audio"
+    private const val KEY_TV_CHORDS_ENABLED = "tv_chords_enabled"
+    private const val KEY_TV_SING_ENABLED = "tv_sing_enabled"
     private const val KEY_SOUND_CHECK = "tv_sound_check"
     private const val KEY_ADD_PLAYLIST_SONGS_TO_LIBRARY = "tv_add_playlist_songs_to_library"
     private const val KEY_ADD_FAVORITE_SONGS_TO_LIBRARY = "tv_add_favorite_songs_to_library"
@@ -298,6 +343,10 @@ object TvSettings {
     private const val KEY_TV_LIQUID_GLASS = "tv_liquid_glass"
     private const val KEY_TV_BLUR_INTENSITY = "tv_blur_intensity"
     private const val KEY_TV_LYRICS_CANVAS = "tv_lyrics_canvas"
+    private const val KEY_TV_LYRICS_FONT_SCALE = "tv_lyrics_font_scale"
+    private const val KEY_TV_LYRICS_CENTER_FOCUS = "tv_lyrics_center_focus"
+    private const val KEY_TV_LYRICS_AUTO_TRANSLATE = "tv_lyrics_auto_translate"
+    private const val KEY_TV_LYRICS_AUTO_ROMANIZE = "tv_lyrics_auto_romanize"
     private const val KEY_TV_VIDEO_AUTO_1080P = "tv_video_auto_1080p"
     private const val KEY_TV_NAV_LAYOUT = "tv_nav_layout"
     private const val KEY_TV_PLAYER_STYLE = "tv_player_style"

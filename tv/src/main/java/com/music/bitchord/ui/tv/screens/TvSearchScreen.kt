@@ -1,5 +1,9 @@
 package com.music.bitchord.ui.tv.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,17 +11,26 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Backspace
+import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SpaceBar
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,10 +42,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.media3.session.MediaController
 import com.music.bitchord.data.model.BrowseItem
 import com.music.bitchord.data.model.BrowseType
@@ -55,9 +71,14 @@ import com.music.bitchord.ui.tv.components.TvSegmented
 import com.music.bitchord.ui.tv.components.TvShelf
 import com.music.bitchord.ui.tv.components.TvShelfTitle
 import com.music.bitchord.ui.tv.components.TvSongRow
-import com.music.bitchord.ui.tv.components.TvTextField
+import com.music.bitchord.ui.tv.components.tvClick
+import com.music.bitchord.ui.tv.components.tvInitialFocus
+import com.music.bitchord.ui.tv.components.tvLift
+import com.music.bitchord.ui.tv.components.tvPlatter
 import com.music.bitchord.ui.tv.dialogs.TvSongMenu
 import com.music.bitchord.ui.tv.theme.TvDimensions
+import com.music.bitchord.ui.tv.theme.TvGlass
+import com.music.bitchord.ui.tv.theme.TvType
 import kotlinx.coroutines.launch
 
 private val SearchFilters = listOf(
@@ -82,9 +103,9 @@ fun TvSearchScreen(
     val history by viewModel.searchHistory.collectAsState()
     val suggestions by viewModel.suggestions.collectAsState()
     val loadingMore by viewModel.searchLoadingMore.collectAsState()
-    val keyboard = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
     var menuSong by remember { mutableStateOf<Song?>(null) }
+    var numericMode by remember { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
     TvChromeScrollEffect(listState)
@@ -137,109 +158,110 @@ fun TvSearchScreen(
         LaunchedEffect(nearEnd, results.size) { if (nearEnd) viewModel.loadMoreSearchResults() }
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = TvDimensions.ContentTop, bottom = 45.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Row(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(top = TvDimensions.ContentTop, start = TvDimensions.SafeMarginHorizontal, end = TvDimensions.SafeMarginHorizontal, bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        item(key = "field") {
-            Column(
-                modifier = Modifier.padding(horizontal = TvDimensions.SafeMarginHorizontal),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                TvTextField(
-                    value = query,
-                    onValueChange = viewModel::onQueryChange,
-                    placeholder = "Artists, Songs, Albums and More",
-                    leadingIcon = Icons.Rounded.Search,
-                    imeAction = ImeAction.Search,
-                    onImeAction = {
-                        keyboard?.hide()
-                        viewModel.submitSearch()
-                    },
-                    modifier = Modifier.widthIn(max = 576.dp),
-                )
-                if (resultsState != null) {
-                    Spacer(modifier = Modifier.height(14.dp))
+        // Left Pane: Non-IME query display + custom D-pad keyboard (never opens Android system keyboard)
+        TvCustomSearchKeyboard(
+            query = query,
+            numericMode = numericMode,
+            onToggleNumeric = { numericMode = !numericMode },
+            onAppend = { ch -> viewModel.onQueryChange(query + ch) },
+            onBackspace = { if (query.isNotEmpty()) viewModel.onQueryChange(query.dropLast(1)) },
+            onClear = { viewModel.onQueryChange("") },
+            onSubmit = { viewModel.submitSearch() },
+            modifier = Modifier
+                .width(344.dp)
+                .fillMaxHeight()
+                .focusGroup(),
+        )
+
+        // Right Pane: Filter pills, live suggestions, history, and search results
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .focusGroup(),
+            contentPadding = PaddingValues(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (resultsState != null) {
+                item(key = "filters") {
                     TvSegmented(
                         options = SearchFilters.map { it.label },
                         selectedIndex = SearchFilters.indexOf(filter).coerceAtLeast(0),
                         onSelect = { viewModel.onFilterChange(SearchFilters[it]) },
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
                 }
-                Spacer(modifier = Modifier.height(11.dp))
             }
-        }
 
-        when (val state = resultsState) {
-            null -> if (query.isNotBlank() && suggestions.isNotEmpty()) {
-                items(suggestions, key = { "suggest:$it" }) { suggestion ->
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            when (val state = resultsState) {
+                null -> if (query.isNotBlank() && suggestions.isNotEmpty()) {
+                    items(suggestions, key = { "suggest:$it" }) { suggestion ->
                         TvListRow(
                             title = suggestion,
                             leadingIcon = Icons.Rounded.Search,
-                            resting = androidx.compose.ui.graphics.Color.Transparent,
-                            modifier = Modifier.widthIn(max = 576.dp),
-                            onClick = {
-                                keyboard?.hide()
-                                viewModel.searchFor(suggestion)
-                            },
+                            resting = Color.White.copy(alpha = 0.05f),
+                            onClick = { viewModel.searchFor(suggestion) },
                         )
                     }
-                }
-            } else {
-                idleContent(
-                    history = history,
-                    onHistory = { entity ->
-                        val type = when (entity.entityType) {
-                            EntityType.ALBUM -> BrowseType.ALBUM
-                            EntityType.ARTIST -> BrowseType.ARTIST
-                            EntityType.PLAYLIST -> BrowseType.PLAYLIST
-                            EntityType.TRACK -> null
-                            else -> BrowseType.OTHER
-                        }
-                        when {
-                            type != null -> onNavigateToDetail(entity.id, entity.title, entity.subtitle, entity.artworkUrl, type)
-                            // A typed query with nothing behind it: run it again.
-                            entity.id.startsWith("q:") || entity.id.isBlank() -> viewModel.searchFor(entity.title)
-                            else -> playSong(
-                                Song(
-                                    videoId = entity.id,
-                                    title = entity.title,
-                                    artist = entity.subtitle,
-                                    thumbnailUrl = entity.artworkUrl,
-                                ),
-                            )
-                        }
-                    },
-                    onClearHistory = viewModel::clearSearchHistory,
-                )
-            }
-            UiState.Loading -> item(key = "loading") {
-                Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                    TvActivityIndicator()
-                }
-            }
-            is UiState.Error -> item(key = "error") {
-                TvErrorState(message = state.message, onRetry = viewModel::submitSearch, modifier = Modifier.height(256.dp))
-            }
-            is UiState.Success -> if (deduped.isEmpty()) {
-                item(key = "empty") {
-                    TvEmptyState(
-                        title = "No Results",
-                        message = "Nothing matched “$query”. Check the spelling or try other words.",
-                        modifier = Modifier.height(256.dp),
+                } else {
+                    idleContent(
+                        history = history,
+                        onHistory = { entity ->
+                            val type = when (entity.entityType) {
+                                EntityType.ALBUM -> BrowseType.ALBUM
+                                EntityType.ARTIST -> BrowseType.ARTIST
+                                EntityType.PLAYLIST -> BrowseType.PLAYLIST
+                                EntityType.TRACK -> null
+                                else -> BrowseType.OTHER
+                            }
+                            when {
+                                type != null -> onNavigateToDetail(entity.id, entity.title, entity.subtitle, entity.artworkUrl, type)
+                                entity.id.startsWith("q:") || entity.id.isBlank() -> viewModel.searchFor(entity.title)
+                                else -> playSong(
+                                    Song(
+                                        videoId = entity.id,
+                                        title = entity.title,
+                                        artist = entity.subtitle,
+                                        thumbnailUrl = entity.artworkUrl,
+                                    ),
+                                )
+                            }
+                        },
+                        onClearHistory = viewModel::clearSearchHistory,
                     )
                 }
-            } else if (filter == SearchFilter.ALL) {
-                groupedResults(deduped, playResult, openBrowse, onSongMenu = { menuSong = it })
-            } else {
-                filteredResults(deduped, playResult, openBrowse, onSongMenu = { menuSong = it })
-                if (loadingMore) {
-                    item(key = "more") {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            TvActivityIndicator()
+                UiState.Loading -> item(key = "loading") {
+                    Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                        TvActivityIndicator()
+                    }
+                }
+                is UiState.Error -> item(key = "error") {
+                    TvErrorState(message = state.message, onRetry = viewModel::submitSearch, modifier = Modifier.height(256.dp))
+                }
+                is UiState.Success -> if (deduped.isEmpty()) {
+                    item(key = "empty") {
+                        TvEmptyState(
+                            title = "No Results",
+                            message = "Nothing matched “$query”. Check the spelling or try other words.",
+                            modifier = Modifier.height(256.dp),
+                        )
+                    }
+                } else if (filter == SearchFilter.ALL) {
+                    groupedResults(deduped, playResult, openBrowse, onSongMenu = { menuSong = it })
+                } else {
+                    filteredResults(deduped, playResult, openBrowse, onSongMenu = { menuSong = it })
+                    if (loadingMore) {
+                        item(key = "more") {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                TvActivityIndicator()
+                            }
                         }
                     }
                 }
@@ -254,6 +276,148 @@ fun TvSearchScreen(
             mediaController = mediaController,
             onNavigateToDetail = onNavigateToDetail,
             onDismiss = { menuSong = null },
+        )
+    }
+}
+
+private val AlphaKeys = listOf(
+    listOf("a", "b", "c", "d", "e", "f"),
+    listOf("g", "h", "i", "j", "k", "l"),
+    listOf("m", "n", "o", "p", "q", "r"),
+    listOf("s", "t", "u", "v", "w", "x"),
+    listOf("y", "z", "1", "2", "3", "123"),
+)
+
+private val NumericKeys = listOf(
+    listOf("1", "2", "3", "4", "5", "6"),
+    listOf("7", "8", "9", "0", "-", "'"),
+    listOf("&", ".", "!", "?", "/", "+"),
+    listOf("(", ")", ":", ",", "#", "@"),
+    listOf("á", "é", "í", "ó", "ú", "ABC"),
+)
+
+/** Dedicated D-pad on-screen keyboard that never triggers Android's native soft keyboard. */
+@Composable
+private fun TvCustomSearchKeyboard(
+    query: String,
+    numericMode: Boolean,
+    onToggleNumeric: () -> Unit,
+    onAppend: (String) -> Unit,
+    onBackspace: () -> Unit,
+    onClear: () -> Unit,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val rows = if (numericMode) NumericKeys else AlphaKeys
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.04f))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Non-editable query display box (zero IME focus)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF0B0E17))
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = null,
+                tint = TvGlass.TextSecondary,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = query.ifEmpty { "Search songs, artists, albums…" },
+                style = TvType.Body.copy(fontWeight = if (query.isEmpty()) FontWeight.W400 else FontWeight.W600),
+                color = if (query.isEmpty()) TvGlass.TextTertiary else TvGlass.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // Action row: Space, Delete, Clear, Search
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            TvKeyCap(
+                label = "Space",
+                onClick = { onAppend(" ") },
+                modifier = Modifier.weight(1.35f).height(34.dp),
+            )
+            TvKeyCap(
+                label = "Del",
+                onClick = onBackspace,
+                modifier = Modifier.weight(1f).height(34.dp),
+            )
+            TvKeyCap(
+                label = "Clear",
+                onClick = onClear,
+                modifier = Modifier.weight(1f).height(34.dp),
+            )
+            TvKeyCap(
+                label = "Go",
+                accent = true,
+                onClick = onSubmit,
+                modifier = Modifier.weight(1f).height(34.dp),
+            )
+        }
+
+        // 6-column D-pad character grid
+        rows.forEachIndexed { rIdx, rowKeys ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                rowKeys.forEachIndexed { cIdx, keyLabel ->
+                    val isModeToggle = keyLabel == "123" || keyLabel == "ABC"
+                    TvKeyCap(
+                        label = if (isModeToggle) keyLabel else keyLabel.uppercase(),
+                        onClick = { if (isModeToggle) onToggleNumeric() else onAppend(keyLabel) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .then(if (rIdx == 0 && cIdx == 0) Modifier.tvInitialFocus() else Modifier),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvKeyCap(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    accent: Boolean = false,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val resting = if (accent) Color(0xFF4F46E5) else Color.White.copy(alpha = 0.09f)
+    Box(
+        modifier = modifier
+            .tvLift(interaction, RoundedCornerShape(9.dp), focusedScale = 1.08f, elevation = 8.dp)
+            .tvPlatter(interaction, resting = resting)
+            .tvClick(interaction, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = TvType.Body.copy(
+                fontSize = if (label.length > 2) 12.sp else 15.sp,
+                fontWeight = FontWeight.W600,
+            ),
+            color = if (focused) TvGlass.OnPlatter else TvGlass.TextPrimary,
+            maxLines = 1,
         )
     }
 }

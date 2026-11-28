@@ -3,6 +3,7 @@ package com.music.bitchord.ui.player
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.music.bitchord.data.lyrics.LyricLine
+import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackPosition
 
 /**
@@ -18,13 +19,21 @@ fun SyncedLyricsPanel(
     looking: Boolean,
     isPlaying: Boolean,
     onSeekToLine: (Long) -> Unit,
+    /** Romanized or translated copies of [lines], drawn beneath each line. */
+    subLines: List<LyricLine>? = null,
+    /** Optional song for inline chords above synced lyric lines. */
+    chordSong: Song? = null,
+    /** Whether to render mobile-style chord controls above the lyrics list. */
+    showChordControls: Boolean = false,
     /** See [LyricsPanel]'s own: the sung line held mid-panel, not at its top. */
     centerFocus: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     LyricsPanel(
         lines = lines,
+        subLines = subLines,
         trackKey = trackKey,
+        chordSong = chordSong,
         playhead = rememberLyricPlayhead(position),
         looking = looking,
         isPlaying = isPlaying,
@@ -33,6 +42,7 @@ fun SyncedLyricsPanel(
         onRevealControls = {},
         onHideControls = {},
         centerFocus = centerFocus,
+        showChordControls = showChordControls,
         modifier = modifier,
     )
 }

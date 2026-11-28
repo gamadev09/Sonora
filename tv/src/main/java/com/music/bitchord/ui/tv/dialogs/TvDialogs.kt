@@ -129,8 +129,8 @@ fun TvAccountDialog(
     viewModel: MainViewModel,
     onDismiss: () -> Unit,
     onSignOut: () -> Unit = {},
-    /** Offer signing in with a phone (QR). Off goes straight to signing in on the TV. */
-    allowPhoneSignIn: Boolean = false,
+    /** Offer signing in with a phone (QR). On goes straight to QR pairing with a TV fallback. */
+    allowPhoneSignIn: Boolean = true,
 ) {
     val googleAccounts by viewModel.googleAccounts.collectAsState()
     val activeAccountId by viewModel.activeAccountId.collectAsState()
@@ -142,7 +142,7 @@ fun TvAccountDialog(
             if (googleAccounts.isNotEmpty() || signedIn) {
                 AccountDialogMode.Profiles
             } else if (allowPhoneSignIn) {
-                AccountDialogMode.SignInChoose
+                AccountDialogMode.SignInPhone
             } else {
                 AccountDialogMode.SignInTv
             }
@@ -152,8 +152,6 @@ fun TvAccountDialog(
     val backFromSignIn: () -> Unit = {
         if (googleAccounts.isNotEmpty() || signedIn) {
             mode = AccountDialogMode.Profiles
-        } else if (allowPhoneSignIn) {
-            mode = AccountDialogMode.SignInChoose
         } else {
             onDismiss()
         }
@@ -204,7 +202,12 @@ fun TvAccountDialog(
                 onClick = backFromSignIn,
             )
         }
-        AccountDialogMode.SignInPhone -> TvPhoneSignIn(viewModel = viewModel, onBack = backFromSignIn)
+        AccountDialogMode.SignInPhone -> TvPhoneSignIn(
+            viewModel = viewModel,
+            onSignInOnTv = { mode = AccountDialogMode.SignInTv },
+            onPaired = onDismiss,
+            onBack = backFromSignIn,
+        )
         AccountDialogMode.SignInTv -> TvGoogleSignIn(
             viewModel = viewModel,
             onBack = backFromSignIn,
@@ -1025,43 +1028,83 @@ private fun TvPinDialog(
 
 
 
-/** A code for the phone to open; the TV serves a page there that takes the session. */
+/** End-to-end encrypted QR code sign-in from the Sonora phone app (with LAN browser fallback). */
 @Composable
-private fun TvPhoneSignIn(viewModel: MainViewModel, onBack: () -> Unit) {
-    var url by remember { mutableStateOf<String?>(null) }
+private fun TvPhoneSignIn(
+    viewModel: MainViewModel,
+    onSignInOnTv: () -> Unit,
+    onPaired: () -> Unit,
+    onBack: () -> Unit,
+) {
+    var pairingInfo by remember { mutableStateOf<TvAuthServer.EncryptedPairingInfo?>(null) }
+    var refreshTick by remember { mutableIntStateOf(0) }
+    var statusText by remember { mutableStateOf("Waiting for your phone…") }
     val scope = rememberCoroutineScope()
-    DisposableEffect(Unit) {
-        scope.launch {
-            TvAuthServer.start { cookie ->
-                scope.launch(Dispatchers.Main) { viewModel.onSignedIn(cookie) }
-            }?.let { (port, ip) -> url = "http://$ip:$port/" }
+
+    DisposableEffect(refreshTick) {
+        val job = scope.launch {
+            statusText = "Waiting for your phone…"
+            pairingInfo = TvAuthServer.startEncryptedPairing(
+                onSessionPaired = { session ->
+                    scope.launch(Dispatchers.Main) {
+                        statusText = "Signing in…"
+                        viewModel.onWebSession(session, WebSessionMode.SIGN_IN) { ok ->
+                            if (ok) onPaired() else statusText = "Sign-in failed. Try refreshing the code."
+                        }
+                    }
+                },
+                onLegacyCookieReceived = { cookie ->
+                    scope.launch(Dispatchers.Main) {
+                        statusText = "Signing in…"
+                        viewModel.onSignedIn(cookie) { ok ->
+                            if (ok) onPaired() else statusText = "Sign-in failed. Try again."
+                        }
+                    }
+                },
+            )
         }
-        onDispose { TvAuthServer.stop() }
+        onDispose {
+            job.cancel()
+            TvAuthServer.stop()
+        }
     }
 
-    TvDialog(title = "Sign In with Your Phone", width = 576.dp, onDismissRequest = onBack) {
+    TvDialog(title = "Sign In with Your Phone", width = 620.dp, onDismissRequest = onBack) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(29.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(160.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(Color.White),
-                contentAlignment = Alignment.Center,
-            ) {
-                val link = url
-                if (link != null) TvQrCodeView(content = link, size = 147.dp) else TvActivityIndicator(color = Color.Black)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(176.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val qr = pairingInfo?.qrUri
+                    if (qr != null) TvQrCodeView(content = qr, size = 162.dp) else TvActivityIndicator(color = Color.Black)
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = statusText,
+                    style = TvType.Caption,
+                    color = Color(0xFF93C5FD),
+                    textAlign = TextAlign.Center,
+                )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 TvStep(1, "Connect your phone to the same Wi-Fi as this TV.")
-                TvStep(2, "Scan the code, or open ${url ?: "the address shown here"}.")
-                TvStep(3, "Follow the steps on your phone. This TV signs in by itself.")
+                TvStep(2, "Scan this QR code with your phone camera or Sonora Settings → Pair with TV.")
+                TvStep(3, "Confirm on your phone — your session transfers end-to-end encrypted.")
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        TvDialogButton(text = "Back", onClick = onBack, initialFocus = true, modifier = Modifier.width(256.dp))
+        Spacer(modifier = Modifier.height(22.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvDialogButton(text = "Back", onClick = onBack, initialFocus = true, modifier = Modifier.weight(1f))
+            TvDialogButton(text = "Refresh Code", onClick = { refreshTick++ }, modifier = Modifier.weight(1f))
+            TvDialogButton(text = "Sign In on TV", onClick = onSignInOnTv, modifier = Modifier.weight(1f))
+        }
     }
 }
 

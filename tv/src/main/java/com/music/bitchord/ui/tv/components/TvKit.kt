@@ -99,8 +99,8 @@ import kotlin.math.floor
 // Focus
 // ─────────────────────────────────────────────────────────────────────────────
 
-private val LiftSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 420f)
-private val LiftDpSpring = spring<Dp>(dampingRatio = 1f, stiffness = 420f)
+private val LiftScaleAnim = tween<Float>(durationMillis = 135)
+private val LiftDpAnim = tween<Dp>(durationMillis = 110)
 
 /**
  * tvOS focus: the focused element lifts towards the viewer — it grows and casts
@@ -118,6 +118,8 @@ fun Modifier.tvLift(
     val focused by interactionSource.collectIsFocusedAsState()
     val pressed by interactionSource.collectIsPressedAsState()
     val chrome = LocalTvChrome.current
+    val context = LocalContext.current
+    val isWeakTv = remember(context) { com.music.bitchord.ui.tv.TvDeviceCapabilities.profile(context).isWeakTv }
     val requester = remember { FocusRequester() }
     LaunchedEffect(focused) { if (focused) chrome.lastFocused = requester }
     val scale = animateFloatAsState(
@@ -126,12 +128,18 @@ fun Modifier.tvLift(
             focused -> focusedScale
             else -> 1f
         },
-        animationSpec = LiftSpring,
+        animationSpec = LiftScaleAnim,
         label = "tvLiftScale",
     )
+    // Cap dynamic RenderThread shadow blur on low-RAM TV GPUs while keeping the exact lift animation.
+    val targetShadow = when {
+        !focused || pressed -> 0.dp
+        isWeakTv -> minOf(elevation, 6.dp)
+        else -> elevation
+    }
     val shadow = animateDpAsState(
-        targetValue = if (focused && !pressed) elevation else 0.dp,
-        animationSpec = LiftDpSpring,
+        targetValue = targetShadow,
+        animationSpec = LiftDpAnim,
         label = "tvLiftShadow",
     )
     return this
@@ -447,7 +455,7 @@ fun TvLockup(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val shape = if (circle) CircleShape else RoundedCornerShape(10.dp)
-    val captionDrop = animateDpAsState(if (focused) 7.dp else 0.dp, LiftDpSpring, label = "captionDrop")
+    val captionDrop = animateDpAsState(if (focused) 7.dp else 0.dp, LiftDpAnim, label = "captionDrop")
 
     Column(
         // Dp.Unspecified fills the cell it's given — a grid column rather than a shelf slot.

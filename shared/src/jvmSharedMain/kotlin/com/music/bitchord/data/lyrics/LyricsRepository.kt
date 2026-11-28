@@ -94,7 +94,7 @@ object LyricsRepository {
         album: String? = null,
         sources: Set<LyricsSource> = LyricsSource.entries.toSet(),
         order: List<LyricsSource> = LyricsSource.entries,
-        prioritizeSyllableSync: Boolean = false,
+        prioritizeSyllableSync: Boolean = true,
         isrc: String? = null,
         /** Called from the provider job itself, including for lazily-started providers. */
         onSourceStarted: ((LyricsSource) -> Unit)? = null,
@@ -111,9 +111,16 @@ object LyricsRepository {
          */
         onPreliminaryResult: ((Result) -> Unit)? = null,
     ): Result? = coroutineScope {
-        val sequence = (order + LyricsSource.offered)
+        val baseSequence = (order + LyricsSource.offered)
             .distinct()
             .filter { it in sources && !it.hidden }
+        // When word/syllable sync is prioritized, order all word-capable providers
+        // ahead of line-only providers while preserving relative priority within each tier.
+        val sequence = if (prioritizeSyllableSync) {
+            baseSequence.filter { it.wordSynced } + baseSequence.filterNot { it.wordSynced }
+        } else {
+            baseSequence
+        }
 
         // Every source but [SimpMusicLyrics] is asked for a name, and
         // YouTube's is not the name anyone catalogued. Cleaned once, here,
@@ -230,6 +237,7 @@ object LyricsRepository {
 
                     // Early-exit when no pending provider can beat or out-prioritize our current winner.
                     val earlyWinner = findUnbeatableWinner(
+                        sources = eager.map { it.first },
                         completed = completed,
                         results = results,
                         tiers = tiers,
@@ -254,6 +262,7 @@ object LyricsRepository {
     }
 
     private fun findUnbeatableWinner(
+        sources: List<LyricsSource>,
         completed: BooleanArray,
         results: Array<Result?>,
         tiers: Array<LyricsTimingTier>,
@@ -268,13 +277,31 @@ object LyricsRepository {
             }
             return null
         }
-        // When prioritizing syllable sync, the first provider in priority order with
-        // COMPLETE_SYLLABLE is unbeatable once every higher-priority provider has finished.
+        // 1. First provider in priority order with COMPLETE_SYLLABLE is unbeatable once
+        //    every word-capable provider ahead of it has completed.
         for (i in completed.indices) {
-            if (!completed[i]) return null
+            if (!completed[i]) {
+                if (sources[i].wordSynced) break
+                continue
+            }
             if (tiers[i] == LyricsTimingTier.COMPLETE_SYLLABLE) {
                 return results[i]
             }
+        }
+        // 2. Once ALL word-capable providers have finished, if we have a real word-level
+        //    winner (COMPLETE_WORD or PARTIAL_WORD), return immediately without waiting on
+        //    slower line-only providers.
+        val allWordProvidersDone = sources.indices.all { !sources[it].wordSynced || completed[it] }
+        if (allWordProvidersDone) {
+            var best: Result? = null
+            var bestTier = LyricsTimingTier.INVALID
+            for (i in results.indices) {
+                if (tiers[i].rank >= LyricsTimingTier.PARTIAL_WORD.rank && tiers[i].rank > bestTier.rank) {
+                    best = results[i]
+                    bestTier = tiers[i]
+                }
+            }
+            if (best != null) return best
         }
         return null
     }
@@ -421,7 +448,10 @@ object LyricsRepository {
         album: String?,
         sequence: List<LyricsSource>,
     ): BiniLyrics.Hit? {
-        if (LyricsSource.BINI_LYRICS !in sequence) return null
+        val needsIsrc = LyricsSource.BINI_LYRICS in sequence ||
+            LyricsSource.LRC_RED in sequence ||
+            LyricsSource.LYRICS_PLUS in sequence
+        if (!needsIsrc) return null
         val hit = withTimeoutOrNull(IDENTIFY_TIMEOUT_MS) {
             runCatching { BiniLyrics.identify(title, artist, durationMs, album) }.getOrNull()
         }

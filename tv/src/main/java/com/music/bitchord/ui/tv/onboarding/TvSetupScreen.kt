@@ -32,24 +32,35 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.music.bitchord.auth.WebSessionMode
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.TvSettings
 import com.music.bitchord.ui.MainViewModel
+import com.music.bitchord.ui.onSignedIn
 import com.music.bitchord.ui.tv.TvAppMark
+import com.music.bitchord.ui.tv.TvDeviceCapabilities
+import com.music.bitchord.ui.tv.TvWeakHardwareDialog
 import com.music.bitchord.ui.tv.audio.TvSpatialAudioEngine
+import com.music.bitchord.ui.tv.auth.TvAuthServer
+import com.music.bitchord.ui.tv.auth.TvQrCodeView
+import com.music.bitchord.ui.tv.components.TvActivityIndicator
 import com.music.bitchord.ui.tv.components.TvButton
 import com.music.bitchord.ui.tv.components.TvListRow
 import com.music.bitchord.ui.tv.components.tvClick
@@ -62,6 +73,8 @@ import com.music.bitchord.ui.tv.theme.TvGlass
 import com.music.bitchord.ui.tv.theme.TvMidnightPalette
 import com.music.bitchord.ui.tv.theme.TvOledPalette
 import com.music.bitchord.ui.tv.theme.TvType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private enum class SetupStep { Welcome, SignIn, Appearance, Preferences, Done }
 
@@ -109,7 +122,6 @@ fun TvSetupScreen(
                 hero = { TvAppMark(size = 106.dp) },
             ) {
                 TvSetupButton("Continue", initialFocus = true) { step = SetupStep.SignIn }
-                TvSetupButton("Set Up Later") { finish() }
             }
             SetupStep.SignIn -> TvSignInStep(
                 viewModel = viewModel,
@@ -205,52 +217,140 @@ private fun TvSetupButton(text: String, initialFocus: Boolean = false, onClick: 
 private fun TvSignInStep(viewModel: MainViewModel, onContinue: () -> Unit) {
     val signedIn by viewModel.signedIn.collectAsState()
     val account by viewModel.account.collectAsState()
-    var signingIn by remember { mutableStateOf(false) }
+    var showTvWebLogin by remember { mutableStateOf(false) }
+    var pairingInfo by remember { mutableStateOf<TvAuthServer.EncryptedPairingInfo?>(null) }
+    var statusText by remember { mutableStateOf("Waiting for your phone…") }
+    var refreshTick by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
 
-    // Signing in from here moves on by itself once it lands.
     LaunchedEffect(signedIn) {
-        if (signedIn && signingIn) {
-            signingIn = false
+        if (signedIn) {
+            TvAuthServer.stop()
             onContinue()
         }
     }
 
+    DisposableEffect(signedIn, showTvWebLogin, refreshTick) {
+        if (signedIn || showTvWebLogin) {
+            TvAuthServer.stop()
+            onDispose { }
+        } else {
+            val job = scope.launch {
+                statusText = "Waiting for your phone…"
+                pairingInfo = TvAuthServer.startEncryptedPairing(
+                    onSessionPaired = { session ->
+                        scope.launch(Dispatchers.Main) {
+                            statusText = "Signing in…"
+                            viewModel.onWebSession(session, WebSessionMode.SIGN_IN) { ok ->
+                                if (!ok) statusText = "Sign-in failed. Try refreshing the code."
+                            }
+                        }
+                    },
+                    onLegacyCookieReceived = { cookie ->
+                        scope.launch(Dispatchers.Main) {
+                            statusText = "Signing in…"
+                            viewModel.onSignedIn(cookie) { ok ->
+                                if (!ok) statusText = "Sign-in failed. Try again."
+                            }
+                        }
+                    },
+                )
+            }
+            onDispose {
+                job.cancel()
+                TvAuthServer.stop()
+            }
+        }
+    }
+
     TvSetupPage(
-        title = if (signedIn) "Signed In" else "Sign In to YouTube Music",
+        title = if (signedIn) "Signed In" else "Sign In with Your Phone",
         message = if (signedIn) {
             "Sonora will use ${account?.name ?: "your account"}'s library and recommendations."
         } else {
-            "Bring your library, playlists and recommendations. You can also do this later in Settings."
+            "Scan with your phone camera or Sonora Settings → Pair with TV. Encrypted over your Wi-Fi."
         },
-        hero = { TvAppMark(size = 77.dp) },
+        hero = {
+            if (signedIn) {
+                TvAppMark(size = 84.dp)
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(180.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val qr = pairingInfo?.qrUri
+                        if (qr != null) TvQrCodeView(content = qr, size = 166.dp)
+                        else TvActivityIndicator(color = Color.Black)
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = statusText,
+                        style = TvType.Caption,
+                        color = Color(0xFF93C5FD),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        },
     ) {
         if (signedIn) {
             TvSetupButton("Continue", initialFocus = true, onClick = onContinue)
         } else {
-            TvSetupButton("Sign In", initialFocus = true) { signingIn = true }
-            TvSetupButton("Not Now", onClick = onContinue)
+            TvSetupButton("Not Now", initialFocus = true, onClick = onContinue)
+            TvSetupButton("Sign In on TV") { showTvWebLogin = true }
         }
     }
 
-    if (signingIn && !signedIn) {
-        // Phone (QR) sign-in is held back from setup for now; Settings still offers it.
-        TvAccountDialog(viewModel = viewModel, onDismiss = { signingIn = false }, allowPhoneSignIn = false)
+    if (showTvWebLogin && !signedIn) {
+        TvAccountDialog(
+            viewModel = viewModel,
+            onDismiss = { showTvWebLogin = false },
+            allowPhoneSignIn = false,
+        )
     }
 }
 
 @Composable
 private fun TvPreferencesStep(onContinue: () -> Unit) {
+    val context = LocalContext.current
+    val hwProfile = remember(context) { TvDeviceCapabilities.profile(context) }
+
+    // Apply clean TV defaults once on entering setup: all toggles On except Spatial Audio (Off),
+    // and keep heavy DSP features (Automix / Sing) Off until confirmed on weak TVs.
+    LaunchedEffect(hwProfile) {
+        AppSettings.setSyncedLyrics(true)
+        AppSettings.setAnimatedCanvas(true)
+        TvSettings.setTvChordsEnabled(true)
+        TvSettings.setSpatialAudioEnabled(false)
+        TvSpatialAudioEngine.setEnabled(false)
+        if (!hwProfile.isWeakTv) {
+            AppSettings.setSmartFadeEnabled(true)
+            TvSettings.setTvSingEnabled(true)
+        } else {
+            AppSettings.setSmartFadeEnabled(false)
+            TvSettings.setTvSingEnabled(false)
+        }
+    }
+
     val lyrics by AppSettings.syncedLyrics.collectAsState()
     val canvas by AppSettings.animatedCanvas.collectAsState()
+    val chords by TvSettings.tvChordsEnabled.collectAsState()
     val automix by AppSettings.smartFadeEnabled.collectAsState()
+    val sing by TvSettings.tvSingEnabled.collectAsState()
     val spatial by TvSettings.spatialAudioEnabled.collectAsState()
+
+    var weakWarningFeature by remember { mutableStateOf<String?>(null) }
 
     TvSetupPage(
         title = "Listening",
-        message = "Select a row to turn it on or off.",
+        message = "You can toggle lyrics anytime from Now Playing.",
         hero = {
             Column(
-                modifier = Modifier.width(416.dp),
+                modifier = Modifier.width(440.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 TvListRow(
@@ -265,9 +365,31 @@ private fun TvPreferencesStep(onContinue: () -> Unit) {
                     onClick = { AppSettings.setAnimatedCanvas(!canvas) },
                 )
                 TvListRow(
+                    title = "Live Chords",
+                    value = if (chords) "On" else "Off",
+                    onClick = { TvSettings.setTvChordsEnabled(!chords) },
+                )
+                TvListRow(
                     title = "Automix",
                     value = if (automix) "On" else "Off",
-                    onClick = { AppSettings.setSmartFadeEnabled(!automix) },
+                    onClick = {
+                        if (!automix && hwProfile.isWeakTv) {
+                            weakWarningFeature = "Automix"
+                        } else {
+                            AppSettings.setSmartFadeEnabled(!automix)
+                        }
+                    },
+                )
+                TvListRow(
+                    title = "Sing (Vocal Separation)",
+                    value = if (sing) "On" else "Off",
+                    onClick = {
+                        if (!sing && hwProfile.isWeakTv) {
+                            weakWarningFeature = "Sing"
+                        } else {
+                            TvSettings.setTvSingEnabled(!sing)
+                        }
+                    },
                 )
                 TvListRow(
                     title = "Spatial Audio",
@@ -281,6 +403,19 @@ private fun TvPreferencesStep(onContinue: () -> Unit) {
         },
     ) {
         TvSetupButton("Continue", onClick = onContinue)
+    }
+
+    weakWarningFeature?.let { feature ->
+        TvWeakHardwareDialog(
+            featureName = feature,
+            profile = hwProfile,
+            onKeepOff = { weakWarningFeature = null },
+            onEnableAnyway = {
+                if (feature == "Automix") AppSettings.setSmartFadeEnabled(true)
+                else if (feature == "Sing") TvSettings.setTvSingEnabled(true)
+                weakWarningFeature = null
+            },
+        )
     }
 }
 

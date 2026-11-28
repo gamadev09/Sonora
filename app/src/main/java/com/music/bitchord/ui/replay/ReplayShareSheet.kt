@@ -346,7 +346,7 @@ internal suspend fun saveToGallery(
     context: Context,
     bitmap: Bitmap,
     label: String,
-    prefix: String = "bitchord-replay",
+    prefix: String = "sonora-replay",
 ): Boolean = withContext(Dispatchers.IO) {
     val name = "$prefix-${label.replace(' ', '-').lowercase(Locale.ROOT)}.png"
     runCatching {

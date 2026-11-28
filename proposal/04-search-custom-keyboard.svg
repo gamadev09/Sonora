@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#121520"/>
+      <stop offset="100%" stop-color="#07090F"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+
+  <!-- Top Floating Tab Bar -->
+  <rect x="595" y="42" width="730" height="64" rx="32" fill="#FFFFFF" fill-opacity="0.08"/>
+  <text x="678" y="82" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="22" font-weight="600">Home</text>
+  <text x="795" y="82" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="22" font-weight="600">Explore</text>
+  <text x="920" y="82" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="22" font-weight="600">Library</text>
+  <text x="1038" y="82" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="22" font-weight="600">Now Playing</text>
+  <circle cx="1220" cy="74" r="24" fill="#FFFFFF" fill-opacity="0.20"/>
+  <text x="1220" y="81" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" text-anchor="middle">Q</text>
+
+  <!-- Left Pane: Non-IME Query Bar + Custom D-Pad Keyboard -->
+  <rect x="96" y="156" width="760" height="840" rx="30" fill="#FFFFFF" fill-opacity="0.04" stroke="#FFFFFF" stroke-opacity="0.10"/>
+
+  <!-- Query Display Box (NEVER focuses Android Native IME!) -->
+  <rect x="136" y="196" width="680" height="74" rx="20" fill="#0B0E17" stroke="#FFFFFF" stroke-opacity="0.18"/>
+  <text x="172" y="242" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="28" font-weight="600">hotel cali</text>
+  <rect x="303" y="216" width="3" height="34" rx="1.5" fill="#818CF8"/>
+  <text x="780" y="240" fill="#64748B" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16" text-anchor="end">No system keyboard</text>
+
+  <!-- Action Strip: Space, Backspace, Clear, 123 -->
+  <g transform="translate(136, 296)" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="600" text-anchor="middle">
+    <rect x="0" y="0" width="210" height="60" rx="14" fill="#FFFFFF" fill-opacity="0.10"/><text x="105" y="38" fill="#E2E8F0">Space</text>
+    <rect x="224" y="0" width="150" height="60" rx="14" fill="#FFFFFF" fill-opacity="0.10"/><text x="299" y="38" fill="#E2E8F0">Delete</text>
+    <rect x="388" y="0" width="136" height="60" rx="14" fill="#FFFFFF" fill-opacity="0.10"/><text x="456" y="38" fill="#E2E8F0">Clear</text>
+    <rect x="538" y="0" width="142" height="60" rx="14" fill="#4F46E5"/><text x="609" y="38" fill="#FFFFFF">Search</text>
+  </g>
+
+  <!-- 6x6 D-Pad Friendly Letter/Number Grid (a-z + 0-9) -->
+  <g transform="translate(136, 382)" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="28" font-weight="600" text-anchor="middle">
+    <!-- Row 1 -->
+    <rect x="0" y="0" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="51" y="52" fill="#FFFFFF">A</text>
+    <rect x="115" y="0" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="166" y="52" fill="#FFFFFF">B</text>
+    <rect x="230" y="0" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="281" y="52" fill="#FFFFFF">C</text>
+    <rect x="345" y="0" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="396" y="52" fill="#FFFFFF">D</text>
+    <rect x="460" y="0" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="511" y="52" fill="#FFFFFF">E</text>
+    <rect x="575" y="0" width="102" height="84" rx="16" fill="#FFFFFF"/><text x="626" y="52" fill="#0B0E17">F</text>
+    <!-- Row 2 -->
+    <rect x="0" y="96" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="51" y="148" fill="#FFFFFF">G</text>
+    <rect x="115" y="96" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="166" y="148" fill="#FFFFFF">H</text>
+    <rect x="230" y="96" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="281" y="148" fill="#FFFFFF">I</text>
+    <rect x="345" y="96" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="396" y="148" fill="#FFFFFF">J</text>
+    <rect x="460" y="96" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="511" y="148" fill="#FFFFFF">K</text>
+    <rect x="575" y="96" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="626" y="148" fill="#FFFFFF">L</text>
+    <!-- Row 3 -->
+    <rect x="0" y="192" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="51" y="244" fill="#FFFFFF">M</text>
+    <rect x="115" y="192" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="166" y="244" fill="#FFFFFF">N</text>
+    <rect x="230" y="192" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="281" y="244" fill="#FFFFFF">O</text>
+    <rect x="345" y="192" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="396" y="244" fill="#FFFFFF">P</text>
+    <rect x="460" y="192" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="511" y="244" fill="#FFFFFF">Q</text>
+    <rect x="575" y="192" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="626" y="244" fill="#FFFFFF">R</text>
+    <!-- Row 4 -->
+    <rect x="0" y="288" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="51" y="340" fill="#FFFFFF">S</text>
+    <rect x="115" y="288" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="166" y="340" fill="#FFFFFF">T</text>
+    <rect x="230" y="288" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="281" y="340" fill="#FFFFFF">U</text>
+    <rect x="345" y="288" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="396" y="340" fill="#FFFFFF">V</text>
+    <rect x="460" y="288" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="511" y="340" fill="#FFFFFF">W</text>
+    <rect x="575" y="288" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="626" y="340" fill="#FFFFFF">X</text>
+    <!-- Row 5 -->
+    <rect x="0" y="384" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="51" y="436" fill="#FFFFFF">Y</text>
+    <rect x="115" y="384" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="166" y="436" fill="#FFFFFF">Z</text>
+    <rect x="230" y="384" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="281" y="436" fill="#CBD5E1">1</text>
+    <rect x="345" y="384" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="396" y="436" fill="#CBD5E1">2</text>
+    <rect x="460" y="384" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="511" y="436" fill="#CBD5E1">3</text>
+    <rect x="575" y="384" width="102" height="84" rx="16" fill="#FFFFFF" fill-opacity="0.08"/><text x="626" y="436" fill="#CBD5E1">123</text>
+  </g>
+
+  <!-- Right Pane: Live Suggestions & Instant Results -->
+  <text x="910" y="200" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="22" font-weight="600">Suggestions</text>
+  <g transform="translate(910, 224)" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24">
+    <rect x="0" y="0" width="914" height="68" rx="16" fill="#FFFFFF" fill-opacity="0.07"/><text x="28" y="43" fill="#FFFFFF">hotel california eagles</text>
+    <rect x="0" y="80" width="914" height="68" rx="16" fill="#FFFFFF" fill-opacity="0.05"/><text x="28" y="123" fill="#CBD5E1">hotel california acoustic</text>
+    <rect x="0" y="160" width="914" height="68" rx="16" fill="#FFFFFF" fill-opacity="0.05"/><text x="28" y="203" fill="#CBD5E1">hotel california live 1994</text>
+  </g>
+
+  <text x="910" y="516" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="22" font-weight="600">Top Results</text>
+  <g transform="translate(910, 540)" font-family="Segoe UI, Inter, Arial, sans-serif">
+    <rect x="0" y="0" width="914" height="104" rx="20" fill="#FFFFFF" fill-opacity="0.07"/>
+    <rect x="18" y="16" width="72" height="72" rx="12" fill="#7F1D1D"/>
+    <text x="114" y="48" fill="#FFFFFF" font-size="25" font-weight="600">Hotel California (2013 Remaster)</text>
+    <text x="114" y="80" fill="#94A3B8" font-size="20">Eagles · 6:31</text>
+
+    <rect x="0" y="120" width="914" height="104" rx="20" fill="#FFFFFF" fill-opacity="0.05"/>
+    <rect x="18" y="136" width="72" height="72" rx="12" fill="#1E293B"/>
+    <text x="114" y="168" fill="#E2E8F0" font-size="25" font-weight="600">Hotel California (Live on MTV, 1994)</text>
+    <text x="114" y="200" fill="#94A3B8" font-size="20">Eagles · 7:12</text>
+
+    <rect x="0" y="240" width="914" height="104" rx="20" fill="#FFFFFF" fill-opacity="0.05"/>
+    <rect x="18" y="256" width="72" height="72" rx="12" fill="#312E81"/>
+    <text x="114" y="288" fill="#E2E8F0" font-size="25" font-weight="600">Hotel California</text>
+    <text x="114" y="320" fill="#94A3B8" font-size="20">Album · Eagles · 1976</text>
+  </g>
+</svg>

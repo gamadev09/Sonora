@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="meshBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B1219"/>
+      <stop offset="50%" stop-color="#1A1224"/>
+      <stop offset="100%" stop-color="#0A0B12"/>
+    </linearGradient>
+    <radialGradient id="warmGlow" cx="25%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#E11D48" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#0A0B12" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#meshBg)"/>
+  <rect width="1920" height="1080" fill="url(#warmGlow)"/>
+
+  <!-- Left: Album Art -->
+  <rect x="102" y="160" width="480" height="480" rx="24" fill="#7F1D1D" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+  <text x="342" y="390" fill="#FCA5A5" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="38" font-weight="700" text-anchor="middle">EAGLES</text>
+  <text x="342" y="438" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="28" font-weight="500" text-anchor="middle">HOTEL CALIFORNIA</text>
+
+  <!-- Compact Sing (Vocal Level) Pill under Art when Sing is Active -->
+  <rect x="102" y="668" width="480" height="66" rx="20" fill="#FFFFFF" fill-opacity="0.10" stroke="#FFFFFF" stroke-opacity="0.14"/>
+  <text x="134" y="709" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="21" font-weight="600">Sing · Vocals</text>
+  <rect x="292" y="697" width="196" height="8" rx="4" fill="#FFFFFF" fill-opacity="0.22"/>
+  <rect x="292" y="697" width="48" height="8" rx="4" fill="#F472B6"/>
+  <circle cx="340" cy="701" r="11" fill="#FFFFFF"/>
+  <text x="550" y="709" fill="#FBCFE8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="600" text-anchor="end">25%</text>
+
+  <!-- Right: Live Chords Control Bar + Guitar Diagrams + Synced Lyrics -->
+  <g transform="translate(660, 86)">
+    <!-- Instrument Capsule (Inline | Guitar | Piano) + Capo Pill -->
+    <rect x="0" y="0" width="380" height="54" rx="27" fill="#FFFFFF" fill-opacity="0.10"/>
+    <text x="66" y="35" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="600" text-anchor="middle">Inline</text>
+    <rect x="130" y="6" width="120" height="42" rx="21" fill="#FFFFFF"/>
+    <text x="190" y="34" fill="#0B0E17" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="700" text-anchor="middle">Guitar</text>
+    <text x="314" y="35" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="600" text-anchor="middle">Piano</text>
+
+    <rect x="404" y="0" width="176" height="54" rx="27" fill="#FFFFFF" fill-opacity="0.10"/>
+    <text x="492" y="35" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" font-weight="600" text-anchor="middle">-  Capo 2  +</text>
+
+    <!-- Guitar Diagram Cards (Now / Next / Up Next) -->
+    <g transform="translate(0, 74)">
+      <!-- Card 1: Now (Am) -->
+      <rect x="0" y="0" width="210" height="220" rx="20" fill="#F472B6" fill-opacity="0.18" stroke="#F472B6" stroke-opacity="0.55" stroke-width="2"/>
+      <text x="105" y="30" fill="#FBCFE8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16" font-weight="700" text-anchor="middle">NOW</text>
+      <text x="105" y="60" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">Am</text>
+      <!-- Mini Fretboard -->
+      <g transform="translate(45, 76)" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="1.8">
+        <line x1="0" y1="0" x2="120" y2="0" stroke-width="4"/><line x1="0" y1="28" x2="120" y2="28"/><line x1="0" y1="56" x2="120" y2="56"/><line x1="0" y1="84" x2="120" y2="84"/>
+        <line x1="0" y1="0" x2="0" y2="96"/><line x1="24" y1="0" x2="24" y2="96"/><line x1="48" y1="0" x2="48" y2="96"/><line x1="72" y1="0" x2="72" y2="96"/><line x1="96" y1="0" x2="96" y2="96"/><line x1="120" y1="0" x2="120" y2="96"/>
+        <circle cx="96" cy="14" r="7" fill="#F472B6" stroke="none"/><circle cx="48" cy="42" r="7" fill="#F472B6" stroke="none"/><circle cx="72" cy="42" r="7" fill="#F472B6" stroke="none"/>
+      </g>
+      <rect x="30" y="196" width="150" height="5" rx="2.5" fill="#FFFFFF" fill-opacity="0.18"/>
+      <rect x="30" y="196" width="96" height="5" rx="2.5" fill="#F472B6"/>
+
+      <!-- Card 2: Next (E7) -->
+      <rect x="228" y="0" width="210" height="220" rx="20" fill="#FFFFFF" fill-opacity="0.08"/>
+      <text x="333" y="30" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16" font-weight="600" text-anchor="middle">NEXT</text>
+      <text x="333" y="60" fill="#E2E8F0" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">E7</text>
+      <g transform="translate(273, 76)" stroke="#CBD5E1" stroke-opacity="0.55" stroke-width="1.8">
+        <line x1="0" y1="0" x2="120" y2="0" stroke-width="4"/><line x1="0" y1="28" x2="120" y2="28"/><line x1="0" y1="56" x2="120" y2="56"/><line x1="0" y1="84" x2="120" y2="84"/>
+        <line x1="0" y1="0" x2="0" y2="96"/><line x1="24" y1="0" x2="24" y2="96"/><line x1="48" y1="0" x2="48" y2="96"/><line x1="72" y1="0" x2="72" y2="96"/><line x1="96" y1="0" x2="96" y2="96"/><line x1="120" y1="0" x2="120" y2="96"/>
+        <circle cx="72" cy="14" r="7" fill="#E2E8F0" stroke="none"/><circle cx="24" cy="42" r="7" fill="#E2E8F0" stroke="none"/>
+      </g>
+
+      <!-- Card 3: Up Next (G) -->
+      <rect x="456" y="0" width="210" height="220" rx="20" fill="#FFFFFF" fill-opacity="0.06"/>
+      <text x="561" y="30" fill="#94A3B8" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16" font-weight="600" text-anchor="middle">UP NEXT</text>
+      <text x="561" y="60" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">G</text>
+      <g transform="translate(501, 76)" stroke="#CBD5E1" stroke-opacity="0.45" stroke-width="1.8">
+        <line x1="0" y1="0" x2="120" y2="0" stroke-width="4"/><line x1="0" y1="28" x2="120" y2="28"/><line x1="0" y1="56" x2="120" y2="56"/><line x1="0" y1="84" x2="120" y2="84"/>
+        <line x1="0" y1="0" x2="0" y2="96"/><line x1="24" y1="0" x2="24" y2="96"/><line x1="48" y1="0" x2="48" y2="96"/><line x1="72" y1="0" x2="72" y2="96"/><line x1="96" y1="0" x2="96" y2="96"/><line x1="120" y1="0" x2="120" y2="96"/>
+        <circle cx="24" cy="42" r="7" fill="#CBD5E1" stroke="none"/><circle cx="0" cy="70" r="7" fill="#CBD5E1" stroke="none"/><circle cx="120" cy="70" r="7" fill="#CBD5E1" stroke="none"/>
+      </g>
+    </g>
+
+    <!-- Synced Lyrics with Inline Chord Badges -->
+    <g transform="translate(0, 355)" font-family="Segoe UI, Inter, Arial, sans-serif">
+      <text x="0" y="0" fill="#F472B6" font-size="24" font-weight="700">Am</text>
+      <text x="0" y="44" fill="#FFFFFF" font-size="44" font-weight="700">On a dark desert highway,</text>
+
+      <text x="0" y="108" fill="#F472B6" fill-opacity="0.72" font-size="24" font-weight="700">E7</text>
+      <text x="0" y="152" fill="#FFFFFF" fill-opacity="0.45" font-size="42" font-weight="700">cool wind in my hair</text>
+
+      <text x="0" y="216" fill="#F472B6" fill-opacity="0.50" font-size="24" font-weight="700">G</text>
+      <text x="0" y="260" fill="#FFFFFF" fill-opacity="0.30" font-size="42" font-weight="700">Warm smell of colitas</text>
+    </g>
+  </g>
+
+  <!-- Bottom tvOS Transport Bar with New Chords & Sing Buttons -->
+  <rect x="0" y="790" width="1920" height="290" fill="#000000" fill-opacity="0.42"/>
+  <text x="90" y="870" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="36" font-weight="700">Hotel California</text>
+  <text x="90" y="908" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="24">Eagles — Hotel California (2013 Remaster)</text>
+  <rect x="90" y="924" width="142" height="28" rx="7" fill="#FFFFFF" fill-opacity="0.16"/>
+  <text x="161" y="944" fill="#FFFFFF" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="16" font-weight="700" text-anchor="middle">Lossless</text>
+
+  <!-- Right Transport Action Pills -->
+  <g transform="translate(1150, 845)" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="17" font-weight="700" text-anchor="middle">
+    <!-- Favorite -->
+    <circle cx="36" cy="36" r="34" fill="#FFFFFF" fill-opacity="0.12"/><text x="36" y="42" fill="#FFFFFF">★</text>
+    <!-- Sing (Active) -->
+    <circle cx="122" cy="36" r="34" fill="#F472B6" fill-opacity="0.32" stroke="#F472B6"/><text x="122" y="42" fill="#FFFFFF">Sing</text>
+    <!-- Chords (Active) -->
+    <circle cx="208" cy="36" r="34" fill="#FFFFFF"/><text x="208" y="42" fill="#0B0E17">Chords</text>
+    <!-- Lyrics (Active) -->
+    <circle cx="294" cy="36" r="34" fill="#FFFFFF" fill-opacity="0.28"/><text x="294" y="42" fill="#FFFFFF">Lyrics</text>
+    <!-- Automix -->
+    <circle cx="380" cy="36" r="34" fill="#FFFFFF" fill-opacity="0.12"/><text x="380" y="42" fill="#FFFFFF">Mix</text>
+    <!-- Up Next -->
+    <circle cx="466" cy="36" r="34" fill="#FFFFFF" fill-opacity="0.12"/><text x="466" y="42" fill="#FFFFFF">Queue</text>
+    <!-- More -->
+    <circle cx="552" cy="36" r="34" fill="#FFFFFF" fill-opacity="0.12"/><text x="552" y="42" fill="#FFFFFF">•••</text>
+  </g>
+
+  <!-- Scrubber -->
+  <rect x="90" y="984" width="1740" height="10" rx="5" fill="#FFFFFF" fill-opacity="0.24"/>
+  <rect x="90" y="984" width="520" height="10" rx="5" fill="#FFFFFF"/>
+  <circle cx="610" cy="989" r="10" fill="#FFFFFF"/>
+  <text x="90" y="1028" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20">1:54</text>
+  <text x="1830" y="1028" fill="#CBD5E1" font-family="Segoe UI, Inter, Arial, sans-serif" font-size="20" text-anchor="end">-4:37</text>
+</svg>

@@ -484,4 +484,4 @@ private val PREVIEW_BLUR = 10.dp
 
 /** One fill for the sheet's plain controls: the story button, Save and the logo row. */
 private val PlainFill = Color.White.copy(alpha = 0.10f)
-private const val LYRICS_FILE_PREFIX = "bitchord-lyrics"
+private const val LYRICS_FILE_PREFIX = "sonora-lyrics"

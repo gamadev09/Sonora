@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.tv
 
+import android.content.Context
+import android.media.AudioManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -32,12 +34,15 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +59,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -245,7 +251,7 @@ fun TvApp(
                     sessionAuthenticated = true
                     showAccountDialog = false
                 },
-                allowPhoneSignIn = false,
+                allowPhoneSignIn = true,
             )
         }
 
@@ -662,23 +668,33 @@ private fun TvAvatarButton(
     }
 }
 
-/** The BitChord mark, for the few places that show the app itself. */
+/** The Sonora mark, for the few places that show the app itself. */
 @Composable
 fun TvAppMark(modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 96.dp) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(size * 0.225f)
     Box(
         modifier = modifier
             .size(size)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(size * 0.225f))
+            .clip(shape)
             .background(
-                Brush.linearGradient(listOf(Color(0xFFFF5468), Color(0xFFE3173A))),
-            ),
+                Brush.linearGradient(listOf(Color(0xFF131722), Color(0xFF080A10))),
+            )
+            .drawBehind {
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0x3D6366F1), Color(0x1438BDF8), Color.Transparent),
+                        center = Offset(this.size.width * 0.5f, this.size.height * 0.5f),
+                        radius = this.size.width * 0.55f,
+                    ),
+                )
+            },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_logo),
             contentDescription = "Sonora",
-            tint = Color.White,
-            modifier = Modifier.size(size * 0.52f),
+            tint = Color(0xFFF2F7FF),
+            modifier = Modifier.size(size * 0.56f),
         )
     }
 }
