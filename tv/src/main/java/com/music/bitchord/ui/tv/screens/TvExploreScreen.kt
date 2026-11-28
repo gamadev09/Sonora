@@ -166,7 +166,7 @@ private fun TvMoodGrid(
                         )
                         TvRow(
                             items = section.items,
-                            key = { idx, it -> "${section.title}_${it.videoId ?: it.browseId ?: idx}" },
+                            key = { it -> "${section.title}_${it.videoId ?: it.browseId ?: it.title}" },
                         ) { _, item ->
                             TvLockup(
                                 title = item.title,

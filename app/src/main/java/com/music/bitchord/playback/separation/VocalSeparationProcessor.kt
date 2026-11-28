@@ -43,11 +43,7 @@ class VocalSeparationProcessor : FloatAudioProcessor {
         val stemChannels: Int,
         val totalFrames: Long,
         @Volatile var vocalGain: Float = 0.0f,
-        /** Live frame count for progressive streaming; defaults to [totalFrames] for cached stems. */
-        val availableFrames: AtomicLong = AtomicLong(totalFrames),
-    ) {
-        val currentAvailableFrames: Long get() = availableFrames.get()
-    }
+    )
 
     private var outputSampleRate: Int = 0
     private var outputChannels: Int = AudioBlock.DEFAULT_CHANNELS
@@ -165,14 +161,13 @@ class VocalSeparationProcessor : FloatAudioProcessor {
         val fadeSamples = (outputSampleRate * CROSSFADE_MS / 1000).coerceAtLeast(1)
         val fadeStep = 1f / fadeSamples.toFloat()
 
-        val avail = activeCfg.currentAvailableFrames
-        if (firstStemFrame < 0L || firstStemFrame >= avail || bufIoFailed) {
+        if (firstStemFrame < 0L || firstStemFrame >= activeCfg.totalFrames || bufIoFailed) {
             // Beyond stem duration or I/O error: click-free ramp back to original PCM.
             wetMix = (wetMix - fadeStep * frames).coerceAtLeast(0f)
             return
         }
 
-        val clampedLast = minOf(lastNeededStemFrame, avail - 1L)
+        val clampedLast = minOf(lastNeededStemFrame, activeCfg.totalFrames - 1L)
         val expectedGen = desiredGen.get()
         val snapGen = bufGen
         val snapStart = bufStartFrame
@@ -388,9 +383,9 @@ class VocalSeparationProcessor : FloatAudioProcessor {
                 if (needsRebase) {
                     val requestedStart = if (seekSeq != lastHandledSeekSeq) {
                         lastHandledSeekSeq = seekSeq
-                        pendingSeekFrame.coerceIn(0L, (cfg.currentAvailableFrames - 1L).coerceAtLeast(0L))
+                        pendingSeekFrame.coerceIn(0L, (cfg.totalFrames - 1L).coerceAtLeast(0L))
                     } else {
-                        consumerReadFrame.coerceIn(0L, (cfg.currentAvailableFrames - 1L).coerceAtLeast(0L))
+                        consumerReadFrame.coerceIn(0L, (cfg.totalFrames - 1L).coerceAtLeast(0L))
                     }
                     activeGen = gen
                     writeCursorFrame = requestedStart
@@ -413,7 +408,7 @@ class VocalSeparationProcessor : FloatAudioProcessor {
 
                 val bufferedFrames = writeCursorFrame - bufStartFrame
                 val maxFillable = (RING_FRAMES - SAFETY_GAP_FRAMES) - bufferedFrames
-                val remainingInFile = cfg.currentAvailableFrames - writeCursorFrame
+                val remainingInFile = cfg.totalFrames - writeCursorFrame
 
                 if (maxFillable < IO_MIN_FILL_FRAMES || remainingInFile <= 0L) {
                     LockSupport.parkNanos(ACTIVE_PARK_NANOS)

@@ -292,9 +292,6 @@ object VocalSeparationCoordinator : VocalSeparationController {
             }
 
             // 3. Separate in bounded chunks into atomic staging files.
-            // On 64-bit devices, activate progressive streaming as soon as the first chunk flushes!
-            val progressiveEnabled = android.os.Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
-            var streamingConfig: VocalSeparationProcessor.ActiveStemConfig? = null
             _state.value = VocalSeparationUiState.Processing(trackId, 0f)
             val staged = store.beginStaging(cacheKey)
             staging = staged
@@ -305,37 +302,8 @@ object VocalSeparationCoordinator : VocalSeparationController {
                 staging = staged,
                 priority = priority,
                 onProgress = { progress ->
-                    if (currentTrackId == trackId && streamingConfig == null) {
+                    if (currentTrackId == trackId) {
                         _state.value = VocalSeparationUiState.Processing(trackId, progress)
-                    }
-                },
-                onChunkReady = { writtenFrames ->
-                    if (progressiveEnabled && currentTrackId == trackId && writtenFrames > 0L) {
-                        val existing = streamingConfig
-                        if (existing == null) {
-                            val liveCfg = VocalSeparationProcessor.ActiveStemConfig(
-                                key = "$cacheKey:live",
-                                trackId = trackId,
-                                vocalsFile = staged.vocalsPart,
-                                instFile = staged.instPart,
-                                stemSampleRate = StftProcessor.MODEL_SAMPLE_RATE,
-                                stemChannels = 2,
-                                totalFrames = writtenFrames,
-                                vocalGain = DEFAULT_ACTIVE_VOCAL_GAIN,
-                                availableFrames = java.util.concurrent.atomic.AtomicLong(writtenFrames),
-                            )
-                            streamingConfig = liveCfg
-                            for (p in processors) {
-                                p.setActiveConfig(liveCfg)
-                            }
-                            _state.value = VocalSeparationUiState.Active(
-                                trackId = trackId,
-                                vocalGain = DEFAULT_ACTIVE_VOCAL_GAIN,
-                            )
-                            Log.i(TAG, "Progressive Sing activated on chunk 1 ($writtenFrames frames) for $trackId")
-                        } else {
-                            existing.availableFrames.set(writtenFrames)
-                        }
                     }
                 },
             )
