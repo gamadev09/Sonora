@@ -528,8 +528,8 @@ private fun TvMainShell(
                     val baseDensity = androidx.compose.ui.platform.LocalDensity.current
                     val browseDensity = remember(baseDensity) {
                         androidx.compose.ui.unit.Density(
-                            density = baseDensity.density * 1.12f,
-                            fontScale = baseDensity.fontScale * 1.10f,
+                            density = baseDensity.density * 1.20f,
+                            fontScale = baseDensity.fontScale * 1.16f,
                         )
                     }
                     CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides browseDensity) {
